@@ -1,0 +1,14 @@
+# Visual Studio
+.vs/
+x64/
+Win32/
+Debug/
+Release/
+*.user
+*.aps
+*.pch
+*.obj
+*.tlog
+*.idb
+*.pdb
+*.ipch
