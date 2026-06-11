@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#FF6B1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ZONA VIP">
+  <link rel="apple-touch-icon" href="/assets/logo.png">
+  <title>Admin — ZONA VIP GYM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=11" />
+  <style>
+    .admin-badge { background: var(--orange); color: var(--white); padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-left: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="logo logo--light" href="admin.html">
+          <img class="logo-img" src="assets/logo.png" alt="ZONA VIP GYM">
+        
+      </a>
+      <ul class="sidebar__nav">
+        <li><a class="is-active" data-tab="dashboard">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          <span>Dashboard</span><span class="mobile-label">Inicio</span>
+        </a></li>
+        <li><a data-tab="matriculas">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <span>Socios</span><span class="mobile-label">Socios</span>
+        </a></li>
+        <li><a data-tab="clases">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Clases EX LOCAL</span><span class="mobile-label">Clases</span>
+        </a></li>
+        <li><a data-tab="finanzas">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Finanzas</span><span class="mobile-label">$$$</span>
+        </a></li>
+      </ul>
+      <div class="sidebar__user">
+        <div class="sidebar__avatar" style="background:var(--orange);">A</div>
+        <div class="sidebar__user-info">
+          <div class="sidebar__user-name">Admin</div>
+          <div class="sidebar__user-plan">Administrador</div>
+        </div>
+        <button class="sidebar__logout" id="btn-logout" title="Cerrar sesión">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <!-- DASHBOARD -->
+      <section class="admin-section" id="tab-dashboard">
+        <div class="page-head">
+          <div>
+            <h1>Dashboard <span class="admin-badge">Admin</span></h1>
+            <p>Resumen general del negocio.</p>
+          </div>
+        </div>
+        <div class="cards-row">
+          <div class="stat-card">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+            <div class="stat-card__label">Socios activos</div>
+            <div class="stat-card__value" id="kpi-usuarios">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+            <div class="stat-card__label">Clases activas</div>
+            <div class="stat-card__value" id="kpi-clases">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+            <div class="stat-card__label">Reservas hoy</div>
+            <div class="stat-card__value" id="kpi-reservas">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <div class="stat-card__label">Ingresos del mes</div>
+            <div class="stat-card__value" id="kpi-ingresos">S/ 0</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head">
+            <h3>Reservas recientes</h3>
+            <button class="btn btn-outline btn-sm" onclick="switchTab('reservas')">Ver todas</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th><th>Usuario</th><th>Clase</th><th>Instructor</th><th>Fecha/Hora</th><th>Lugares</th><th>Monto</th><th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="dash-reservas-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="cards-row" style="grid-template-columns:1fr 1fr;">
+          <div class="panel">
+            <div class="panel__head"><h3>Distribución de planes</h3></div>
+            <div id="planes-chart"></div>
+          </div>
+          <div class="panel">
+            <div class="panel__head"><h3>Clases más solicitadas</h3></div>
+            <div id="clases-chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CLASES -->
+      <section class="admin-section" id="tab-clases" hidden>
+        <div class="page-head">
+          <div><h1>Clases EX LOCAL <span class="admin-badge">Admin</span></h1><p>Gestiona la cartelera de clases.</p></div>
+          <button class="btn btn-primary" onclick="openModalNuevaClase()">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nueva clase
+          </button>
+        </div>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>ID</th><th>Título</th><th>Instructor</th><th>Fecha</th><th>Hora</th><th>Cupos</th><th>Precio</th><th>Acciones</th></tr>
+              </thead>
+              <tbody id="clases-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- MATRÍCULAS / SOCIOS -->
+      <section class="admin-section" id="tab-matriculas" hidden>
+        <div class="page-head">
+          <div><h1>Matrículas y socios <span class="admin-badge">Admin</span></h1><p>Registro de socios. Pueden ser pagos en persona o por Yape. Verde = activa · Rojo = vencida. Cada pago queda guardado para siempre en el historial de ingresos.</p></div>
+          <button class="btn btn-primary" onclick="openModalNuevaMatricula()">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Registrar pago
+          </button>
+        </div>
+        <div class="cards-row" style="grid-template-columns:repeat(3,1fr);">
+          <div class="stat-card" style="border-left:4px solid var(--green);">
+            <div class="stat-card__label">Socios activos</div>
+            <div class="stat-card__value" id="mat-activos">0</div>
+            <div class="stat-card__trend" style="color:var(--green);">Membresía vigente</div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid var(--red);">
+            <div class="stat-card__label">Vencidos</div>
+            <div class="stat-card__value" id="mat-vencidos">0</div>
+            <div class="stat-card__trend" style="color:var(--red);">Necesitan renovar</div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid var(--orange);">
+            <div class="stat-card__label">Vencen pronto (7d)</div>
+            <div class="stat-card__value" id="mat-pronto">0</div>
+            <div class="stat-card__trend" style="color:var(--orange);">Avisar al socio</div>
+          </div>
+        </div>
+        <div class="admin-toolbar">
+          <div class="search-input">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="text" id="search-matriculas" placeholder="Buscar por nombre, DNI o teléfono..." />
+          </div>
+          <select id="filter-estado" class="search-input" style="padding:0.5rem 1rem;border-radius:999px;">
+            <option value="todos">Todos los estados</option>
+            <option value="activa">Activas</option>
+            <option value="vencida">Vencidas</option>
+            <option value="pronto">Vencen pronto (7d)</option>
+          </select>
+        </div>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th><th>Teléfono</th><th>Concepto</th><th>Monto</th><th>Método</th><th>Pagó</th><th>Vence</th><th>Estado</th><th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="matriculas-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- FINANZAS -->
+      <section class="admin-section" id="tab-finanzas" hidden>
+        <div class="page-head">
+          <div><h1>Finanzas <span class="admin-badge">Admin</span></h1><p>Reportes automáticos. Solo cuenta pagos aprobados. Las reservas rechazadas NO suman.</p></div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-outline" id="btn-actualizar-fin">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Actualizar
+            </button>
+            <button class="btn btn-primary" id="btn-exportar-fin">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Exportar CSV
+            </button>
+            <button class="btn btn-outline" id="btn-respaldo" title="Descarga una copia completa de todos los datos del sistema">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+              Respaldo
+            </button>
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="cards-row" style="grid-template-columns:repeat(5,1fr);">
+          <div class="stat-card"><div class="stat-card__label">Hoy</div><div class="stat-card__value text-orange" id="fin-hoy">S/ 0</div><div class="stat-card__trend" id="fin-hoy-cnt">0 ventas</div></div>
+          <div class="stat-card"><div class="stat-card__label">Esta semana</div><div class="stat-card__value text-orange" id="fin-semana">S/ 0</div><div class="stat-card__trend" id="fin-semana-cnt">0 ventas</div></div>
+          <div class="stat-card" style="border:2px solid var(--orange);"><div class="stat-card__label">QUINCENA actual</div><div class="stat-card__value text-orange" id="fin-quincena">S/ 0</div><div class="stat-card__trend" id="fin-quincena-cnt">0 ventas</div></div>
+          <div class="stat-card"><div class="stat-card__label">Este mes</div><div class="stat-card__value text-orange" id="fin-mes">S/ 0</div><div class="stat-card__trend" id="fin-mes-cnt">0 ventas</div></div>
+          <div class="stat-card"><div class="stat-card__label">Este año</div><div class="stat-card__value text-orange" id="fin-anio">S/ 0</div><div class="stat-card__trend" id="fin-anio-cnt">0 ventas</div></div>
+        </div>
+
+        <div class="cards-row" style="grid-template-columns:2fr 1fr;">
+          <div class="panel">
+            <div class="panel__head"><h3>Ingresos del mes — Desglose</h3></div>
+            <div style="padding:1rem;">
+              <div style="margin-bottom:1.5rem;">
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:0.3rem;">
+                  <strong>Matrículas (presenciales)</strong>
+                  <span class="text-orange" id="desg-matriculas">S/ 0</span>
+                </div>
+                <div style="height:14px;background:var(--gray-soft);border-radius:7px;overflow:hidden;">
+                  <div id="desg-mat-bar" style="width:0%;height:100%;background:var(--orange);transition:width 0.6s;"></div>
+                </div>
+                <small id="desg-mat-cnt" style="color:var(--gray-mid);">0 pagos registrados</small>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:0.3rem;">
+                  <strong>Reservas online (Yape web)</strong>
+                  <span class="text-orange" id="desg-online">S/ 0</span>
+                </div>
+                <div style="height:14px;background:var(--gray-soft);border-radius:7px;overflow:hidden;">
+                  <div id="desg-on-bar" style="width:0%;height:100%;background:var(--gray-dark);transition:width 0.6s;"></div>
+                </div>
+                <small id="desg-on-cnt" style="color:var(--gray-mid);">0 pagos registrados</small>
+              </div>
+
+              <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--line);" />
+
+              <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;">
+                <span>Total mes</span>
+                <span class="text-orange" id="desg-total" style="font-family:var(--font-display);font-size:1.8rem;">S/ 0</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel__head"><h3>Por método de pago</h3></div>
+            <div id="metodos-pago" style="padding:1rem;">
+              <p style="color:var(--gray-mid);font-size:0.85rem;">Cargando...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head">
+            <h3>🧮 Calculadora de ingresos extras</h3>
+            <button class="btn btn-primary btn-sm" onclick="openModalExtra()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              Agregar ingreso
+            </button>
+          </div>
+          <p style="padding:0 1rem;color:var(--gray-mid);font-size:0.85rem;margin:0;">Registra aquí lo que vendes además de matrículas: agua, ropa, proteína, suplementos, etc. Se suma automáticamente al total del mes.</p>
+          <div class="cards-row" style="grid-template-columns:repeat(4,1fr);padding:1rem;">
+            <div class="extra-cat-card" style="background:linear-gradient(135deg,#FF6B1A 0%,#E55A0F 100%);color:white;padding:1rem;border-radius:var(--r-sm);">
+              <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;opacity:0.85;">Total extras mes</div>
+              <div style="font-family:var(--font-display);font-size:1.8rem;" id="extras-total-mes">S/ 0</div>
+              <div style="font-size:0.78rem;opacity:0.9;" id="extras-count-mes">0 ventas</div>
+            </div>
+            <div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
+              <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">Aguas/Bebidas</div>
+              <div style="font-family:var(--font-display);font-size:1.5rem;" id="extras-aguas">S/ 0</div>
+            </div>
+            <div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
+              <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">Suplementos</div>
+              <div style="font-family:var(--font-display);font-size:1.5rem;" id="extras-suplementos">S/ 0</div>
+            </div>
+            <div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
+              <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">Ropa</div>
+              <div style="font-family:var(--font-display);font-size:1.5rem;" id="extras-ropa">S/ 0</div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th>Método</th><th>Acción</th></tr>
+              </thead>
+              <tbody id="extras-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head">
+            <h3>💡 ¿Cuánto puedo ganar este mes?</h3>
+          </div>
+          <div style="padding:1rem;display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+            <div style="padding:1rem;background:var(--gray-soft);border-radius:var(--r-sm);">
+              <div style="font-size:0.78rem;color:var(--gray-mid);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.4rem;">Proyección si renuevan TODOS</div>
+              <div style="font-family:var(--font-display);font-size:1.6rem;color:var(--green);" id="proj-buena">S/ 0</div>
+            </div>
+            <div style="padding:1rem;background:var(--gray-soft);border-radius:var(--r-sm);">
+              <div style="font-size:0.78rem;color:var(--gray-mid);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.4rem;">Proyección actual</div>
+              <div style="font-family:var(--font-display);font-size:1.6rem;color:var(--orange);" id="proj-actual">S/ 0</div>
+            </div>
+            <div style="padding:1rem;background:var(--gray-soft);border-radius:var(--r-sm);">
+              <div style="font-size:0.78rem;color:var(--gray-mid);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.4rem;">Promedio diario</div>
+              <div style="font-family:var(--font-display);font-size:1.6rem;color:var(--gray-dark);" id="proj-diario">S/ 0</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  </div>
+
+  <!-- MODAL NUEVA CLASE -->
+  <div class="modal" id="modal-clase-new" hidden>
+    <div class="modal__card">
+      <button class="modal__close" onclick="closeModal('modal-clase-new')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2>Nueva clase EX LOCAL</h2>
+      <form id="form-nueva-clase" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="field"><label>Título</label><input name="titulo" placeholder="EX LOCAL DANCE" required /></div>
+        <div class="field"><label>Instructor</label><input name="instructor" placeholder="Nombre del coreógrafo" required /></div>
+        <div class="field-row">
+          <div class="field"><label>Fecha</label><input type="date" name="fecha" required /></div>
+          <div class="field"><label>Hora</label><input type="time" name="hora" required /></div>
+        </div>
+        <div class="field"><label>Descripción</label><textarea name="descripcion" rows="3" placeholder="Breve descripción de la clase"></textarea></div>
+        <div class="field">
+          <label>URL de imagen (flyer)</label>
+          <input name="imagen" placeholder="https://..." />
+          <span class="help-text">Pega aquí el link de la foto del flyer o del instructor.</span>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Cupos</label><input type="number" name="capacidad" value="80" min="1" /></div>
+          <div class="field"><label>Precio por lugar (S/)</label><input type="number" name="precio" value="15" min="0" step="0.10" /></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Crear clase</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL NUEVA VENTA EXTRA -->
+  <div class="modal" id="modal-extra" hidden>
+    <div class="modal__card">
+      <button class="modal__close" onclick="closeModal('modal-extra')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2>Agregar ingreso extra</h2>
+      <p style="color:var(--gray-mid);font-size:0.85rem;margin-bottom:1rem;">Productos que se venden además de matrículas. Suma automáticamente a las finanzas.</p>
+      <form id="form-nuevo-extra" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="field">
+          <label>Categoría *</label>
+          <select name="categoria" required>
+            <option value="">Selecciona...</option>
+            <option value="Aguas/Bebidas">💧 Aguas / Bebidas</option>
+            <option value="Energizantes">⚡ Energizantes</option>
+            <option value="Suplementos">💊 Suplementos / Vitaminas</option>
+            <option value="Proteína">🥤 Proteína</option>
+            <option value="Creatina">💪 Creatina</option>
+            <option value="Ropa">👕 Ropa deportiva</option>
+            <option value="Toallas">🧖 Toallas / Accesorios</option>
+            <option value="Otros">📦 Otros</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Descripción (opcional)</label>
+          <input name="descripcion" placeholder="Ej: Agua 600ml · Polo talla M · etc." />
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Monto (S/) *</label><input type="number" name="monto" min="0" step="0.10" placeholder="3.50" required /></div>
+          <div class="field"><label>Método</label>
+            <select name="metodo">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Yape">Yape</option>
+              <option value="Plin">Plin</option>
+              <option value="Tarjeta">Tarjeta</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Fecha *</label><input type="date" name="fecha" required /></div>
+        <div class="field"><label>Notas (opcional)</label><textarea name="notas" rows="2" placeholder="Cualquier observación"></textarea></div>
+        <button type="submit" class="btn btn-primary btn-block">Registrar ingreso</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL NUEVA MATRÍCULA -->
+  <div class="modal" id="modal-matricula" hidden>
+    <div class="modal__card">
+      <button class="modal__close" onclick="closeModal('modal-matricula')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2>Registrar pago de socio</h2>
+      <p style="color:var(--gray-mid);font-size:0.85rem;margin-bottom:1rem;">Para pagos en efectivo, Yape o cualquier método. Se cuenta automáticamente en finanzas.</p>
+      <form id="form-nueva-matricula" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="field"><label>Nombre completo del socio *</label><input name="nombre" placeholder="Ej: Juan Pérez Castillo" required /></div>
+        <div class="field-row">
+          <div class="field"><label>Teléfono</label><input name="telefono" placeholder="987654321" /></div>
+          <div class="field"><label>DNI</label><input name="dni" maxlength="8" placeholder="70123456" /></div>
+        </div>
+        <div class="field">
+          <label>Concepto *</label>
+          <select name="concepto" required onchange="autocompletarMonto(this.value)">
+            <option value="">Selecciona...</option>
+            <option value="Matrícula mensual">Matrícula mensual (S/ 80 — 30 días)</option>
+            <option value="Matrícula quincenal">Matrícula quincenal (S/ 50 — 15 días)</option>
+            <option value="Matrícula semanal">Matrícula semanal (S/ 25 — 7 días)</option>
+            <option value="Pase EX LOCAL">Pase EX LOCAL (S/ 15 — 1 clase)</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Monto pagado (S/) *</label>
+            <input type="number" name="monto" min="0" step="0.10" placeholder="80" required />
+          </div>
+          <div class="field">
+            <label>Método de pago *</label>
+            <select name="metodo" required>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Yape">Yape</option>
+              <option value="Plin">Plin</option>
+              <option value="Transferencia">Transferencia</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Fecha de pago *</label><input type="date" name="fecha_pago" required /></div>
+          <div class="field"><label>Vence *</label><input type="date" name="fecha_vence" required /></div>
+        </div>
+        <div class="field"><label>Notas (opcional)</label><textarea name="notas" rows="2" placeholder="Cualquier observación"></textarea></div>
+        <button type="submit" class="btn btn-primary btn-block">Registrar pago</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL RENOVAR -->
+  <div class="modal" id="modal-renovar" hidden>
+    <div class="modal__card">
+      <button class="modal__close" onclick="closeModal('modal-renovar')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2>Renovar membresía</h2>
+      <p style="color:var(--gray-mid);font-size:0.85rem;margin-bottom:1rem;">Socio: <strong id="renovar-nombre">—</strong></p>
+      <form id="form-renovar" style="display:flex;flex-direction:column;gap:1rem;">
+        <input type="hidden" name="id" />
+        <div class="field">
+          <label>Renovar por *</label>
+          <select name="dias" required onchange="renovarMontoAuto(this.value)">
+            <option value="7">7 días (semanal) — S/ 25</option>
+            <option value="15">15 días (quincenal) — S/ 50</option>
+            <option value="30" selected>30 días (mensual) — S/ 80</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Monto cobrado *</label><input type="number" name="monto" min="0" step="0.10" value="80" required /></div>
+          <div class="field"><label>Método</label>
+            <select name="metodo">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Yape">Yape</option>
+              <option value="Plin">Plin</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Renovar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="app.js?v=6"></script>
+  <script src="admin.js?v=6"></script>
+</body>
+</html>

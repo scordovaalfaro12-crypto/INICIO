@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#FF6B1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ZONA VIP">
+  <link rel="apple-touch-icon" href="/assets/logo.png">
+  <title>Acceso — ZONA VIP GYM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=11" />
+  <style>
+    body { background: linear-gradient(135deg, #2B2B2B 0%, #1a1a1a 100%); min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
+    .login-card-internal {
+      background: white;
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .login-card-internal .logo { justify-content: center; margin-bottom: 1.5rem; }
+    .login-card-internal .logo img { height: 100px; max-width: 220px; }
+    .internal-badge {
+      display: inline-block;
+      background: #FF6B1A; color: white;
+      padding: 0.3rem 0.8rem; border-radius: 999px;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-card-internal">
+    <a class="logo" href="#" style="pointer-events:none;">
+      <img class="logo-img" src="assets/logo.png" alt="ZONA VIP GYM">
+    </a>
+    <div style="text-align:center;">
+      <div class="internal-badge">SISTEMA INTERNO</div>
+      <h1 style="font-family:'Bebas Neue';font-size:1.8rem;letter-spacing:0.04em;color:#2B2B2B;margin-bottom:0.3rem;">Panel de gestión</h1>
+      <p style="color:#888;font-size:0.85rem;margin-bottom:1.5rem;">Acceso exclusivo del personal autorizado</p>
+    </div>
+
+    <form id="form-login" novalidate style="display:flex;flex-direction:column;gap:1rem;">
+      <div class="field">
+        <label>Usuario</label>
+        <input type="email" name="email" value="admin@zonavip.com" required autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password" />
+      </div>
+      <button class="btn btn-primary btn-block btn-lg" type="submit">Ingresar</button>
+    </form>
+
+    <p style="text-align:center;color:#aaa;font-size:0.75rem;margin-top:1.5rem;">
+      ZONA VIP GYM · Rosa Luz, Puente Piedra<br>
+      Sistema de uso interno · No compartir credenciales
+    </p>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="app.js?v=6"></script>
+  <script>
+    // Registrar Service Worker para instalar como app
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    }
+  </script>
+  <script>
+    document.getElementById('form-login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        const res = await api.login(fd.get('email').trim().toLowerCase(), fd.get('password'));
+        if (res.error) { showToast(res.error, 'error'); return; }
+        if (res.user.role !== 'admin') {
+          showToast('Solo personal autorizado puede ingresar', 'error');
+          return;
+        }
+        setToken(res.token);
+        showToast('Bienvenido ' + res.user.firstname);
+        setTimeout(() => window.location.href = 'admin.html', 600);
+      } catch (err) {
+        showToast('No se pudo conectar. ¿Está corriendo el sistema?', 'error');
+      }
+    });
+  </script>
+</body>
+</html>
