@@ -96,6 +96,17 @@ const api = {
 
   deleteExtra: (id) => authFetch(`${API_BASE}/extras/${id}`, { method: 'DELETE' }),
 
+  // === CATÁLOGO (precios, promos y categorías) ===
+  getCatalogo: () => authFetch(`${API_BASE}/catalogo`),
+
+  createCatalogoOption: (data) => authFetch(`${API_BASE}/catalogo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }),
+
+  deleteCatalogoOption: (id) => authFetch(`${API_BASE}/catalogo/${id}`, { method: 'DELETE' }),
+
   // === RESPALDO ===
   descargarBackup: async () => {
     const res = await fetch(`${API_BASE}/backup`, {

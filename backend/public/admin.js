@@ -10,11 +10,140 @@
 
 function initAdmin() {
   setupAdminNav();
+  cargarCatalogo();
   renderDashboard();
   renderClases();
   renderMatriculas();
   renderFinanzas();
   renderExtras();
+}
+
+// ============ CATÁLOGO (precios, promos y categorías) ============
+// El admin define sus propias opciones en la pestaña "Precios y promos";
+// aquí se cargan y se inyectan en los formularios de pago/renovación/venta.
+const CATALOGO = { matricula: [], extra: [] };
+
+async function cargarCatalogo() {
+  try {
+    const rows = await api.getCatalogo();
+    if (Array.isArray(rows)) {
+      CATALOGO.matricula = rows.filter(r => r.tipo === 'matricula');
+      CATALOGO.extra = rows.filter(r => r.tipo === 'extra');
+    }
+  } catch (e) {}
+  poblarSelectsCatalogo();
+  renderPrecios();
+}
+
+function poblarSelectsCatalogo() {
+  const selMat = document.getElementById('select-concepto-matricula');
+  if (selMat) {
+    const actual = selMat.value;
+    selMat.innerHTML = '<option value="">Selecciona...</option>' +
+      CATALOGO.matricula.map(o =>
+        `<option value="${esc(o.nombre)}">${esc(o.nombre)} (S/ ${formatPrice(o.precio)} — ${o.dias} día${o.dias === 1 ? '' : 's'})</option>`
+      ).join('') +
+      '<option value="Otro">Otro</option>';
+    if (actual) selMat.value = actual;
+  }
+
+  const selPlan = document.getElementById('select-plan-renovar');
+  if (selPlan) {
+    selPlan.innerHTML = '<option value="">Personalizado</option>' +
+      CATALOGO.matricula.map(o =>
+        `<option value="${o.id}">${esc(o.nombre)} — S/ ${formatPrice(o.precio)} (${o.dias}d)</option>`
+      ).join('');
+  }
+
+  const selCat = document.getElementById('select-categoria-extra');
+  if (selCat) {
+    const actual = selCat.value;
+    const tieneOtros = CATALOGO.extra.some(o => o.nombre === 'Otros');
+    selCat.innerHTML = '<option value="">Selecciona...</option>' +
+      CATALOGO.extra.map(o =>
+        `<option value="${esc(o.nombre)}">${esc(o.nombre)}${(o.precio || o.precio === 0) ? ` (S/ ${formatPrice(o.precio)})` : ''}</option>`
+      ).join('') +
+      (tieneOtros ? '' : '<option value="Otros">Otros</option>');
+    if (actual) selCat.value = actual;
+  }
+}
+
+function renderPrecios() {
+  const planesBody = document.getElementById('planes-precios-body');
+  if (planesBody) {
+    planesBody.innerHTML = CATALOGO.matricula.length === 0
+      ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin planes todavía. Agrega el primero arriba.</td></tr>'
+      : CATALOGO.matricula.map(o => `
+          <tr>
+            <td><strong>${esc(o.nombre)}</strong></td>
+            <td><strong>S/ ${formatPrice(o.precio)}</strong></td>
+            <td>${o.dias} día${o.dias === 1 ? '' : 's'}</td>
+            <td><button class="link-orange" style="color:var(--red);" data-del-opcion="${o.id}">Quitar</button></td>
+          </tr>
+        `).join('');
+  }
+
+  const catsBody = document.getElementById('categorias-precios-body');
+  if (catsBody) {
+    catsBody.innerHTML = CATALOGO.extra.length === 0
+      ? '<tr><td colspan="3" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin categorías todavía. Agrega la primera arriba.</td></tr>'
+      : CATALOGO.extra.map(o => `
+          <tr>
+            <td><strong>${esc(o.nombre)}</strong></td>
+            <td>${(o.precio || o.precio === 0) ? 'S/ ' + formatPrice(o.precio) : '—'}</td>
+            <td><button class="link-orange" style="color:var(--red);" data-del-opcion="${o.id}">Quitar</button></td>
+          </tr>
+        `).join('');
+  }
+
+  document.querySelectorAll('#tab-precios [data-del-opcion]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Quitar esta opción?\n\nLos pagos ya registrados con ella NO se borran ni cambian; solo deja de aparecer para pagos nuevos.')) return;
+      const r = await api.deleteCatalogoOption(parseInt(btn.dataset.delOpcion));
+      if (r.error) { showToast(r.error, 'error'); return; }
+      showToast('Opción quitada');
+      cargarCatalogo();
+    });
+  });
+}
+
+const formPlan = document.getElementById('form-nuevo-plan');
+if (formPlan) {
+  formPlan.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const res = await api.createCatalogoOption({
+        tipo: 'matricula',
+        nombre: fd.get('nombre'),
+        precio: fd.get('precio'),
+        dias: parseInt(fd.get('dias'))
+      });
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast('Plan agregado · ya aparece al registrar pagos y renovar');
+      e.target.reset();
+      cargarCatalogo();
+    });
+  });
+}
+
+const formCategoria = document.getElementById('form-nueva-categoria');
+if (formCategoria) {
+  formCategoria.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const res = await api.createCatalogoOption({
+        tipo: 'extra',
+        nombre: fd.get('nombre'),
+        precio: fd.get('precio') || null
+      });
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast('Categoría agregada · ya aparece al registrar ventas');
+      e.target.reset();
+      cargarCatalogo();
+    });
+  });
 }
 
 function setupAdminNav() {
@@ -265,13 +394,16 @@ function openModalNuevaMatricula() {
 
 function autocompletarMonto(concepto) {
   const form = document.getElementById('form-nueva-matricula');
-  const map = {
-    'Matrícula mensual': [80, 30], 'Matrícula quincenal': [50, 15],
-    'Matrícula semanal': [25, 7], 'Pase EX LOCAL': [15, 1]
-  };
-  if (map[concepto]) {
-    form.querySelector('[name=monto]').value = map[concepto][0];
-    form.querySelector('[name=fecha_vence]').value = addDiasISO(hoyISO(), map[concepto][1]);
+  if (!form) return;
+  const op = CATALOGO.matricula.find(o => o.nombre === concepto);
+  if (!op) return; // "Otro": el admin escribe monto y vencimiento a mano
+  if (op.precio !== null && op.precio !== undefined) {
+    form.querySelector('[name=monto]').value = op.precio;
+  }
+  if (op.dias) {
+    // La duración se cuenta desde la fecha de pago elegida (sirve para registrar con fecha pasada)
+    const base = form.querySelector('[name=fecha_pago]').value || hoyISO();
+    form.querySelector('[name=fecha_vence]').value = addDiasISO(base, op.dias);
   }
 }
 
@@ -299,12 +431,29 @@ function abrirRenovar(id, nombre) {
   form.querySelector('[name=id]').value = id;
   form.querySelector('[name=dias]').value = '30';
   form.querySelector('[name=monto]').value = '80';
+  const sel = document.getElementById('select-plan-renovar');
+  if (sel) sel.value = '';
   document.getElementById('modal-renovar').hidden = false;
 }
 
-function renovarMontoAuto(dias) {
-  const map = { '7': 25, '15': 50, '30': 80 };
-  document.getElementById('form-renovar').querySelector('[name=monto]').value = map[dias] || 80;
+// Al elegir un plan del catálogo se llenan días y monto (siempre editables).
+function aplicarPlanRenovacion(idOpcion) {
+  const form = document.getElementById('form-renovar');
+  if (!form) return;
+  const op = CATALOGO.matricula.find(o => String(o.id) === String(idOpcion));
+  if (!op) return; // "Personalizado": se respetan los valores escritos
+  form.querySelector('[name=dias]').value = op.dias;
+  form.querySelector('[name=monto]').value = op.precio;
+}
+
+// Si la categoría tiene precio sugerido, se autocompleta el monto de la venta.
+function autocompletarPrecioExtra(categoria) {
+  const form = document.getElementById('form-nuevo-extra');
+  if (!form) return;
+  const op = CATALOGO.extra.find(o => o.nombre === categoria);
+  if (op && op.precio !== null && op.precio !== undefined) {
+    form.querySelector('[name=monto]').value = op.precio;
+  }
 }
 
 const formRen = document.getElementById('form-renovar');
@@ -423,11 +572,25 @@ async function renderExtras() {
   setVal('extras-total-mes', 'S/ ' + Math.round(totalMes).toLocaleString('es-PE'));
   setVal('extras-count-mes', `${extrasMes.length} ventas`);
 
+  // Tarjetas dinámicas: las 3 categorías que más vendieron este mes,
+  // sean cuales sean las que el admin haya creado.
   const porCat = {};
   extrasMes.forEach(e => { porCat[e.categoria] = (porCat[e.categoria] || 0) + e.monto; });
-  setVal('extras-aguas', 'S/ ' + Math.round((porCat['Aguas/Bebidas'] || 0) + (porCat['Energizantes'] || 0)).toLocaleString('es-PE'));
-  setVal('extras-suplementos', 'S/ ' + Math.round((porCat['Suplementos'] || 0) + (porCat['Proteína'] || 0) + (porCat['Creatina'] || 0)).toLocaleString('es-PE'));
-  setVal('extras-ropa', 'S/ ' + Math.round((porCat['Ropa'] || 0) + (porCat['Toallas'] || 0)).toLocaleString('es-PE'));
+  const topEl = document.getElementById('extras-top-cats');
+  if (topEl) {
+    const top = Object.entries(porCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    topEl.innerHTML = top.length === 0
+      ? `<div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
+           <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">Sin ventas este mes</div>
+           <div style="font-family:var(--font-display);font-size:1.5rem;">S/ 0</div>
+         </div>`
+      : top.map(([cat, total]) => `
+          <div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
+            <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">${esc(cat)}</div>
+            <div style="font-family:var(--font-display);font-size:1.5rem;">S/ ${Math.round(total).toLocaleString('es-PE')}</div>
+          </div>
+        `).join('');
+  }
 
   const recent = extras.slice(0, 20);
   const body = document.getElementById('extras-body');

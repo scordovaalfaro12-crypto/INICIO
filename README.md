@@ -66,6 +66,15 @@ El sistema ya está preparado para que Railway lo despliegue directo desde este 
 - El filtro "Vencen pronto (7d)" sirve para avisarle al socio antes de que venza.
 - Las vencidas **se quedan en la lista** (en rojo) hasta que el admin decida borrarlas — y aunque las borre, sus pagos quedan en Finanzas.
 
+## 🏷️ Precios y promociones (pestaña nueva)
+
+El administrador maneja sus propios precios sin tocar código:
+
+- **Planes de matrícula y promos**: crea opciones con nombre, precio y duración en días (ej: "Máquinas 2 meses (promo) — S/ 130 — 60 días"). Aparecen al instante en el formulario de **Registrar pago** (autocompletan monto y vencimiento) y en el de **Renovar**.
+- **Categorías de ventas extras**: agrega o quita categorías (aguas, proteína, guantes...) con precio sugerido opcional.
+- Cuando una promo termina, se quita con un clic. **Quitar una opción jamás altera los pagos ya registrados**: el historial guarda su propio texto y monto.
+- El sistema viene pre-cargado con la lista real del flyer del gym (Máquinas 1/2/3 meses, Máquinas+Aeróbicos, Aeróbicos, promo 2 personas) más los conceptos históricos.
+
 ## 💰 Finanzas
 
 - **Hoy / Semana / Quincena / Mes / Año** salen del libro de pagos real (`payments`) + ventas extras.

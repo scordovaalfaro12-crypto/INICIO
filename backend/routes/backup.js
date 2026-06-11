@@ -14,13 +14,14 @@ const { todayISO } = require('../lib/dates');
 
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const [memberships, payments, extraSales, classes, users] = await Promise.all([
+    const [memberships, payments, extraSales, classes, users, catalogo] = await Promise.all([
       queryAll('SELECT * FROM memberships ORDER BY id'),
       queryAll('SELECT * FROM payments ORDER BY id'),
       queryAll('SELECT * FROM extra_sales ORDER BY id'),
       queryAll('SELECT * FROM classes ORDER BY id'),
       // Nunca exportar contraseñas, ni siquiera hasheadas.
       queryAll('SELECT id, firstname, lastname, email, role FROM users ORDER BY id'),
+      queryAll('SELECT * FROM catalog_options ORDER BY id'),
     ]);
 
     const respaldo = {
@@ -34,6 +35,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
         extra_sales: extraSales,
         classes,
         users,
+        catalog_options: catalogo,
       },
     };
 

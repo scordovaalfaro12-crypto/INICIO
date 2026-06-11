@@ -19,6 +19,7 @@ const authRoutes = require('./routes/auth');
 const classRoutes = require('./routes/classes');
 const membershipRoutes = require('./routes/memberships');
 const extraRoutes = require('./routes/extras');
+const catalogRoutes = require('./routes/catalog');
 const backupRoutes = require('./routes/backup');
 
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/memberships', membershipRoutes);
 app.use('/api/extras', extraRoutes);
+app.use('/api/catalogo', catalogRoutes);
 app.use('/api/backup', backupRoutes);
 
 // Frontend: SOLO la carpeta public (antes se servía todo el backend,
@@ -135,6 +137,7 @@ function shutdown(code) {
   if (cerrando) return;
   cerrando = true;
   console.log('[PROCESO] Cerrando ordenadamente...');
+  db.detenerReintentos();
   server.close(() => {
     db.pool.end()
       .catch(() => {})

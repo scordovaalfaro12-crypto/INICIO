@@ -75,6 +75,11 @@ async function withTransaction(fn) {
 let dbReady = false;
 function isDBReady() { return dbReady; }
 
+// Durante el apagado ordenado se detienen los reintentos de conexión
+// (si no, el bucle seguiría intentando sobre un pool ya cerrado).
+let detenido = false;
+function detenerReintentos() { detenido = true; }
+
 async function runMigration(id, fn) {
   const aplicada = await queryOne('SELECT id FROM schema_migrations WHERE id = $1', [id]);
   if (aplicada) return;
@@ -185,6 +190,21 @@ async function initDB() {
     );
   `);
 
+  // Catálogo editable por el admin: opciones de matrícula/promos (con precio
+  // y duración) y categorías de ventas extras. Quitar una opción NO toca el
+  // historial: memberships y payments guardan el concepto como texto.
+  await query(`
+    CREATE TABLE IF NOT EXISTS catalog_options (
+      id SERIAL PRIMARY KEY,
+      tipo TEXT NOT NULL CHECK (tipo IN ('matricula', 'extra')),
+      nombre TEXT NOT NULL,
+      precio NUMERIC(12,2) CHECK (precio IS NULL OR precio >= 0),
+      dias INTEGER CHECK (dias IS NULL OR (dias >= 1 AND dias <= 366)),
+      creado TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (tipo, nombre)
+    );
+  `);
+
   // REAL (float binario) acumula errores de centavos con los años.
   // NUMERIC(12,2) es exacto. ROUND limpia cualquier artefacto previo.
   await runMigration('001_montos_a_numeric', async () => {
@@ -205,6 +225,38 @@ async function initDB() {
     `);
   });
 
+  // Precios iniciales del catálogo: los 4 conceptos históricos del sistema
+  // más la lista real del flyer del gym. El admin puede quitar o agregar
+  // los que quiera desde la pestaña "Precios y promos".
+  await runMigration('003_seed_catalogo', async () => {
+    const matriculas = [
+      ['Matrícula mensual', 80, 30],
+      ['Matrícula quincenal', 50, 15],
+      ['Matrícula semanal', 25, 7],
+      ['Pase EX LOCAL', 15, 1],
+      ['Máquinas 2 meses (promo)', 130, 60],
+      ['Máquinas 3 meses (promo)', 210, 90],
+      ['Máquinas + Aeróbicos 1 mes', 100, 30],
+      ['Aeróbicos 1 mes', 70, 30],
+      ['Aeróbicos 2 personas (promo)', 120, 30],
+    ];
+    for (const [nombre, precio, dias] of matriculas) {
+      await query(
+        `INSERT INTO catalog_options (tipo, nombre, precio, dias) VALUES ('matricula', $1, $2, $3)
+         ON CONFLICT (tipo, nombre) DO NOTHING`,
+        [nombre, precio, dias]
+      );
+    }
+    const extras = ['Aguas/Bebidas', 'Energizantes', 'Suplementos', 'Proteína', 'Creatina', 'Ropa', 'Toallas', 'Otros'];
+    for (const nombre of extras) {
+      await query(
+        `INSERT INTO catalog_options (tipo, nombre) VALUES ('extra', $1)
+         ON CONFLICT (tipo, nombre) DO NOTHING`,
+        [nombre]
+      );
+    }
+  });
+
   // Índices: con años de datos las consultas de reportes siguen siendo instantáneas.
   await query(`CREATE INDEX IF NOT EXISTS idx_memberships_fecha_vence ON memberships (fecha_vence)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_memberships_estado ON memberships (estado)`);
@@ -222,11 +274,13 @@ async function initDB() {
 async function initDBConReintentos() {
   let intento = 0;
   for (;;) {
+    if (detenido) return;
     try {
       await initDB();
       dbReady = true;
       return;
     } catch (err) {
+      if (detenido) return;
       intento++;
       const esperaMs = Math.min(30000, 2000 * 2 ** Math.min(intento - 1, 4));
       console.error(`[DB] Sin conexión (intento ${intento}): ${err.message} — reintento en ${esperaMs / 1000}s`);
@@ -262,5 +316,6 @@ async function actualizarEstadoMemberships() {
 
 module.exports = {
   pool, query, queryOne, queryAll, withTransaction,
-  initDB, initDBConReintentos, isDBReady, actualizarEstadoMemberships,
+  initDB, initDBConReintentos, isDBReady, detenerReintentos,
+  actualizarEstadoMemberships,
 };
