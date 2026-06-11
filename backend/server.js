@@ -139,7 +139,7 @@ function shutdown(code) {
   console.log('[PROCESO] Cerrando ordenadamente...');
   db.detenerReintentos();
   server.close(() => {
-    db.pool.end()
+    db.cerrarPool()
       .catch(() => {})
       .finally(() => process.exit(code));
   });

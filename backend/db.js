@@ -1,5 +1,5 @@
 // ==========================================================
-//  db.js — Conexión PostgreSQL (Supabase) + esquema + migraciones
+//  db.js — Conexión PostgreSQL (Supabase, Railway o similar) + esquema + migraciones
 //
 //  Principios de este módulo:
 //  1. El historial de pagos NUNCA se borra solo. (La versión
@@ -23,23 +23,32 @@ const { todayISO } = require('./lib/dates');
 // (en un solo lugar) es seguro y el frontend recibe números.
 types.setTypeParser(1700, (v) => (v === null ? null : parseFloat(v)));
 
+// SSL según el proveedor: Supabase lo exige, el Postgres interno de Railway
+// puede no soportarlo. Se respeta sslmode=disable si viene en la URL; en los
+// demás casos se intenta con SSL y, si el saludo falla, initDBConReintentos
+// cambia de modo y reconecta solo (sin intervención de nadie).
 const esLocal = /localhost|127\.0\.0\.1/.test(config.DATABASE_URL);
+let usarSSL = !esLocal && !/sslmode=disable|ssl=false/i.test(config.DATABASE_URL);
 
-const pool = new Pool({
-  connectionString: config.DATABASE_URL,
-  ssl: esLocal ? false : { rejectUnauthorized: false },
-  max: 5,                       // Supabase free limita conexiones: pocas y estables
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  keepAlive: true,
-});
+let pool = crearPool();
 
-// CRÍTICO: sin este handler, un corte de red en una conexión inactiva
-// emite 'error' sin listener y TUMBA el proceso completo. Es la causa
-// número 1 de caídas de Node + Postgres en la nube.
-pool.on('error', (err) => {
-  console.error('[DB] Error en conexión inactiva (recuperado):', err.message);
-});
+function crearPool() {
+  const p = new Pool({
+    connectionString: config.DATABASE_URL,
+    ssl: usarSSL ? { rejectUnauthorized: false } : false,
+    max: 5,                       // Supabase free limita conexiones: pocas y estables
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
+  });
+  // CRÍTICO: sin este handler, un corte de red en una conexión inactiva
+  // emite 'error' sin listener y TUMBA el proceso completo. Es la causa
+  // número 1 de caídas de Node + Postgres en la nube.
+  p.on('error', (err) => {
+    console.error('[DB] Error en conexión inactiva (recuperado):', err.message);
+  });
+  return p;
+}
 
 async function query(text, params) {
   return pool.query(text, params);
@@ -273,6 +282,7 @@ async function initDB() {
 // en vez de morir y depender de reinicios externos.
 async function initDBConReintentos() {
   let intento = 0;
+  let ajustesSSL = 0; // máximo 2 cambios de modo; después aplica la espera normal
   for (;;) {
     if (detenido) return;
     try {
@@ -281,9 +291,25 @@ async function initDBConReintentos() {
       return;
     } catch (err) {
       if (detenido) return;
+      const msg = err.message || '';
+      // Desajuste de SSL con el servidor: se invierte el modo UNA vez y se
+      // reintenta al instante con un pool nuevo. Cubre ambos sentidos:
+      // "The server does not support SSL connections" (Railway interno) y
+      // "SSL connection is required" / "no encryption" (Supabase y similares).
+      const quitarSSL = usarSSL && /does not support SSL/i.test(msg);
+      const ponerSSL = !usarSSL && /(SSL[\s\S]*required|required[\s\S]*SSL|no encryption)/i.test(msg);
+      if ((quitarSSL || ponerSSL) && ajustesSSL < 2) {
+        ajustesSSL++;
+        usarSSL = ponerSSL;
+        console.warn(`[DB] El servidor ${usarSSL ? 'exige' : 'no soporta'} SSL: reconectando ${usarSSL ? 'con' : 'sin'} SSL...`);
+        const anterior = pool;
+        pool = crearPool();
+        anterior.end().catch(() => {});
+        continue;
+      }
       intento++;
       const esperaMs = Math.min(30000, 2000 * 2 ** Math.min(intento - 1, 4));
-      console.error(`[DB] Sin conexión (intento ${intento}): ${err.message} — reintento en ${esperaMs / 1000}s`);
+      console.error(`[DB] Sin conexión (intento ${intento}): ${msg} — reintento en ${esperaMs / 1000}s`);
       await new Promise((r) => setTimeout(r, esperaMs));
     }
   }
@@ -314,8 +340,14 @@ async function actualizarEstadoMemberships() {
   await query(`UPDATE memberships SET estado = 'activa' WHERE fecha_vence >= $1 AND estado = 'vencida'`, [hoy]);
 }
 
+// El pool puede recrearse (ajuste de SSL), así que el apagado pasa por aquí
+// y no por una referencia directa que podría quedar obsoleta.
+function cerrarPool() {
+  return pool.end();
+}
+
 module.exports = {
-  pool, query, queryOne, queryAll, withTransaction,
+  query, queryOne, queryAll, withTransaction,
   initDB, initDBConReintentos, isDBReady, detenerReintentos,
-  actualizarEstadoMemberships,
+  actualizarEstadoMemberships, cerrarPool,
 };
