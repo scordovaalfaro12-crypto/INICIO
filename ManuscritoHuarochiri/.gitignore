@@ -1,0 +1,19 @@
+# Salidas de compilacion de Visual Studio
+Debug/
+Release/
+x64/
+Win32/
+.vs/
+*.obj
+*.pdb
+*.idb
+*.ilk
+*.tlog
+*.log
+*.lastbuildstate
+*.cache
+*.recipe
+*.metagen
+*.resources
+*.vcxproj.user
+Interop.*.dll
