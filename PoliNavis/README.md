@@ -76,8 +76,9 @@ PoliNavis/
 │   ├── (motor) Config Azar Entrada Sonido Estilos Particula Fondo Recursos
 │   └── img/  espacio.png  menu.png  nebulosa.png
 └── Entregables/
-    ├── PC1_FUENTE.TXT
-    ├── UML_Diagrama.md
-    ├── Bitacora_IA.md
-    └── Plan_de_Actividades.md
+    ├── PC1_FUENTE.TXT              (código fuente .h/.cpp en texto)
+    ├── UML_Diagrama.png            (diagrama de clases — imagen)
+    ├── UML_Diagrama.md             (fuente PlantUML + explicación)
+    ├── Bitacora_IA.docx            (bitácora de IA — Word, Anexo 1)
+    └── Plan_de_Actividades.docx    (plan de actividades — Word, Anexo 2)
 ```
