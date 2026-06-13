@@ -158,11 +158,11 @@ namespace PoliNavis {
 			L"Bryan Cordova", L"Lenin Palomino", L"Gustavo Arimana", L"Mustafa Altuntas", L"Biary Tineo"
 		};
 		array<String^>^ roles = gcnew array<String^> {
-			L"Lider de proyecto y clase controladora (Juego)",
-			L"Diseno de la nave, planetas y figuras (POO)",
-			L"Niveles, colisiones y panel de control",
-			L"Obstaculos, fisica del Nivel 2 y sonido",
-			L"Menu, instrucciones, UML y documentacion"
+			L"Instrucciones",
+			L"Creditos",
+			L"Nivel 1 - desarrollo del juego (avance) y todos",
+			L"UML - diagrama de clases",
+			L"Plan de actividades"
 		};
 		array<Color>^ col = gcnew array<Color> {
 			Color::FromArgb(70, 130, 220), Color::FromArgb(235, 140, 50),
