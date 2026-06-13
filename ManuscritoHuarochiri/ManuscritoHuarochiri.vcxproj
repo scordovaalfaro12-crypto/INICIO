@@ -151,6 +151,7 @@ xcopy /E /I /Y "$(ProjectDir)msc" "$(OutDir)msc"</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CreditosForm.cpp" />
+    <ClCompile Include="Decoraciones.cpp" />
     <ClCompile Include="DeidadLluvia.cpp" />
     <ClCompile Include="Entidad.cpp" />
     <ClCompile Include="HuallalloJefe.cpp" />
@@ -165,6 +166,7 @@ xcopy /E /I /Y "$(ProjectDir)msc" "$(OutDir)msc"</Command>
     <ClInclude Include="CreditosForm.h">
       <FileType>CppForm</FileType>
     </ClInclude>
+    <ClInclude Include="Decoraciones.h" />
     <ClInclude Include="DeidadLluvia.h" />
     <ClInclude Include="Dependencias.h" />
     <ClInclude Include="Entidad.h" />

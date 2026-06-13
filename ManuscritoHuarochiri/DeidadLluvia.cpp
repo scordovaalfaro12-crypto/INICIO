@@ -124,6 +124,13 @@ void DeidadLluvia::actualizarAnimacion() {
 }
 
 void DeidadLluvia::mostrar(Graphics^ g, Bitmap^ img, Bitmap^ imgEspejo, int camaraX, int camaraY) {
+	// Sombra que ancla al personaje al suelo
+	if (accion != muerte) {
+		SolidBrush^ sombra = gcnew SolidBrush(Color::FromArgb(95, 0, 0, 0));
+		g->FillEllipse(sombra, x - camaraX + ancho / 4, y - camaraY + alto - 20, ancho / 2, 20);
+		delete sombra;
+	}
+
 	// Parpadeo mientras es invulnerable
 	if (invulnerable > 0 && (invulnerable / 4) % 2 == 0 && accion != muerte) return;
 

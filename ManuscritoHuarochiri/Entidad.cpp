@@ -46,6 +46,15 @@ Rectangle Entidad::hitbox() {
 	return Rectangle(x + ancho / 6, y + alto / 6, ancho * 2 / 3, alto * 2 / 3);
 }
 
+void Entidad::animar() {
+	// Comportamiento base: ciclo simple de 8 frames
+	delay++;
+	if (delay >= 5) {
+		delay = 0;
+		IDx = (IDx + 1) % 8;
+	}
+}
+
 void Entidad::mover(Graphics^ g) {
 	x += dx;
 	y += dy;

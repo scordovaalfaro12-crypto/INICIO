@@ -4,6 +4,7 @@
 #include "HuallalloJefe.h"
 #include "ObjetosNivel.h"
 #include "RayoTrace.h"
+#include "Decoraciones.h"
 
 // Clase controladora: administra los 3 niveles, el estado del juego,
 // la camara, el HUD, el audio y todas las entidades.
@@ -36,6 +37,9 @@ private:
 	SolidBrush^ velOscuro;     // velos y paneles
 	SolidBrush^ velRojo;
 	SolidBrush^ velCorrupcion;
+	SolidBrush^ brochaGlobo;       // globo de dialogo de los espiritus
+	SolidBrush^ brochaTextoGlobo;
+	Pen^ plumaGlobo;
 	StringFormat^ centrado;
 
 	// ----- Entidades (clases nativas, demuestran herencia) -----
@@ -44,6 +48,9 @@ private:
 	vector<NodoDato*>* nodos;
 	vector<PilarInformacion*>* pilares;
 	vector<RayoTrace*>* rayos;
+	vector<Decoracion*>* decoraciones;        // ambiente animado (polimorfico)
+	vector<PersonajeSecundario*>* espiritus;  // NPCs que ensenan la historia
+	vector<BolaFuego*>* bolasFuego;           // proyectiles de Huallallo
 	HuallalloJefe* jefe;
 	SantuarioMacahuisa* santuario;
 	AliadoAlgoritmo* aliado;
@@ -51,6 +58,7 @@ private:
 	// ----- Estado general -----
 	Estado estado;
 	int nivelActual;
+	String^ tituloNivel;
 	int score;
 	int scoreInicioNivel;  // para reintentar el nivel sin duplicar puntos
 	int tiempoRestante;    // en ticks (33 por segundo aprox.)
@@ -59,11 +67,14 @@ private:
 	int cooldownRayo;
 	int nodosRecogidos;
 	int spawnEnemigos;     // contador para invocar esbirros en el nivel 3
+	int contadorBolaFuego; // cadencia de disparo del jefe
 	bool poderDesbloqueado;
 	bool salirAlMenu;
 
-	// ----- Camara -----
+	// ----- Movimiento con aceleracion y camara -----
+	int velJugadorX, velJugadorY;
 	int camaraX, camaraY, offsetX, offsetY;
+	int sacudida;          // ticks de vibracion de camara al recibir dano
 
 	// ----- Punto de reaparicion del nivel -----
 	int spawnX, spawnY;
@@ -79,6 +90,7 @@ private:
 	int fragmentoTicks;
 	array<String^>^ quechua;
 	array<String^>^ traducciones;
+	array<String^>^ textosEspiritus; // dialogo de los NPCs del nivel actual
 	array<int>^ lluviaY;   // efecto de texto cayendo en la pantalla final
 	array<int>^ lluviaVel;
 
@@ -99,6 +111,7 @@ private:
 	void calcularCamara(int anchoPantalla, int altoPantalla);
 	void dibujarMundo(Graphics^ g, int anchoPantalla, int altoPantalla);
 	void dibujarFlechaGuia(Graphics^ g);
+	void dibujarGlobo(Graphics^ g, int anchoPantalla, int centroX, int baseY, String^ texto);
 	void dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla);
 	void dibujarCorazon(Graphics^ g, int px, int py, bool lleno);
 	void dibujarPanel(Graphics^ g, int anchoPantalla, int altoPantalla,

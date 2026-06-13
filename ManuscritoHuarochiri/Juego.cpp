@@ -25,6 +25,9 @@ Juego::Juego() {
 	velOscuro = gcnew SolidBrush(Color::FromArgb(215, 8, 12, 16));
 	velRojo = gcnew SolidBrush(Color::FromArgb(190, 35, 0, 0));
 	velCorrupcion = gcnew SolidBrush(Color::FromArgb(42, 255, 30, 30));
+	brochaGlobo = gcnew SolidBrush(Color::FromArgb(240, 248, 240, 214));
+	brochaTextoGlobo = gcnew SolidBrush(Color::FromArgb(62, 40, 18));
+	plumaGlobo = gcnew Pen(Color::FromArgb(110, 78, 38), 3.0f);
 	centrado = gcnew StringFormat();
 	centrado->Alignment = StringAlignment::Center;
 	centrado->LineAlignment = StringAlignment::Center;
@@ -35,6 +38,9 @@ Juego::Juego() {
 	nodos = new vector<NodoDato*>();
 	pilares = new vector<PilarInformacion*>();
 	rayos = new vector<RayoTrace*>();
+	decoraciones = new vector<Decoracion*>();
+	espiritus = new vector<PersonajeSecundario*>();
+	bolasFuego = new vector<BolaFuego*>();
 	jefe = nullptr;
 	santuario = nullptr;
 	aliado = nullptr;
@@ -49,6 +55,9 @@ Juego::Juego() {
 	fragmentoQuechua = "";
 	fragmentoTraduccion = "";
 	fragmentoTicks = 0;
+	tituloNivel = "";
+	velJugadorX = velJugadorY = 0;
+	sacudida = 0;
 
 	cargarTextos();
 	iniciarNivel(1);
@@ -62,6 +71,9 @@ Juego::~Juego() {
 	delete nodos;
 	delete pilares;
 	delete rayos;
+	delete decoraciones;
+	delete espiritus;
+	delete bolasFuego;
 }
 
 void Juego::cargarTextos() {
@@ -107,6 +119,12 @@ void Juego::limpiarNivel() {
 	pilares->clear();
 	for (int i = 0; i < (int)rayos->size(); i++) delete rayos->at(i);
 	rayos->clear();
+	for (int i = 0; i < (int)decoraciones->size(); i++) delete decoraciones->at(i);
+	decoraciones->clear();
+	for (int i = 0; i < (int)espiritus->size(); i++) delete espiritus->at(i);
+	espiritus->clear();
+	for (int i = 0; i < (int)bolasFuego->size(); i++) delete bolasFuego->at(i);
+	bolasFuego->clear();
 	if (jefe != nullptr) { delete jefe; jefe = nullptr; }
 	if (santuario != nullptr) { delete santuario; santuario = nullptr; }
 	if (aliado != nullptr) { delete aliado; aliado = nullptr; }
@@ -121,6 +139,9 @@ void Juego::iniciarNivel(int numero) {
 	ticksTrasMuerte = 0;
 	cooldownRayo = 0;
 	spawnEnemigos = 0;
+	contadorBolaFuego = 0;
+	velJugadorX = velJugadorY = 0;
+	sacudida = 0;
 	teclaArriba = teclaAbajo = teclaIzquierda = teclaDerecha = teclaInteractuar = false;
 
 	fondoActual = (numero == 2) ? imgEscenario2 : imgEscenario1;
@@ -130,12 +151,15 @@ void Juego::iniciarNivel(int numero) {
 	if (jugador != nullptr) delete jugador;
 	jugador = new DeidadLluvia(imgDeidadLluvia);
 	jugador->setConPoder(poderDesbloqueado);
+	int anchoJ = jugador->getAncho();
+	int altoJ = jugador->getAlto();
 
 	if (numero == 1) {
 		// Recuperar los 7 nodos de datos esquivando las llamas digitales
+		tituloNivel = "RECONSTRUCCION EN LA RED";
 		tiempoRestante = 180 * 33;
-		spawnX = (int)(0.50 * W) - jugador->getAncho() / 2;
-		spawnY = (int)(0.82 * H) - jugador->getAlto() / 2;
+		spawnX = (int)(0.50 * W) - anchoJ / 2;
+		spawnY = (int)(0.82 * H) - altoJ / 2;
 
 		nodos->push_back(new NodoDato((int)(0.08 * W), (int)(0.12 * H), 0));
 		nodos->push_back(new NodoDato((int)(0.34 * W), (int)(0.07 * H), 1));
@@ -150,12 +174,35 @@ void Juego::iniciarNivel(int numero) {
 		enemigos->push_back(new LlamaDigital((int)(0.55 * W), (int)(0.30 * H), 3, 330));
 		enemigos->push_back(new LlamaDigital((int)(0.63 * W), (int)(0.74 * H), 3, 330));
 		enemigos->push_back(new LlamaDigital((int)(0.25 * W), (int)(0.32 * H), 2, 300));
+
+		// Ambiente: lava viva en la zona volcanica, rio brillante, antorchas
+		decoraciones->push_back(new BurbujaLava((int)(0.78 * W), (int)(0.10 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.88 * W), (int)(0.22 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.70 * W), (int)(0.30 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.93 * W), (int)(0.40 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.18 * W), (int)(0.18 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.27 * W), (int)(0.33 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.30 * W), (int)(0.62 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.13 * W), (int)(0.75 * H)));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.45 * W), (int)(0.42 * H)));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.55 * W), (int)(0.42 * H)));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.47 * W), (int)(0.88 * H)));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.53 * W), (int)(0.88 * H)));
+
+		// Espiritus ancestrales que ensenan la historia
+		espiritus->push_back(new PersonajeSecundario((int)(0.42 * W), (int)(0.78 * H), anchoJ, altoJ));
+		espiritus->push_back(new PersonajeSecundario((int)(0.13 * W), (int)(0.44 * H), anchoJ, altoJ));
+		textosEspiritus = gcnew array<String^> {
+			"Soy la memoria de Tomas, el escribano. El Manuscrito de Huarochiri se escribio hacia 1608 en quechua: es el unico libro que cuenta los mitos andinos en su propia voz.",
+			"Pariacaca, senor de las aguas, nacio de cinco huevos en la montana. Recupera sus 7 fragmentos antes de que el fuego de Huallallo los borre."
+		};
 	}
 	else if (numero == 2) {
 		// Escoltar la ofrenda digital hasta el Santuario de Macahuisa
+		tituloNivel = "LA OFRENDA DIGITAL";
 		tiempoRestante = 200 * 33;
-		spawnX = (int)(0.10 * W) - jugador->getAncho() / 2;
-		spawnY = (int)(0.86 * H) - jugador->getAlto() / 2;
+		spawnX = (int)(0.10 * W) - anchoJ / 2;
+		spawnY = (int)(0.86 * H) - altoJ / 2;
 		jugador->setConOfrenda(true);
 
 		santuario = new SantuarioMacahuisa((int)(0.50 * W), (int)(0.45 * H));
@@ -170,12 +217,32 @@ void Juego::iniciarNivel(int numero) {
 		enemigos->push_back(new LlamaDigital((int)(0.27 * W), (int)(0.70 * H), 3, 380));
 		enemigos->push_back(new LlamaDigital((int)(0.72 * W), (int)(0.28 * H), 3, 380));
 		enemigos->push_back(new LlamaDigital((int)(0.30 * W), (int)(0.20 * H), 3, 380));
+
+		// Ambiente: el sol de los Andes, rio chispeante y antorchas del santuario
+		decoraciones->push_back(new SolAndino((int)(0.47 * W), (int)(0.05 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.42 * W), (int)(0.25 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.36 * W), (int)(0.45 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.40 * W), (int)(0.68 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.30 * W), (int)(0.80 * H)));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.43 * W), (int)(0.46 * H)));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.57 * W), (int)(0.46 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.80 * W), (int)(0.30 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.88 * W), (int)(0.55 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.75 * W), (int)(0.70 * H)));
+
+		espiritus->push_back(new PersonajeSecundario((int)(0.17 * W), (int)(0.74 * H), anchoJ, altoJ));
+		espiritus->push_back(new PersonajeSecundario((int)(0.45 * W), (int)(0.60 * H), anchoJ, altoJ));
+		textosEspiritus = gcnew array<String^> {
+			"Las huacas eran seres sagrados del paisaje: piedras, lagunas, montanas. Oblivion Corp las llama 'datos basura'... nosotros las llamamos memoria.",
+			"Macahuisa, hijo de Pariacaca, defendio a los pueblos del valle. Entregale tu ofrenda: el patrimonio vivo es poder, no una pieza de museo."
+		};
 	}
 	else {
 		// Activar los 3 pilares de informacion protegidos por Huallallo
+		tituloNivel = "EL CODIGO MADRE";
 		tiempoRestante = 260 * 33;
-		spawnX = (int)(0.50 * W) - jugador->getAncho() / 2;
-		spawnY = (int)(0.82 * H) - jugador->getAlto() / 2;
+		spawnX = (int)(0.50 * W) - anchoJ / 2;
+		spawnY = (int)(0.82 * H) - altoJ / 2;
 
 		pilares->push_back(new PilarInformacion((int)(0.13 * W), (int)(0.14 * H)));
 		pilares->push_back(new PilarInformacion((int)(0.86 * W), (int)(0.18 * H)));
@@ -185,6 +252,25 @@ void Juego::iniciarNivel(int numero) {
 
 		enemigos->push_back(new LlamaDigital((int)(0.30 * W), (int)(0.40 * H), 3, 420));
 		enemigos->push_back(new LlamaDigital((int)(0.70 * W), (int)(0.55 * H), 3, 420));
+
+		// Ambiente corrupto: mas lava viva y antorchas junto a cada pilar
+		decoraciones->push_back(new BurbujaLava((int)(0.78 * W), (int)(0.10 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.88 * W), (int)(0.26 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.70 * W), (int)(0.34 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.93 * W), (int)(0.44 * H)));
+		decoraciones->push_back(new BurbujaLava((int)(0.62 * W), (int)(0.70 * H)));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.13 * W) + 150, (int)(0.14 * H) + 40));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.86 * W) - 90, (int)(0.18 * H) + 40));
+		decoraciones->push_back(new AntorchaDecorativa((int)(0.15 * W) + 150, (int)(0.78 * H) + 40));
+		decoraciones->push_back(new DestelloAgua((int)(0.27 * W), (int)(0.33 * H)));
+		decoraciones->push_back(new DestelloAgua((int)(0.30 * W), (int)(0.62 * H)));
+
+		espiritus->push_back(new PersonajeSecundario((int)(0.56 * W), (int)(0.76 * H), anchoJ, altoJ));
+		espiritus->push_back(new PersonajeSecundario((int)(0.20 * W), (int)(0.24 * H), anchoJ, altoJ));
+		textosEspiritus = gcnew array<String^> {
+			"Chaupinamca, madre de los relatos, une todas las historias en una sola red. Si su codigo cae, el manuscrito quedara mudo para siempre.",
+			"El acceso abierto es la nueva chakana: un puente para que el saber cruce generaciones. Compila los 3 pilares y libera el conocimiento."
+		};
 	}
 
 	jugador->setX(spawnX);
@@ -284,12 +370,14 @@ void Juego::dispararRayo() {
 void Juego::perderVidaJugador(int golpeDesdeX, int golpeDesdeY) {
 	jugador->recibirGolpe();
 	reproducirEfecto("msc/sonidoGolpe.wav");
+	sacudida = 12;
 
 	if (jugador->getVida() > 0) {
 		if (nivelActual == 2) {
 			// En la escolta, un golpe te regresa al inicio del camino
 			jugador->setX(spawnX);
 			jugador->setY(spawnY);
+			velJugadorX = velJugadorY = 0;
 			mostrarMensaje("La ofrenda es sagrada: el camino comienza de nuevo");
 		}
 		else {
@@ -340,6 +428,10 @@ void Juego::actualizarJugando() {
 		return;
 	}
 
+	// El ambiente y los espiritus siempre estan vivos (llamada polimorfica)
+	for (int i = 0; i < (int)decoraciones->size(); i++) decoraciones->at(i)->animar();
+	for (int i = 0; i < (int)espiritus->size(); i++) espiritus->at(i)->animar();
+
 	// Si el jugador esta muriendo, solo se termina su animacion
 	if (jugador->getAccion() == DeidadLluvia::muerte) {
 		jugador->actualizarAnimacion();
@@ -354,16 +446,24 @@ void Juego::actualizarJugando() {
 		return;
 	}
 
-	// ----- Movimiento del jugador -----
-	int velocidad = jugador->getConOfrenda() ? 6 : 8;
-	int vx = 0, vy = 0;
-	if (teclaIzquierda) vx -= velocidad;
-	if (teclaDerecha) vx += velocidad;
-	if (teclaArriba) vy -= velocidad;
-	if (teclaAbajo) vy += velocidad;
-	if (vx != 0 && vy != 0) { vx = vx * 3 / 4; vy = vy * 3 / 4; } // diagonal pareja
-	jugador->setDX(vx);
-	jugador->setDY(vy);
+	// ----- Movimiento del jugador con aceleracion (se siente fluido) -----
+	int velMaxima = jugador->getConOfrenda() ? 6 : 8;
+	int objetivoX = 0, objetivoY = 0;
+	if (teclaIzquierda) objetivoX -= velMaxima;
+	if (teclaDerecha) objetivoX += velMaxima;
+	if (teclaArriba) objetivoY -= velMaxima;
+	if (teclaAbajo) objetivoY += velMaxima;
+	if (objetivoX != 0 && objetivoY != 0) { // diagonal pareja
+		objetivoX = objetivoX * 3 / 4;
+		objetivoY = objetivoY * 3 / 4;
+	}
+	if (velJugadorX < objetivoX) { velJugadorX += 2; if (velJugadorX > objetivoX) velJugadorX = objetivoX; }
+	else if (velJugadorX > objetivoX) { velJugadorX -= 2; if (velJugadorX < objetivoX) velJugadorX = objetivoX; }
+	if (velJugadorY < objetivoY) { velJugadorY += 2; if (velJugadorY > objetivoY) velJugadorY = objetivoY; }
+	else if (velJugadorY > objetivoY) { velJugadorY -= 2; if (velJugadorY < objetivoY) velJugadorY = objetivoY; }
+
+	jugador->setDX(velJugadorX);
+	jugador->setDY(velJugadorY);
 	jugador->actualizarAccionPorMovimiento();
 	jugador->moverEnMundo(fondoActual->Width, fondoActual->Height);
 	if (jugador->getAccion() == DeidadLluvia::ataque && jugador->getAnimTerminada())
@@ -381,6 +481,21 @@ void Juego::actualizarJugando() {
 		}
 	}
 
+	// ----- Bolas de fuego de Huallallo -----
+	for (int i = (int)bolasFuego->size() - 1; i >= 0; i--) {
+		BolaFuego* bola = bolasFuego->at(i);
+		bola->mover(nullptr);
+		if (bola->getActivo() && !jugador->esInvulnerable() &&
+			bola->hitbox().IntersectsWith(jugador->hitbox())) {
+			bola->setActivo(false);
+			perderVidaJugador(bola->centroX(), bola->centroY());
+		}
+		if (bola->terminado()) {
+			delete bola;
+			bolasFuego->erase(bolasFuego->begin() + i);
+		}
+	}
+
 	// ----- Rayos Ray-Trace -----
 	for (int i = (int)rayos->size() - 1; i >= 0; i--) {
 		RayoTrace* rayo = rayos->at(i);
@@ -394,6 +509,16 @@ void Juego::actualizarJugando() {
 				rayo->setActivo(false);
 				score += 50;
 				reproducirEfecto("msc/sonidoGolpe.wav");
+			}
+		}
+		// El rayo tambien desintegra bolas de fuego
+		for (int j = 0; j < (int)bolasFuego->size(); j++) {
+			BolaFuego* bola = bolasFuego->at(j);
+			if (rayo->getActivo() && bola->getActivo() &&
+				rayo->hitbox().IntersectsWith(bola->hitbox())) {
+				bola->setActivo(false);
+				rayo->setActivo(false);
+				score += 25;
 			}
 		}
 		if (nivelActual == 3 && jefe != nullptr && jefe->getActivo() && rayo->getActivo() &&
@@ -496,6 +621,17 @@ void Juego::actualizarNivel3() {
 			jefe->hitbox().IntersectsWith(jugador->hitbox())) {
 			perderVidaJugador(jefe->centroX(), jefe->centroY());
 		}
+
+		// Cada cierto tiempo lanza una bola de fuego hacia el jugador
+		contadorBolaFuego++;
+		if (contadorBolaFuego >= 170) {
+			contadorBolaFuego = 0;
+			if (jugador->distanciaA(jefe) > 280) {
+				bolasFuego->push_back(new BolaFuego(jefe->centroX(), jefe->centroY(),
+					jugador->centroX(), jugador->centroY()));
+				reproducirEfecto("msc/sonidoRayo.wav");
+			}
+		}
 	}
 
 	// Esbirros que aparecen cerca de los pilares
@@ -543,6 +679,19 @@ void Juego::calcularCamara(int anchoPantalla, int altoPantalla) {
 		if (camaraY > fondoActual->Height - altoPantalla) camaraY = fondoActual->Height - altoPantalla;
 		offsetY = 0;
 	}
+
+	// Sacudida al recibir dano (y se vuelve a encuadrar dentro del mapa)
+	if (sacudida > 0) {
+		sacudida--;
+		camaraX += (rand() % 13) - 6;
+		camaraY += (rand() % 13) - 6;
+		if (camaraX < 0) camaraX = 0;
+		if (camaraY < 0) camaraY = 0;
+		if (fondoActual->Width > anchoPantalla && camaraX > fondoActual->Width - anchoPantalla)
+			camaraX = fondoActual->Width - anchoPantalla;
+		if (fondoActual->Height > altoPantalla && camaraY > fondoActual->Height - altoPantalla)
+			camaraY = fondoActual->Height - altoPantalla;
+	}
 }
 
 void Juego::dibujarMundo(Graphics^ g, int anchoPantalla, int altoPantalla) {
@@ -559,6 +708,10 @@ void Juego::dibujarMundo(Graphics^ g, int anchoPantalla, int altoPantalla) {
 	int cx = camaraX - offsetX;
 	int cy = camaraY - offsetY;
 
+	// Ambiente animado primero (queda "pegado" al suelo del mapa)
+	for (int i = 0; i < (int)decoraciones->size(); i++)
+		decoraciones->at(i)->mostrar(g, nullptr, cx, cy);
+
 	if (santuario != nullptr) santuario->mostrar(g, nullptr, cx, cy);
 	for (int i = 0; i < (int)pilares->size(); i++) pilares->at(i)->mostrar(g, nullptr, cx, cy);
 	for (int i = 0; i < (int)nodos->size(); i++)
@@ -566,11 +719,39 @@ void Juego::dibujarMundo(Graphics^ g, int anchoPantalla, int altoPantalla) {
 	for (int i = 0; i < (int)enemigos->size(); i++)
 		if (enemigos->at(i)->getActivo()) enemigos->at(i)->mostrar(g, nullptr, cx, cy);
 	if (jefe != nullptr) jefe->mostrar(g, nullptr, cx, cy);
+	for (int i = 0; i < (int)bolasFuego->size(); i++) bolasFuego->at(i)->mostrar(g, nullptr, cx, cy);
 	for (int i = 0; i < (int)rayos->size(); i++) rayos->at(i)->mostrar(g, nullptr, cx, cy);
 	if (aliado != nullptr) aliado->mostrar(g, nullptr, cx, cy);
+
+	// Espiritus ancestrales (con el sprite fantasma de la deidad)
+	for (int i = 0; i < (int)espiritus->size(); i++)
+		espiritus->at(i)->mostrar(g, imgDeidadLluvia, cx, cy);
+
 	jugador->mostrar(g, imgDeidadLluvia, imgDeidadEspejo, cx, cy);
 
 	if (nivelActual == 2 && jugador->getConOfrenda()) dibujarFlechaGuia(g);
+
+	// Ayuda contextual del nivel 3 sobre los pilares
+	if (nivelActual == 3) {
+		for (int i = 0; i < (int)pilares->size(); i++) {
+			PilarInformacion* pilar = pilares->at(i);
+			if (!pilar->estaCompleto() && jugador->distanciaA(pilar) < 220) {
+				g->DrawString("MANTEN [E]", fuenteChica, Brushes::White,
+					(float)(pilar->getX() - cx), (float)(pilar->getY() - cy - 44));
+			}
+		}
+	}
+
+	// Globos de dialogo de los espiritus cercanos
+	for (int i = 0; i < (int)espiritus->size(); i++) {
+		PersonajeSecundario* espiritu = espiritus->at(i);
+		if (jugador->distanciaA(espiritu) < 280 && i < textosEspiritus->Length) {
+			dibujarGlobo(g, anchoPantalla,
+				espiritu->centroX() - cx,
+				espiritu->getY() - cy - 36,
+				textosEspiritus[i]);
+		}
+	}
 }
 
 void Juego::dibujarFlechaGuia(Graphics^ g) {
@@ -596,6 +777,32 @@ void Juego::dibujarFlechaGuia(Graphics^ g) {
 	delete dorado;
 }
 
+void Juego::dibujarGlobo(Graphics^ g, int anchoPantalla, int centroX, int baseY, String^ texto) {
+	// Mide el texto envuelto a un ancho maximo
+	SizeF medida = g->MeasureString(texto, fuenteChica, 340);
+	int gw = (int)medida.Width + 28;
+	int gh = (int)medida.Height + 22;
+	int gx = centroX - gw / 2;
+	int gy = baseY - gh - 18;
+
+	// Que no se salga de la pantalla
+	if (gx < 8) gx = 8;
+	if (gx + gw > anchoPantalla - 8) gx = anchoPantalla - 8 - gw;
+	if (gy < 70) gy = 70; // debajo de la barra del HUD
+
+	// Globo estilo pergamino
+	g->FillRectangle(brochaGlobo, gx, gy, gw, gh);
+	g->DrawRectangle(plumaGlobo, gx, gy, gw, gh);
+	// Colita hacia el espiritu
+	array<Point>^ cola = {
+		Point(centroX - 10, gy + gh), Point(centroX + 10, gy + gh), Point(centroX, gy + gh + 16)
+	};
+	g->FillPolygon(brochaGlobo, cola);
+
+	RectangleF zonaTexto = RectangleF((float)gx + 14, (float)gy + 11, 344.0f, (float)gh - 16);
+	g->DrawString(texto, fuenteChica, brochaTextoGlobo, zonaTexto);
+}
+
 void Juego::dibujarCorazon(Graphics^ g, int px, int py, bool lleno) {
 	Brush^ color = lleno ? Brushes::Red : Brushes::DimGray;
 	g->FillEllipse(color, px, py, 16, 16);
@@ -605,37 +812,32 @@ void Juego::dibujarCorazon(Graphics^ g, int px, int py, bool lleno) {
 }
 
 void Juego::dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla) {
-	// Barra superior
-	g->FillRectangle(velOscuro, 0, 0, anchoPantalla, 66);
+	// ----- Barra superior estilo retro: NIVEL | TIEMPO | PUNTOS | VIDAS -----
+	g->FillRectangle(velOscuro, 0, 0, anchoPantalla, 56);
+	g->FillRectangle(Brushes::DarkGoldenrod, 0, 56, anchoPantalla, 4);
 
-	// Vidas
-	for (int i = 0; i < 3; i++)
-		dibujarCorazon(g, 22 + i * 40, 18, i < jugador->getVida());
+	g->DrawString(String::Format("NIVEL {0}: {1}", nivelActual, tituloNivel),
+		fuenteNormal, Brushes::Gold, 18.0f, 16.0f);
 
-	// Contador de borrado (centro)
 	int segundos = tiempoRestante / 33;
-	int barraW = 320;
-	int barraX = anchoPantalla / 2 - barraW / 2;
-	double proporcion = 0;
-	int tiempoTotal = (nivelActual == 1) ? 180 : (nivelActual == 2 ? 200 : 260);
-	proporcion = (double)segundos / tiempoTotal;
-	if (proporcion > 1) proporcion = 1;
-	g->DrawString("BORRADO DEL SERVIDOR EN", fuenteChica, Brushes::OrangeRed,
-		(float)barraX + barraW / 2 - 110, 6.0f);
-	g->FillRectangle(Brushes::Black, barraX, 26, barraW, 18);
 	Brush^ colorTiempo = (segundos < 30) ? Brushes::Red : Brushes::Cyan;
-	g->FillRectangle(colorTiempo, barraX + 2, 28, (int)((barraW - 4) * proporcion), 14);
-	g->DrawRectangle(Pens::White, barraX, 26, barraW, 18);
-	g->DrawString(String::Format("{0}:{1:D2}", segundos / 60, segundos % 60),
-		fuenteNormal, Brushes::White, (float)(barraX + barraW + 12), 22.0f);
+	g->DrawString(String::Format("TIEMPO {0}:{1:D2}", segundos / 60, segundos % 60),
+		fuenteNormal, colorTiempo, (float)(anchoPantalla - 700), 16.0f);
 
-	// Score y nivel (derecha)
-	g->DrawString(String::Format("SCORE {0:D5}", score), fuenteGrande, Brushes::Gold,
-		(float)(anchoPantalla - 330), 10.0f);
-	g->DrawString(String::Format("NIVEL {0}/3", nivelActual), fuenteNormal, Brushes::White,
-		(float)(anchoPantalla - 120), 40.0f);
+	g->DrawString(String::Format("PUNTOS: {0:D6}", score),
+		fuenteNormal, Brushes::Gold, (float)(anchoPantalla - 520), 16.0f);
 
-	// Barra inferior con el objetivo
+	g->DrawString("VIDAS:", fuenteNormal, Brushes::White, (float)(anchoPantalla - 280), 16.0f);
+	for (int i = 0; i < 3; i++)
+		dibujarCorazon(g, anchoPantalla - 180 + i * 38, 13, i < jugador->getVida());
+
+	// Tira que muestra cuanto falta para el borrado del servidor
+	int tiempoTotal = (nivelActual == 1) ? 180 : (nivelActual == 2 ? 200 : 260);
+	double proporcion = (double)segundos / tiempoTotal;
+	if (proporcion > 1) proporcion = 1;
+	g->FillRectangle(colorTiempo, 0, 60, (int)(anchoPantalla * proporcion), 5);
+
+	// ----- Barra inferior con el objetivo -----
 	g->FillRectangle(velOscuro, 0, altoPantalla - 54, anchoPantalla, 54);
 	String^ objetivo = "";
 	if (nivelActual == 1)
@@ -656,16 +858,16 @@ void Juego::dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla) {
 	if (fragmentoTicks > 0 && estado == Estado::Jugando) {
 		int cw = (int)(anchoPantalla * 0.62);
 		int ch = 120;
-		int cx = anchoPantalla / 2 - cw / 2;
-		int cy = altoPantalla - 200;
-		g->FillRectangle(velOscuro, cx, cy, cw, ch);
-		g->DrawRectangle(Pens::Cyan, cx, cy, cw, ch);
+		int cxx = anchoPantalla / 2 - cw / 2;
+		int cyy = altoPantalla - 200;
+		g->FillRectangle(velOscuro, cxx, cyy, cw, ch);
+		g->DrawRectangle(Pens::Cyan, cxx, cyy, cw, ch);
 		g->DrawString("NODO RECUPERADO - TRADUCCION AUTOMATICA", fuenteChica, Brushes::Cyan,
-			RectangleF((float)cx, (float)cy + 8, (float)cw, 20.0f), centrado);
+			RectangleF((float)cxx, (float)cyy + 8, (float)cw, 20.0f), centrado);
 		g->DrawString(fragmentoQuechua, fuenteGrande, Brushes::Cyan,
-			RectangleF((float)cx, (float)cy + 30, (float)cw, 44.0f), centrado);
+			RectangleF((float)cxx, (float)cyy + 30, (float)cw, 44.0f), centrado);
 		g->DrawString(fragmentoTraduccion, fuenteNormal, Brushes::White,
-			RectangleF((float)cx, (float)cy + 76, (float)cw, 34.0f), centrado);
+			RectangleF((float)cxx, (float)cyy + 76, (float)cw, 34.0f), centrado);
 	}
 
 	// Mensaje flotante
@@ -713,6 +915,7 @@ void Juego::dibujarOverlays(Graphics^ g, int anchoPantalla, int altoPantalla) {
 				"las lenguas originarias y los mitos antiguos.",
 				"El mito de Pariacaca se esta corrompiendo: recupera los 7 nodos",
 				"de datos en quechua y esquiva las llamas digitales de Huallallo.",
+				"Acercate a los espiritus dorados: ellos guardan la historia.",
 				"",
 				"WASD o FLECHAS: moverte    P: pausa    ESC: salir"
 			};
@@ -734,7 +937,8 @@ void Juego::dibujarOverlays(Graphics^ g, int anchoPantalla, int altoPantalla) {
 				"El jefe de Oblivion Corp intenta borrar a Chaupinamca,",
 				"la deidad que une todos los relatos.",
 				"Manten E junto a cada pilar para compilar el manuscrito.",
-				"Huallallo drenara el pilar mas avanzado: decide cual proteger.",
+				"Huallallo drenara el pilar mas avanzado y lanza bolas de fuego:",
+				"decide cual proteger y esquiva sus llamas.",
 				"",
 				"K o ESPACIO: Ray-Trace para desfragmentar a los enemigos"
 			};

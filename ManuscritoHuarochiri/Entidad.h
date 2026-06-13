@@ -42,6 +42,7 @@ public:
 	Rectangle area();
 	virtual Rectangle hitbox(); // caja de colision (mas justa que el area total)
 
+	virtual void animar(); // avanza la animacion propia de cada entidad
 	virtual void mover(Graphics^ g);
 	virtual void mostrar(Graphics^ g, Bitmap^ img, int camaraX, int camaraY);
 };
