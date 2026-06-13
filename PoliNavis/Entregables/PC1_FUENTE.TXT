@@ -3,7 +3,7 @@
   Equipo: Mustafa Altuntas, Manuel Gustavo Arimana, Bryan Cordova, Lenin Palomino, Biary Tineo
 ==============================================================================
 
-INDICE DE ARCHIVOS:
+INDICE:
    - Asteroide.h
    - Azar.h
    - Cometa.h
@@ -77,10 +77,11 @@ using namespace System;
 namespace PoliNavis {
 
 	// Generador central de numeros aleatorios para todo el juego.
-	// La implementacion vive en Azar.cpp.
+	// El handle estatico se inicializa AQUI (obligatorio en C++/CLI);
+	// los metodos estan implementados en Azar.cpp.
 	public ref class Azar abstract sealed {
 	public:
-		static Random^ generador;
+		static Random^ generador = gcnew Random();
 
 		static int entre(int minimo, int maximoExcluido);  // entero en [min, maxExcluido)
 		static float real();                                // real en [0, 1)
@@ -97,14 +98,16 @@ namespace PoliNavis {
 
 namespace PoliNavis {
 
-	// Cometa del Nivel 1: nucleo brillante + cola que apunta al lado
-	// contrario de su movimiento. Hecho con circulos y poligonos.
+	// Cometa: nucleo brillante + cola que apunta al lado contrario de su
+	// movimiento. Hecho con circulos y poligonos. Con 'neon' = true usa
+	// colores fosforescentes para los cometas mas veloces del Nivel 2.
 	public ref class Cometa : public Obstaculo {
 	public:
-		Cometa(float px, float py, float pdx, float pdy, float pradio);
+		Cometa(float px, float py, float pdx, float pdy, float pradio, bool neon);
 		virtual void dibujar(Graphics^ g) override;
 	private:
 		Color color;
+		bool esNeon;
 	};
 }
 
@@ -379,6 +382,7 @@ namespace PoliNavis {
 		void actualizarNivel();
 		void aplicarInput();
 		void spawnObstaculoNivel1();
+		void spawnObstaculoNivel2();
 		void revisarColisiones();
 		float inicioX();
 		float inicioY();
@@ -890,8 +894,8 @@ namespace PoliNavis {
 
 namespace PoliNavis {
 
-	// inicializacion del generador estatico
-	Random^ Azar::generador = gcnew Random();
+	// El campo estatico 'generador' se inicializa en Azar.h (handle
+	// administrado). Aqui van solo las implementaciones de los metodos.
 
 	int Azar::entre(int minimo, int maximoExcluido) {
 		return generador->Next(minimo, maximoExcluido);
@@ -918,9 +922,20 @@ namespace PoliNavis {
 
 namespace PoliNavis {
 
-	Cometa::Cometa(float px, float py, float pdx, float pdy, float pradio)
+	Cometa::Cometa(float px, float py, float pdx, float pdy, float pradio, bool neon)
 		: Obstaculo(px, py, pdx, pdy, pradio) {
-		color = Azar::moneda() ? Color::FromArgb(120, 220, 255) : Color::FromArgb(180, 230, 255);
+		esNeon = neon;
+		if (neon) {
+			// cometas fosforescentes del Nivel 2
+			array<Color>^ paleta = gcnew array<Color> {
+				Color::FromArgb(255, 60, 200), Color::FromArgb(60, 255, 220),
+				Color::FromArgb(180, 90, 255), Color::FromArgb(255, 230, 70)
+			};
+			color = paleta[Azar::entre(0, paleta->Length)];
+		}
+		else {
+			color = Azar::moneda() ? Color::FromArgb(120, 220, 255) : Color::FromArgb(180, 230, 255);
+		}
 	}
 
 	void Cometa::dibujar(Graphics^ g) {
@@ -930,30 +945,29 @@ namespace PoliNavis {
 		float nx = -dx / largo, ny = -dy / largo;
 		float perpX = -ny, perpY = nx;
 
-		// cola: triangulo largo que se desvanece
+		// cola: triangulo largo que se desvanece (mas larga si es neon)
+		float largoCola = esNeon ? 9.0f : 7.0f;
 		array<PointF>^ cola = gcnew array<PointF>(3);
 		cola[0] = PointF(x + perpX * radio, y + perpY * radio);
 		cola[1] = PointF(x - perpX * radio, y - perpY * radio);
-		cola[2] = PointF(x + nx * radio * 7.0f, y + ny * radio * 7.0f);
+		cola[2] = PointF(x + nx * radio * largoCola, y + ny * radio * largoCola);
 		SolidBrush brushCola(Color::FromArgb(70, color));
 		g->FillPolygon(%brushCola, cola);
 		// cola interior mas brillante
 		array<PointF>^ cola2 = gcnew array<PointF>(3);
 		cola2[0] = PointF(x + perpX * radio * 0.5f, y + perpY * radio * 0.5f);
 		cola2[1] = PointF(x - perpX * radio * 0.5f, y - perpY * radio * 0.5f);
-		cola2[2] = PointF(x + nx * radio * 4.5f, y + ny * radio * 4.5f);
-		SolidBrush brushCola2(Color::FromArgb(130, 255, 255, 255));
+		cola2[2] = PointF(x + nx * radio * largoCola * 0.65f, y + ny * radio * largoCola * 0.65f);
+		SolidBrush brushCola2(Color::FromArgb(140, esNeon ? color : Color::FromArgb(255, 255, 255)));
 		g->FillPolygon(%brushCola2, cola2);
 
 		// halo y nucleo
-		SolidBrush halo(Color::FromArgb(90, color));
-		g->FillEllipse(%halo, x - radio * 1.5f, y - radio * 1.5f, radio * 3.0f, radio * 3.0f);
-		SolidBrush nucleo(Color::FromArgb(255, 255, 255));
-		g->FillEllipse(%nucleo, x - radio * 0.7f, y - radio * 0.7f, radio * 1.4f, radio * 1.4f);
+		SolidBrush halo(Color::FromArgb(esNeon ? 120 : 90, color));
+		g->FillEllipse(%halo, x - radio * 1.6f, y - radio * 1.6f, radio * 3.2f, radio * 3.2f);
 		SolidBrush brillo(color);
 		g->FillEllipse(%brillo, x - radio, y - radio, radio * 2.0f, radio * 2.0f);
 		SolidBrush centro(Color::FromArgb(255, 255, 255, 255));
-		g->FillEllipse(%centro, x - radio * 0.4f, y - radio * 0.4f, radio * 0.8f, radio * 0.8f);
+		g->FillEllipse(%centro, x - radio * 0.45f, y - radio * 0.45f, radio * 0.9f, radio * 0.9f);
 	}
 }
 
@@ -1385,7 +1399,7 @@ namespace PoliNavis {
 			nave->setColorTrazo(Color::FromArgb(255, 90, 220));
 			meta = gcnew Estacion(930.0f, 350.0f, 1);
 			// campo de figuras geometricas caoticas
-			for (int i = 0; i < 15; i++) {
+			for (int i = 0; i < 11; i++) {
 				float px = Azar::entreF(180.0f, 880.0f);
 				float py = Azar::entreF(60.0f, 640.0f);
 				float ang = Azar::entreF(0.0f, 6.2832f);
@@ -1395,7 +1409,7 @@ namespace PoliNavis {
 				obstaculos->Add(gcnew FiguraKhaos(px, py,
 					(float)Math::Cos(ang) * vel, (float)Math::Sin(ang) * vel, radio, lados));
 			}
-			datoLeyenda = L"Galaxia del Khaos: figuras de distintos lados con movimiento impredecible.";
+			datoLeyenda = L"Galaxia del Khaos: figuras caoticas y cometas neon veloces. Llega a la salida.";
 			cambiar(L"NIVEL2");
 		}
 		Sonido::seleccionar();
@@ -1421,20 +1435,25 @@ namespace PoliNavis {
 		if (nivel == 1) {
 			sol->mover();
 			for each (Planeta^ p in planetas) p->mover();
-			// aparicion de cometas/asteroides a intervalos
-			spawnTimer--;
-			if (spawnTimer <= 0) {
+		}
+
+		// aparicion de cometas/asteroides a intervalos en AMBOS niveles
+		spawnTimer--;
+		if (spawnTimer <= 0) {
+			if (nivel == 1) {
 				spawnObstaculoNivel1();
 				spawnTimer = Math::Max(35, 90 - ticksNivel / 120);  // cada vez mas seguido
+			}
+			else {
+				spawnObstaculoNivel2();
+				spawnTimer = Math::Max(26, 60 - ticksNivel / 120);  // mas seguido y veloz que Nivel 1
 			}
 		}
 
 		for each (Obstaculo^ o in obstaculos) o->mover();
-		// quitar los que salieron (solo Nivel 1; en Nivel 2 rebotan)
-		if (nivel == 1) {
-			for (int i = obstaculos->Count - 1; i >= 0; i--)
-				if (obstaculos[i]->fueraDePantalla()) obstaculos->RemoveAt(i);
-		}
+		// quitar los que salieron de la pantalla (las FiguraKhaos rebotan, no salen)
+		for (int i = obstaculos->Count - 1; i >= 0; i--)
+			if (obstaculos[i]->fueraDePantalla()) obstaculos->RemoveAt(i);
 
 		revisarColisiones();
 	}
@@ -1459,9 +1478,26 @@ namespace PoliNavis {
 		else { px = Azar::entreF(40.0f, 960.0f); py = Config::ALTO + 20.0f; vy = -vel; vx = Azar::entreF(-2.0f, 2.0f); }
 
 		if (Azar::moneda())
-			obstaculos->Add(gcnew Cometa(px, py, vx, vy, Azar::entreF(7.0f, 11.0f)));
+			obstaculos->Add(gcnew Cometa(px, py, vx, vy, Azar::entreF(7.0f, 11.0f), false));
 		else
 			obstaculos->Add(gcnew Asteroide(px, py, vx, vy, Azar::entreF(13.0f, 22.0f)));
+	}
+
+	// Cometas/asteroides del Nivel 2: mas rapidos e impredecibles que los
+	// del Nivel 1, con cometas de colores neon (rubrica: forma propia del nivel).
+	void Juego::spawnObstaculoNivel2() {
+		int borde = Azar::entre(0, 4);
+		float px, py, vx, vy;
+		float vel = Azar::entreF(6.5f, 9.5f);    // mas veloz que el Nivel 1
+		if (borde == 0) { px = -20.0f; py = Azar::entreF(40.0f, 660.0f); vx = vel; vy = Azar::entreF(-3.5f, 3.5f); }
+		else if (borde == 1) { px = Config::ANCHO + 20.0f; py = Azar::entreF(40.0f, 660.0f); vx = -vel; vy = Azar::entreF(-3.5f, 3.5f); }
+		else if (borde == 2) { px = Azar::entreF(40.0f, 960.0f); py = -20.0f; vy = vel; vx = Azar::entreF(-3.5f, 3.5f); }
+		else { px = Azar::entreF(40.0f, 960.0f); py = Config::ALTO + 20.0f; vy = -vel; vx = Azar::entreF(-3.5f, 3.5f); }
+
+		if (Azar::entre(0, 3) != 0)
+			obstaculos->Add(gcnew Cometa(px, py, vx, vy, Azar::entreF(8.0f, 12.0f), true));   // neon
+		else
+			obstaculos->Add(gcnew Asteroide(px, py, vx, vy, Azar::entreF(12.0f, 20.0f)));
 	}
 
 	void Juego::revisarColisiones() {
@@ -1876,7 +1912,7 @@ namespace PoliNavis {
 
 		Estilos::textoIzquierda(g, L"NIVEL 2 - Galaxia Nebulosa del Khaos", Estilos::normalNegrita, cel, xi, 350.0f);
 		Estilos::textoIzquierda(g, L"Un agujero negro te absorbe a una galaxia de figuras geometricas caoticas.", Estilos::normal, bl, xi, 376.0f);
-		Estilos::textoIzquierda(g, L"Llega del Lugar 1 al portal de salida (Lugar 2) esquivando poligonos impredecibles.", Estilos::normal, bl, xi, 398.0f);
+		Estilos::textoIzquierda(g, L"Llega del Lugar 1 al portal de salida (Lugar 2) esquivando figuras y cometas neon mas veloces.", Estilos::normal, bl, xi, 398.0f);
 
 		Estilos::textoIzquierda(g, L"CONTROLES", Estilos::normalNegrita, cel, xi, 438.0f);
 		Estilos::textoIzquierda(g, L"Mover la nave:  Flechas  o  W A S D", Estilos::normal, bl, xi, 466.0f);

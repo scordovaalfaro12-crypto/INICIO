@@ -75,7 +75,7 @@ namespace PoliNavis {
 			nave->setColorTrazo(Color::FromArgb(255, 90, 220));
 			meta = gcnew Estacion(930.0f, 350.0f, 1);
 			// campo de figuras geometricas caoticas
-			for (int i = 0; i < 15; i++) {
+			for (int i = 0; i < 11; i++) {
 				float px = Azar::entreF(180.0f, 880.0f);
 				float py = Azar::entreF(60.0f, 640.0f);
 				float ang = Azar::entreF(0.0f, 6.2832f);
@@ -85,7 +85,7 @@ namespace PoliNavis {
 				obstaculos->Add(gcnew FiguraKhaos(px, py,
 					(float)Math::Cos(ang) * vel, (float)Math::Sin(ang) * vel, radio, lados));
 			}
-			datoLeyenda = L"Galaxia del Khaos: figuras de distintos lados con movimiento impredecible.";
+			datoLeyenda = L"Galaxia del Khaos: figuras caoticas y cometas neon veloces. Llega a la salida.";
 			cambiar(L"NIVEL2");
 		}
 		Sonido::seleccionar();
@@ -111,20 +111,25 @@ namespace PoliNavis {
 		if (nivel == 1) {
 			sol->mover();
 			for each (Planeta^ p in planetas) p->mover();
-			// aparicion de cometas/asteroides a intervalos
-			spawnTimer--;
-			if (spawnTimer <= 0) {
+		}
+
+		// aparicion de cometas/asteroides a intervalos en AMBOS niveles
+		spawnTimer--;
+		if (spawnTimer <= 0) {
+			if (nivel == 1) {
 				spawnObstaculoNivel1();
 				spawnTimer = Math::Max(35, 90 - ticksNivel / 120);  // cada vez mas seguido
+			}
+			else {
+				spawnObstaculoNivel2();
+				spawnTimer = Math::Max(26, 60 - ticksNivel / 120);  // mas seguido y veloz que Nivel 1
 			}
 		}
 
 		for each (Obstaculo^ o in obstaculos) o->mover();
-		// quitar los que salieron (solo Nivel 1; en Nivel 2 rebotan)
-		if (nivel == 1) {
-			for (int i = obstaculos->Count - 1; i >= 0; i--)
-				if (obstaculos[i]->fueraDePantalla()) obstaculos->RemoveAt(i);
-		}
+		// quitar los que salieron de la pantalla (las FiguraKhaos rebotan, no salen)
+		for (int i = obstaculos->Count - 1; i >= 0; i--)
+			if (obstaculos[i]->fueraDePantalla()) obstaculos->RemoveAt(i);
 
 		revisarColisiones();
 	}
@@ -149,9 +154,26 @@ namespace PoliNavis {
 		else { px = Azar::entreF(40.0f, 960.0f); py = Config::ALTO + 20.0f; vy = -vel; vx = Azar::entreF(-2.0f, 2.0f); }
 
 		if (Azar::moneda())
-			obstaculos->Add(gcnew Cometa(px, py, vx, vy, Azar::entreF(7.0f, 11.0f)));
+			obstaculos->Add(gcnew Cometa(px, py, vx, vy, Azar::entreF(7.0f, 11.0f), false));
 		else
 			obstaculos->Add(gcnew Asteroide(px, py, vx, vy, Azar::entreF(13.0f, 22.0f)));
+	}
+
+	// Cometas/asteroides del Nivel 2: mas rapidos e impredecibles que los
+	// del Nivel 1, con cometas de colores neon (rubrica: forma propia del nivel).
+	void Juego::spawnObstaculoNivel2() {
+		int borde = Azar::entre(0, 4);
+		float px, py, vx, vy;
+		float vel = Azar::entreF(6.5f, 9.5f);    // mas veloz que el Nivel 1
+		if (borde == 0) { px = -20.0f; py = Azar::entreF(40.0f, 660.0f); vx = vel; vy = Azar::entreF(-3.5f, 3.5f); }
+		else if (borde == 1) { px = Config::ANCHO + 20.0f; py = Azar::entreF(40.0f, 660.0f); vx = -vel; vy = Azar::entreF(-3.5f, 3.5f); }
+		else if (borde == 2) { px = Azar::entreF(40.0f, 960.0f); py = -20.0f; vy = vel; vx = Azar::entreF(-3.5f, 3.5f); }
+		else { px = Azar::entreF(40.0f, 960.0f); py = Config::ALTO + 20.0f; vy = -vel; vx = Azar::entreF(-3.5f, 3.5f); }
+
+		if (Azar::entre(0, 3) != 0)
+			obstaculos->Add(gcnew Cometa(px, py, vx, vy, Azar::entreF(8.0f, 12.0f), true));   // neon
+		else
+			obstaculos->Add(gcnew Asteroide(px, py, vx, vy, Azar::entreF(12.0f, 20.0f)));
 	}
 
 	void Juego::revisarColisiones() {

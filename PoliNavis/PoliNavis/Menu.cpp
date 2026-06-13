@@ -136,7 +136,7 @@ namespace PoliNavis {
 
 		Estilos::textoIzquierda(g, L"NIVEL 2 - Galaxia Nebulosa del Khaos", Estilos::normalNegrita, cel, xi, 350.0f);
 		Estilos::textoIzquierda(g, L"Un agujero negro te absorbe a una galaxia de figuras geometricas caoticas.", Estilos::normal, bl, xi, 376.0f);
-		Estilos::textoIzquierda(g, L"Llega del Lugar 1 al portal de salida (Lugar 2) esquivando poligonos impredecibles.", Estilos::normal, bl, xi, 398.0f);
+		Estilos::textoIzquierda(g, L"Llega del Lugar 1 al portal de salida (Lugar 2) esquivando figuras y cometas neon mas veloces.", Estilos::normal, bl, xi, 398.0f);
 
 		Estilos::textoIzquierda(g, L"CONTROLES", Estilos::normalNegrita, cel, xi, 438.0f);
 		Estilos::textoIzquierda(g, L"Mover la nave:  Flechas  o  W A S D", Estilos::normal, bl, xi, 466.0f);

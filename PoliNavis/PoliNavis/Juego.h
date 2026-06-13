@@ -55,6 +55,7 @@ namespace PoliNavis {
 		void actualizarNivel();
 		void aplicarInput();
 		void spawnObstaculoNivel1();
+		void spawnObstaculoNivel2();
 		void revisarColisiones();
 		float inicioX();
 		float inicioY();

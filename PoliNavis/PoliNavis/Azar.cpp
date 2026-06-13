@@ -2,8 +2,8 @@
 
 namespace PoliNavis {
 
-	// inicializacion del generador estatico
-	Random^ Azar::generador = gcnew Random();
+	// El campo estatico 'generador' se inicializa en Azar.h (handle
+	// administrado). Aqui van solo las implementaciones de los metodos.
 
 	int Azar::entre(int minimo, int maximoExcluido) {
 		return generador->Next(minimo, maximoExcluido);
