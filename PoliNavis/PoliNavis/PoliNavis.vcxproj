@@ -130,8 +130,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Asteroide.cpp" />
+    <ClCompile Include="Azar.cpp" />
     <ClCompile Include="Cometa.cpp" />
+    <ClCompile Include="Config.cpp" />
     <ClCompile Include="Entidad.cpp" />
+    <ClCompile Include="Entrada.cpp" />
     <ClCompile Include="Estacion.cpp" />
     <ClCompile Include="Estilos.cpp" />
     <ClCompile Include="FiguraKhaos.cpp" />

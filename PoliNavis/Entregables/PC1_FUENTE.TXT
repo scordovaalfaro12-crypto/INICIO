@@ -1,6 +1,6 @@
 ==============================================================================
   PC1 - PoliNavis: Viaje Interestelar  -  CODIGO FUENTE (.h y .cpp)
-  Equipo: Bryan Cordova, Lenin Palomino, Gustavo Arimana, Mustafa Altuntas, Biary Tineo
+  Equipo: Mustafa Altuntas, Manuel Gustavo Arimana, Bryan Cordova, Lenin Palomino, Biary Tineo
 ==============================================================================
 
 INDICE DE ARCHIVOS:
@@ -26,8 +26,11 @@ INDICE DE ARCHIVOS:
    - Sol.h
    - Sonido.h
    - Asteroide.cpp
+   - Azar.cpp
    - Cometa.cpp
+   - Config.cpp
    - Entidad.cpp
+   - Entrada.cpp
    - Estacion.cpp
    - Estilos.cpp
    - FiguraKhaos.cpp
@@ -68,34 +71,21 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Azar.h
  ****************************************************************************/
-﻿#pragma once
+#pragma once
 using namespace System;
 
 namespace PoliNavis {
 
-	// Generador central de numeros aleatorios para todo el juego
+	// Generador central de numeros aleatorios para todo el juego.
+	// La implementacion vive en Azar.cpp.
 	public ref class Azar abstract sealed {
 	public:
-		static Random^ generador = gcnew Random();
+		static Random^ generador;
 
-		// entero en [minimo, maximoExcluido)
-		static int entre(int minimo, int maximoExcluido) {
-			return generador->Next(minimo, maximoExcluido);
-		}
-
-		// real en [0, 1)
-		static float real() {
-			return (float)generador->NextDouble();
-		}
-
-		// real en [a, b)
-		static float entreF(float a, float b) {
-			return a + (b - a) * real();
-		}
-
-		static bool moneda() {
-			return generador->Next(2) == 0;
-		}
+		static int entre(int minimo, int maximoExcluido);  // entero en [min, maxExcluido)
+		static float real();                                // real en [0, 1)
+		static float entreF(float a, float b);              // real en [a, b)
+		static bool moneda();                               // true/false al 50%
 	};
 }
 
@@ -122,28 +112,32 @@ namespace PoliNavis {
   ARCHIVO: Config.h
  ****************************************************************************/
 #pragma once
+using namespace System::Drawing;
 
 namespace PoliNavis {
 
-	// Constantes globales del juego (ventana fija). Todo el juego ocurre
-	// dentro de una sola ventana de ANCHO x ALTO pixeles.
+	// Constantes globales del juego (ventana fija). Todo ocurre dentro de
+	// una sola ventana de ANCHO x ALTO pixeles. Los metodos auxiliares
+	// (centro y puntos A/B) estan implementados en Config.cpp.
 	public ref class Config abstract sealed {
 	public:
 		literal int ANCHO = 1000;          // ancho del area de juego
 		literal int ALTO = 700;            // alto del area de juego
 		literal int TICKS_SEGUNDO = 60;    // el temporizador corre a ~60 ticks/seg
 
-		// Vidas y energia de la nave
 		literal int VIDAS_INICIALES = 3;
 		literal int ENERGIA_INICIAL = 100;
 
-		// Punto A (origen) y Punto B (estacion / salida).
-		// La nave parte de la esquina inferior izquierda y debe llegar
-		// a la estacion en la esquina superior derecha.
-		literal int AX = 70;               // Punto A x
-		literal int AY = 620;              // Punto A y
-		literal int BX = 905;              // Punto B (estacion) x
-		literal int BY = 95;               // Punto B (estacion) y
+		// Punto A (origen) y Punto B (estacion / salida)
+		literal int AX = 70;
+		literal int AY = 620;
+		literal int BX = 905;
+		literal int BY = 95;
+
+		static int centroX();      // ANCHO / 2
+		static int centroY();      // ALTO / 2
+		static Point puntoA();     // origen de la nave
+		static Point puntoB();     // estacion / salida
 	};
 }
 
@@ -185,11 +179,11 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Entrada.h
  ****************************************************************************/
-﻿#pragma once
+#pragma once
 
 namespace PoliNavis {
 
-	// Estado del teclado y del raton que se comparte con los minijuegos.
+	// Estado del teclado y del raton que el controlador comparte con el juego.
 	// Las teclas se mantienen en true mientras esten presionadas.
 	public ref class Entrada {
 	public:
@@ -201,15 +195,8 @@ namespace PoliNavis {
 		int ratonX;
 		int ratonY;
 
-		Entrada() {
-			izquierda = false;
-			derecha = false;
-			arriba = false;
-			abajo = false;
-			disparo = false;
-			ratonX = 0;
-			ratonY = 0;
-		}
+		Entrada();
+		void reiniciar();   // pone todas las teclas en false
 	};
 }
 
@@ -240,7 +227,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Estilos.h
  ****************************************************************************/
-﻿#pragma once
+#pragma once
 using namespace System;
 using namespace System::Drawing;
 using namespace System::Drawing::Drawing2D;
@@ -305,7 +292,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Fondo.h
  ****************************************************************************/
-﻿#pragma once
+#pragma once
 using namespace System;
 using namespace System::Drawing;
 
@@ -613,7 +600,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Particula.h
  ****************************************************************************/
-﻿#pragma once
+#pragma once
 using namespace System;
 using namespace System::Drawing;
 using namespace System::Collections::Generic;
@@ -823,7 +810,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Sonido.h
  ****************************************************************************/
-﻿#pragma once
+#pragma once
 using namespace System;
 
 namespace PoliNavis {
@@ -897,6 +884,33 @@ namespace PoliNavis {
 }
 
 /****************************************************************************
+  ARCHIVO: Azar.cpp
+ ****************************************************************************/
+#include "Azar.h"
+
+namespace PoliNavis {
+
+	// inicializacion del generador estatico
+	Random^ Azar::generador = gcnew Random();
+
+	int Azar::entre(int minimo, int maximoExcluido) {
+		return generador->Next(minimo, maximoExcluido);
+	}
+
+	float Azar::real() {
+		return (float)generador->NextDouble();
+	}
+
+	float Azar::entreF(float a, float b) {
+		return a + (b - a) * real();
+	}
+
+	bool Azar::moneda() {
+		return generador->Next(2) == 0;
+	}
+}
+
+/****************************************************************************
   ARCHIVO: Cometa.cpp
  ****************************************************************************/
 #include "Cometa.h"
@@ -944,6 +958,30 @@ namespace PoliNavis {
 }
 
 /****************************************************************************
+  ARCHIVO: Config.cpp
+ ****************************************************************************/
+#include "Config.h"
+
+namespace PoliNavis {
+
+	int Config::centroX() {
+		return ANCHO / 2;
+	}
+
+	int Config::centroY() {
+		return ALTO / 2;
+	}
+
+	Point Config::puntoA() {
+		return Point(AX, AY);
+	}
+
+	Point Config::puntoB() {
+		return Point(BX, BY);
+	}
+}
+
+/****************************************************************************
   ARCHIVO: Entidad.cpp
  ****************************************************************************/
 #include "Entidad.h"
@@ -964,6 +1002,28 @@ namespace PoliNavis {
 
 	void Entidad::setPos(float px, float py) { x = px; y = py; }
 	void Entidad::setVel(float pdx, float pdy) { dx = pdx; dy = pdy; }
+}
+
+/****************************************************************************
+  ARCHIVO: Entrada.cpp
+ ****************************************************************************/
+#include "Entrada.h"
+
+namespace PoliNavis {
+
+	Entrada::Entrada() {
+		reiniciar();
+	}
+
+	void Entrada::reiniciar() {
+		izquierda = false;
+		derecha = false;
+		arriba = false;
+		abajo = false;
+		disparo = false;
+		ratonX = 0;
+		ratonY = 0;
+	}
 }
 
 /****************************************************************************
@@ -1046,7 +1106,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Estilos.cpp
  ****************************************************************************/
-﻿#include "Estilos.h"
+#include "Estilos.h"
 
 namespace PoliNavis {
 
@@ -1182,7 +1242,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Fondo.cpp
  ****************************************************************************/
-﻿#include "Fondo.h"
+#include "Fondo.h"
 #include "Azar.h"
 #include "Config.h"
 
@@ -1690,8 +1750,8 @@ namespace PoliNavis {
 	// no se permite un arreglo administrado como variable global).
 	static array<String^>^ opciones() {
 		return gcnew array<String^> {
-			L"NIVEL 1  -  Sistema Solar",
-			L"NIVEL 2  -  Galaxia Nebulosa del Khaos",
+			L"NIVEL 1 - Sistema Solar",
+			L"NIVEL 2 - Galaxia del Khaos",
 			L"INSTRUCCIONES",
 			L"CREADORES",
 			L"SALIR"
@@ -1701,7 +1761,8 @@ namespace PoliNavis {
 	Menu::Menu() { opcion = 0; }
 
 	RectangleF Menu::rectBoton(int i) {
-		return RectangleF(290.0f, 250.0f + i * 70.0f, 420.0f, 54.0f);
+		// columna a la izquierda para no tapar el arte de menu.png
+		return RectangleF(60.0f, 250.0f + i * 80.0f, 380.0f, 62.0f);
 	}
 	RectangleF Menu::rectVolver() {
 		return RectangleF(36.0f, 626.0f, 200.0f, 46.0f);
@@ -1711,8 +1772,10 @@ namespace PoliNavis {
 		Image^ img = menu ? Recursos::fondoMenu : Recursos::fondoEspacio;
 		if (img != nullptr) {
 			g->DrawImage(img, 0, 0, Config::ANCHO, Config::ALTO);
-			// velo para que el texto resalte sobre la foto
-			SolidBrush velo(Color::FromArgb(110, 4, 6, 16));
+			// en el menu el velo es tenue para lucir el arte; en las
+			// sub-pantallas es mas oscuro para que el texto se lea bien.
+			int a = menu ? 40 : 140;
+			SolidBrush velo(Color::FromArgb(a, 4, 6, 16));
 			g->FillRectangle(%velo, 0, 0, Config::ANCHO, Config::ALTO);
 		}
 		else {
@@ -1724,16 +1787,22 @@ namespace PoliNavis {
 	void Menu::dibujarPrincipal(Graphics^ g, int tick) {
 		dibujarFondo(g, tick, true);
 
-		Estilos::textoSombra(g, L"PoliNavis", Estilos::titulo, Color::FromArgb(255, 215, 90), 500.0f, 110.0f);
-		Estilos::textoCentrado(g, L"Viaje Interestelar", Estilos::subtitulo, Color::FromArgb(150, 210, 255), 500.0f, 165.0f);
-		Estilos::textoCentrado(g, L"Lleva la nave del Punto A al Punto B esquivando cometas y asteroides",
-			Estilos::pequena, Color::FromArgb(150, 170, 210), 500.0f, 200.0f);
+		// Si NO hay imagen de fondo, dibujamos un titulo propio (respaldo).
+		// Si hay menu.png, su arte ya trae el titulo, asi que no lo tapamos.
+		if (Recursos::fondoMenu == nullptr) {
+			Estilos::textoSombra(g, L"PoliNavis", Estilos::titulo, Color::FromArgb(255, 215, 90), 500.0f, 110.0f);
+			Estilos::textoCentrado(g, L"Viaje Interestelar", Estilos::subtitulo, Color::FromArgb(150, 210, 255), 500.0f, 165.0f);
+		}
+
+		// panel translucido detras de la columna de botones (legibilidad)
+		Estilos::rellenarRedondeado(g, Color::FromArgb(120, 6, 10, 26), 48.0f, 236.0f, 404.0f, 408.0f, 16.0f);
+		Estilos::bordeRedondeado(g, Color::FromArgb(90, 110, 180, 240), 1.5f, 48.0f, 236.0f, 404.0f, 408.0f, 16.0f);
 
 		array<String^>^ op = opciones();
 		for (int i = 0; i < 5; i++) boton(g, i, op[i], tick);
 
-		Estilos::textoCentrado(g, L"Usa el RATON o las flechas y ENTER",
-			Estilos::pequena, Color::FromArgb(130, 150, 200), 500.0f, 660.0f);
+		Estilos::textoCentrado(g, L"Raton o flechas + ENTER", Estilos::pequena,
+			Color::FromArgb(190, 210, 240), 250.0f, 664.0f);
 	}
 
 	void Menu::boton(Graphics^ g, int i, String^ texto, int tick) {
@@ -2069,7 +2138,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Particula.cpp
  ****************************************************************************/
-﻿#include "Particula.h"
+#include "Particula.h"
 #include "Azar.h"
 
 namespace PoliNavis {
@@ -2499,7 +2568,7 @@ namespace PoliNavis {
 /****************************************************************************
   ARCHIVO: Sonido.cpp
  ****************************************************************************/
-﻿#include "Sonido.h"
+#include "Sonido.h"
 
 using namespace System::Threading;
 

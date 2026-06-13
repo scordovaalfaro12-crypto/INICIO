@@ -2,7 +2,7 @@
 
 namespace PoliNavis {
 
-	// Estado del teclado y del raton que se comparte con los minijuegos.
+	// Estado del teclado y del raton que el controlador comparte con el juego.
 	// Las teclas se mantienen en true mientras esten presionadas.
 	public ref class Entrada {
 	public:
@@ -14,14 +14,7 @@ namespace PoliNavis {
 		int ratonX;
 		int ratonY;
 
-		Entrada() {
-			izquierda = false;
-			derecha = false;
-			arriba = false;
-			abajo = false;
-			disparo = false;
-			ratonX = 0;
-			ratonY = 0;
-		}
+		Entrada();
+		void reiniciar();   // pone todas las teclas en false
 	};
 }

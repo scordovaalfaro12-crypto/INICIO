@@ -7,8 +7,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Asteroide.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Azar.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="Cometa.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Config.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="Entidad.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Entrada.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="Estacion.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="Estilos.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="FiguraKhaos.cpp"><Filter>Source Files</Filter></ClCompile>
