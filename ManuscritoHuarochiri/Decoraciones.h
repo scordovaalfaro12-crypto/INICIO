@@ -56,6 +56,37 @@ public:
 	void mostrar(Graphics^ g, Bitmap^ img, int camaraX, int camaraY);
 };
 
+// Chispa de un estallido (muerte de enemigo, impacto). Sube/cae con un
+// poco de gravedad y se apaga. Pura nativa para poder vivir en un vector.
+class Particula : public Entidad {
+private:
+	double fx, fy, fvx, fvy; // posicion y velocidad con decimales (suavidad)
+	int vidaUtil, vidaMax;
+	int tono;                // 0 fuego, 1 cian (rayo), 2 verde, 3 dorado
+
+public:
+	Particula(int px, int py, double vx, double vy, int vida, int tono);
+	bool terminado();
+	void animar();
+	void mostrar(Graphics^ g, Bitmap^ img, int camaraX, int camaraY);
+};
+
+// Texto que sube y se desvanece (ej. "+100"). Guarda el valor como int para
+// no tener miembros manejados (String^) dentro de una clase nativa.
+class TextoFlotante {
+private:
+	int x, y;
+	int valor;
+	int vidaUtil, vidaMax;
+	int tono; // 0 dorado, 1 cian, 2 verde
+
+public:
+	TextoFlotante(int px, int py, int valor, int tono);
+	bool terminado();
+	void animar();
+	void mostrar(Graphics^ g, Font^ fuente, int camaraX, int camaraY);
+};
+
 // Bola de fuego que lanza Huallallo: viaja hacia donde estaba el jugador.
 class BolaFuego : public Entidad {
 private:

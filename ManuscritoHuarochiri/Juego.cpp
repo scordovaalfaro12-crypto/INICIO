@@ -41,6 +41,8 @@ Juego::Juego() {
 	decoraciones = new vector<Decoracion*>();
 	espiritus = new vector<PersonajeSecundario*>();
 	bolasFuego = new vector<BolaFuego*>();
+	particulas = new vector<Particula*>();
+	textosFlotantes = new vector<TextoFlotante*>();
 	jefe = nullptr;
 	santuario = nullptr;
 	aliado = nullptr;
@@ -74,6 +76,8 @@ Juego::~Juego() {
 	delete decoraciones;
 	delete espiritus;
 	delete bolasFuego;
+	delete particulas;
+	delete textosFlotantes;
 }
 
 void Juego::cargarTextos() {
@@ -125,6 +129,10 @@ void Juego::limpiarNivel() {
 	espiritus->clear();
 	for (int i = 0; i < (int)bolasFuego->size(); i++) delete bolasFuego->at(i);
 	bolasFuego->clear();
+	for (int i = 0; i < (int)particulas->size(); i++) delete particulas->at(i);
+	particulas->clear();
+	for (int i = 0; i < (int)textosFlotantes->size(); i++) delete textosFlotantes->at(i);
+	textosFlotantes->clear();
 	if (jefe != nullptr) { delete jefe; jefe = nullptr; }
 	if (santuario != nullptr) { delete santuario; santuario = nullptr; }
 	if (aliado != nullptr) { delete aliado; aliado = nullptr; }
@@ -174,6 +182,7 @@ void Juego::iniciarNivel(int numero) {
 		enemigos->push_back(new LlamaDigital((int)(0.55 * W), (int)(0.30 * H), 3, 330));
 		enemigos->push_back(new LlamaDigital((int)(0.63 * W), (int)(0.74 * H), 3, 330));
 		enemigos->push_back(new LlamaDigital((int)(0.25 * W), (int)(0.32 * H), 2, 300));
+		enemigos->push_back(new GolemLava((int)(0.88 * W), (int)(0.60 * H)));   // custodia un nodo lejano
 
 		// Ambiente: lava viva en la zona volcanica, rio brillante, antorchas
 		decoraciones->push_back(new BurbujaLava((int)(0.78 * W), (int)(0.10 * H)));
@@ -214,8 +223,8 @@ void Juego::iniciarNivel(int numero) {
 		enemigos->push_back(new LlamaDigital((int)(0.62 * W), (int)(0.47 * H), 4, 400));
 		enemigos->push_back(new LlamaDigital((int)(0.38 * W), (int)(0.47 * H), 4, 400));
 		enemigos->push_back(new LlamaDigital((int)(0.50 * W), (int)(0.64 * H), 4, 400));
-		enemigos->push_back(new LlamaDigital((int)(0.27 * W), (int)(0.70 * H), 3, 380));
-		enemigos->push_back(new LlamaDigital((int)(0.72 * W), (int)(0.28 * H), 3, 380));
+		enemigos->push_back(new LoboLava((int)(0.27 * W), (int)(0.70 * H)));  // cazador rapido
+		enemigos->push_back(new LoboLava((int)(0.72 * W), (int)(0.28 * H)));  // cazador rapido
 		enemigos->push_back(new LlamaDigital((int)(0.30 * W), (int)(0.20 * H), 3, 380));
 
 		// Ambiente: el sol de los Andes, rio chispeante y antorchas del santuario
@@ -252,6 +261,8 @@ void Juego::iniciarNivel(int numero) {
 
 		enemigos->push_back(new LlamaDigital((int)(0.30 * W), (int)(0.40 * H), 3, 420));
 		enemigos->push_back(new LlamaDigital((int)(0.70 * W), (int)(0.55 * H), 3, 420));
+		enemigos->push_back(new GolemLava((int)(0.45 * W), (int)(0.30 * H)));  // tanque que estorba la carga
+		enemigos->push_back(new LoboLava((int)(0.62 * W), (int)(0.62 * H)));   // cazador rapido
 
 		// Ambiente corrupto: mas lava viva y antorchas junto a cada pilar
 		decoraciones->push_back(new BurbujaLava((int)(0.78 * W), (int)(0.10 * H)));
@@ -300,6 +311,23 @@ void Juego::detenerMusica() {
 void Juego::mostrarMensaje(String^ texto) {
 	mensaje = texto;
 	mensajeTicks = 110;
+}
+
+// Estallido de chispas en (px,py): un anillo de particulas que salen volando.
+void Juego::estallido(int px, int py, int cantidad, int tono) {
+	for (int i = 0; i < cantidad; i++) {
+		double ang = (3.14159 * 2.0 * i) / cantidad + (rand() % 100) / 200.0;
+		double rapidez = 2.0 + (rand() % 40) / 10.0;
+		particulas->push_back(new Particula(px, py,
+			cos(ang) * rapidez, sin(ang) * rapidez - 2.0,
+			18 + rand() % 14, tono));
+	}
+}
+
+// Suma puntos y lanza un "+valor" flotante en (px,py).
+void Juego::sumarPuntos(int px, int py, int valor, int tono) {
+	score += valor;
+	textosFlotantes->push_back(new TextoFlotante(px, py, valor, tono));
 }
 
 // ------------------------------------------------------------------
@@ -432,6 +460,22 @@ void Juego::actualizarJugando() {
 	for (int i = 0; i < (int)decoraciones->size(); i++) decoraciones->at(i)->animar();
 	for (int i = 0; i < (int)espiritus->size(); i++) espiritus->at(i)->animar();
 
+	// Particulas y textos flotantes (se animan aunque el jugador este muriendo)
+	for (int i = (int)particulas->size() - 1; i >= 0; i--) {
+		particulas->at(i)->animar();
+		if (particulas->at(i)->terminado()) {
+			delete particulas->at(i);
+			particulas->erase(particulas->begin() + i);
+		}
+	}
+	for (int i = (int)textosFlotantes->size() - 1; i >= 0; i--) {
+		textosFlotantes->at(i)->animar();
+		if (textosFlotantes->at(i)->terminado()) {
+			delete textosFlotantes->at(i);
+			textosFlotantes->erase(textosFlotantes->begin() + i);
+		}
+	}
+
 	// Si el jugador esta muriendo, solo se termina su animacion
 	if (jugador->getAccion() == DeidadLluvia::muerte) {
 		jugador->actualizarAnimacion();
@@ -505,10 +549,17 @@ void Juego::actualizarJugando() {
 			LlamaDigital* enemigo = enemigos->at(j);
 			if (rayo->getActivo() && enemigo->getActivo() &&
 				rayo->hitbox().IntersectsWith(enemigo->hitbox())) {
-				enemigo->setActivo(false);
 				rayo->setActivo(false);
-				score += 50;
 				reproducirEfecto("msc/sonidoGolpe.wav");
+				bool murio = enemigo->recibirImpacto();
+				if (murio) {
+					estallido(enemigo->centroX(), enemigo->centroY(), 14, enemigo->colorParticula());
+					sumarPuntos(enemigo->centroX(), enemigo->getY(), 50, 1);
+				}
+				else {
+					// Tanque que aun resiste: solo chispas
+					estallido(enemigo->centroX(), enemigo->centroY(), 6, 1);
+				}
 			}
 		}
 		// El rayo tambien desintegra bolas de fuego
@@ -518,7 +569,8 @@ void Juego::actualizarJugando() {
 				rayo->hitbox().IntersectsWith(bola->hitbox())) {
 				bola->setActivo(false);
 				rayo->setActivo(false);
-				score += 25;
+				estallido(bola->centroX(), bola->centroY(), 8, 1);
+				sumarPuntos(bola->centroX(), bola->getY(), 25, 1);
 			}
 		}
 		if (nivelActual == 3 && jefe != nullptr && jefe->getActivo() && rayo->getActivo() &&
@@ -526,8 +578,10 @@ void Juego::actualizarJugando() {
 			jefe->recibirRayo();
 			rayo->setActivo(false);
 			reproducirEfecto("msc/sonidoGolpe.wav");
+			estallido(jefe->centroX(), jefe->centroY(), 10, 1);
 			if (!jefe->getActivo()) {
-				score += 500;
+				estallido(jefe->centroX(), jefe->centroY(), 40, 0);
+				sumarPuntos(jefe->centroX(), jefe->getY(), 500, 0);
 				mostrarMensaje("HUALLALLO DESFRAGMENTADO: los pilares estan a salvo");
 			}
 		}
@@ -551,7 +605,8 @@ void Juego::actualizarNivel1() {
 		if (jugador->hitbox().IntersectsWith(nodo->area())) {
 			nodo->setActivo(false);
 			nodosRecogidos++;
-			score += 100;
+			sumarPuntos(nodo->centroX(), nodo->getY(), 100, 1);
+			estallido(nodo->centroX(), nodo->centroY(), 12, 1);
 			reproducirEfecto("msc/sonidoNodo.wav");
 			fragmentoQuechua = quechua[nodo->getFragmentoID()];
 			fragmentoTraduccion = traducciones[nodo->getFragmentoID()];
@@ -569,7 +624,8 @@ void Juego::actualizarNivel2() {
 		jugador->setConOfrenda(false);
 		poderDesbloqueado = true;
 		jugador->setConPoder(true);
-		score += 500;
+		sumarPuntos(santuario->centroX(), santuario->getY(), 500, 0);
+		estallido(santuario->centroX(), santuario->centroY(), 30, 3);
 		reproducirEfecto("msc/sonidoPilar.wav");
 		mostrarMensaje("PODER DE LOS APUS DESBLOQUEADO: Ray-Trace (K o ESPACIO)");
 		completarNivel();
@@ -586,7 +642,8 @@ void Juego::actualizarNivel3() {
 		if (teclaInteractuar && !pilar->estaCompleto() && jugador->distanciaA(pilar) < 220) {
 			pilar->cargar(0.8);
 			if (pilar->estaCompleto()) {
-				score += 200;
+				sumarPuntos(pilar->centroX(), pilar->getY(), 200, 2);
+				estallido(pilar->centroX(), pilar->centroY(), 20, 2);
 				reproducirEfecto("msc/sonidoPilar.wav");
 				mostrarMensaje("PILAR COMPILADO: este fragmento ya es indestructible");
 			}
@@ -729,6 +786,12 @@ void Juego::dibujarMundo(Graphics^ g, int anchoPantalla, int altoPantalla) {
 
 	jugador->mostrar(g, imgDeidadLluvia, imgDeidadEspejo, cx, cy);
 
+	// Chispas y puntajes flotantes por encima de todo el mundo
+	for (int i = 0; i < (int)particulas->size(); i++)
+		particulas->at(i)->mostrar(g, nullptr, cx, cy);
+	for (int i = 0; i < (int)textosFlotantes->size(); i++)
+		textosFlotantes->at(i)->mostrar(g, fuenteNormal, cx, cy);
+
 	if (nivelActual == 2 && jugador->getConOfrenda()) dibujarFlechaGuia(g);
 
 	// Ayuda contextual del nivel 3 sobre los pilares
@@ -801,6 +864,56 @@ void Juego::dibujarGlobo(Graphics^ g, int anchoPantalla, int centroX, int baseY,
 
 	RectangleF zonaTexto = RectangleF((float)gx + 14, (float)gy + 11, 344.0f, (float)gh - 16);
 	g->DrawString(texto, fuenteChica, brochaTextoGlobo, zonaTexto);
+}
+
+void Juego::dibujarMinimapa(Graphics^ g, int anchoPantalla, int altoPantalla) {
+	// Caja proporcional al mundo, anclada arriba a la derecha
+	int mw = 190;
+	double esc = (double)mw / fondoActual->Width;
+	int mh = (int)(fondoActual->Height * esc);
+	if (mh > 150) { mh = 150; esc = (double)mh / fondoActual->Height; mw = (int)(fondoActual->Width * esc); }
+	int mx = anchoPantalla - mw - 14;
+	int my = 70;
+
+	SolidBrush^ fondo = gcnew SolidBrush(Color::FromArgb(150, 0, 0, 0));
+	g->FillRectangle(fondo, mx, my, mw, mh);
+	delete fondo;
+	g->DrawRectangle(Pens::Gold, mx, my, mw, mh);
+
+	// Objetivos
+	for (int i = 0; i < (int)nodos->size(); i++) {
+		if (!nodos->at(i)->getActivo()) continue;
+		g->FillRectangle(Brushes::Cyan,
+			mx + (int)(nodos->at(i)->centroX() * esc) - 2,
+			my + (int)(nodos->at(i)->centroY() * esc) - 2, 5, 5);
+	}
+	for (int i = 0; i < (int)pilares->size(); i++) {
+		Brush^ c = pilares->at(i)->estaCompleto() ? Brushes::LimeGreen : Brushes::Cyan;
+		g->FillRectangle(c,
+			mx + (int)(pilares->at(i)->centroX() * esc) - 3,
+			my + (int)(pilares->at(i)->centroY() * esc) - 3, 7, 7);
+	}
+	if (santuario != nullptr)
+		g->FillRectangle(Brushes::Gold,
+			mx + (int)(santuario->centroX() * esc) - 4,
+			my + (int)(santuario->centroY() * esc) - 4, 9, 9);
+
+	// Enemigos
+	for (int i = 0; i < (int)enemigos->size(); i++) {
+		if (!enemigos->at(i)->getActivo()) continue;
+		g->FillRectangle(Brushes::Red,
+			mx + (int)(enemigos->at(i)->centroX() * esc) - 2,
+			my + (int)(enemigos->at(i)->centroY() * esc) - 2, 5, 5);
+	}
+	if (jefe != nullptr && jefe->getActivo())
+		g->FillRectangle(Brushes::OrangeRed,
+			mx + (int)(jefe->centroX() * esc) - 4,
+			my + (int)(jefe->centroY() * esc) - 4, 9, 9);
+
+	// Jugador
+	g->FillRectangle(Brushes::White,
+		mx + (int)(jugador->centroX() * esc) - 3,
+		my + (int)(jugador->centroY() * esc) - 3, 6, 6);
 }
 
 void Juego::dibujarCorazon(Graphics^ g, int px, int py, bool lleno) {
@@ -1026,8 +1139,11 @@ void Juego::dibujar(Graphics^ g, int anchoPantalla, int altoPantalla) {
 
 	calcularCamara(anchoPantalla, altoPantalla);
 	dibujarMundo(g, anchoPantalla, altoPantalla);
-	if (estado != Estado::Victoria && estado != Estado::Derrota)
+	if (estado != Estado::Victoria && estado != Estado::Derrota) {
 		dibujarHUD(g, anchoPantalla, altoPantalla);
+		if (estado == Estado::Jugando || estado == Estado::Pausa)
+			dibujarMinimapa(g, anchoPantalla, altoPantalla);
+	}
 	dibujarOverlays(g, anchoPantalla, altoPantalla);
 }
 

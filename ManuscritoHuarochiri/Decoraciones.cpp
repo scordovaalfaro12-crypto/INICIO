@@ -207,6 +207,80 @@ void PersonajeSecundario::mostrar(Graphics^ g, Bitmap^ img, int camaraX, int cam
 	g->FillRectangle(Brushes::OrangeRed, rx - 2, ry + 3, 4, 3);
 }
 
+// --------------------------- Particula ---------------------------
+
+Particula::Particula(int px, int py, double vx, double vy, int vida, int tono) {
+	fx = px; fy = py;
+	fvx = vx; fvy = vy;
+	x = px; y = py;
+	ancho = alto = 8;
+	vidaUtil = vidaMax = vida;
+	this->tono = tono;
+}
+
+bool Particula::terminado() { return vidaUtil <= 0; }
+
+void Particula::animar() {
+	fx += fvx;
+	fy += fvy;
+	fvy += 0.35;   // gravedad leve
+	fvx *= 0.96;   // rozamiento
+	x = (int)fx;
+	y = (int)fy;
+	vidaUtil--;
+}
+
+void Particula::mostrar(Graphics^ g, Bitmap^ img, int camaraX, int camaraY) {
+	if (terminado()) return;
+	int px = x - camaraX;
+	int py = y - camaraY;
+	int tam = 4 + (vidaUtil * 6 / (vidaMax > 0 ? vidaMax : 1)); // se encoge
+	Brush^ color;
+	switch (tono) {
+	case 1:  color = (vidaUtil % 2 == 0) ? Brushes::Cyan : Brushes::White; break;
+	case 2:  color = Brushes::LimeGreen; break;
+	case 3:  color = Brushes::Gold; break;
+	default: color = (vidaUtil % 2 == 0) ? Brushes::Orange : Brushes::OrangeRed; break;
+	}
+	g->FillRectangle(color, px, py, tam, tam);
+}
+
+// ------------------------- TextoFlotante -------------------------
+
+TextoFlotante::TextoFlotante(int px, int py, int valor, int tono) {
+	x = px;
+	y = py;
+	this->valor = valor;
+	this->tono = tono;
+	vidaUtil = vidaMax = 45;
+}
+
+bool TextoFlotante::terminado() { return vidaUtil <= 0; }
+
+void TextoFlotante::animar() {
+	y -= 2;       // sube
+	vidaUtil--;
+}
+
+void TextoFlotante::mostrar(Graphics^ g, Font^ fuente, int camaraX, int camaraY) {
+	if (terminado()) return;
+	int alfa = (int)(255.0 * vidaUtil / vidaMax);
+	if (alfa < 0) alfa = 0;
+	Color base;
+	switch (tono) {
+	case 1:  base = Color::Cyan; break;
+	case 2:  base = Color::LimeGreen; break;
+	default: base = Color::Gold; break;
+	}
+	SolidBrush^ pincel = gcnew SolidBrush(Color::FromArgb(alfa, base.R, base.G, base.B));
+	SolidBrush^ sombra = gcnew SolidBrush(Color::FromArgb(alfa, 0, 0, 0));
+	String^ texto = String::Format("+{0}", valor);
+	g->DrawString(texto, fuente, sombra, (float)(x - camaraX + 2), (float)(y - camaraY + 2));
+	g->DrawString(texto, fuente, pincel, (float)(x - camaraX), (float)(y - camaraY));
+	delete pincel;
+	delete sombra;
+}
+
 // --------------------------- BolaFuego ---------------------------
 
 BolaFuego::BolaFuego(int px, int py, int objetivoX, int objetivoY) {

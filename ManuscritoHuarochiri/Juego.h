@@ -51,6 +51,8 @@ private:
 	vector<Decoracion*>* decoraciones;        // ambiente animado (polimorfico)
 	vector<PersonajeSecundario*>* espiritus;  // NPCs que ensenan la historia
 	vector<BolaFuego*>* bolasFuego;           // proyectiles de Huallallo
+	vector<Particula*>* particulas;           // chispas de estallidos
+	vector<TextoFlotante*>* textosFlotantes;  // "+100" al ganar puntos
 	HuallalloJefe* jefe;
 	SantuarioMacahuisa* santuario;
 	AliadoAlgoritmo* aliado;
@@ -101,6 +103,8 @@ private:
 	void tocarMusicaNivel();
 	void detenerMusica();
 	void mostrarMensaje(String^ texto);
+	void estallido(int px, int py, int cantidad, int tono);
+	void sumarPuntos(int px, int py, int valor, int tono);
 	void perderVidaJugador(int golpeDesdeX, int golpeDesdeY);
 	void dispararRayo();
 	void completarNivel();
@@ -113,6 +117,7 @@ private:
 	void dibujarFlechaGuia(Graphics^ g);
 	void dibujarGlobo(Graphics^ g, int anchoPantalla, int centroX, int baseY, String^ texto);
 	void dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla);
+	void dibujarMinimapa(Graphics^ g, int anchoPantalla, int altoPantalla);
 	void dibujarCorazon(Graphics^ g, int px, int py, bool lleno);
 	void dibujarPanel(Graphics^ g, int anchoPantalla, int altoPantalla,
 		String^ titulo, array<String^>^ lineas, String^ pie, Brush^ colorTitulo);
