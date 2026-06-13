@@ -1,0 +1,2577 @@
+==============================================================================
+  PC1 - PoliNavis: Viaje Interestelar  -  CODIGO FUENTE (.h y .cpp)
+  Equipo: Bryan Cordova, Lenin Palomino, Gustavo Arimana, Mustafa Altuntas, Biary Tineo
+==============================================================================
+
+INDICE DE ARCHIVOS:
+   - Asteroide.h
+   - Azar.h
+   - Cometa.h
+   - Config.h
+   - Entidad.h
+   - Entrada.h
+   - Estacion.h
+   - Estilos.h
+   - FiguraKhaos.h
+   - Fondo.h
+   - Juego.h
+   - Menu.h
+   - MyForm.h
+   - Nave.h
+   - Obstaculo.h
+   - Particula.h
+   - Planeta.h
+   - Planetas.h
+   - Recursos.h
+   - Sol.h
+   - Sonido.h
+   - Asteroide.cpp
+   - Cometa.cpp
+   - Entidad.cpp
+   - Estacion.cpp
+   - Estilos.cpp
+   - FiguraKhaos.cpp
+   - Fondo.cpp
+   - Juego.cpp
+   - Menu.cpp
+   - MyForm.cpp
+   - Nave.cpp
+   - Obstaculo.cpp
+   - Particula.cpp
+   - Planeta.cpp
+   - Planetas.cpp
+   - Recursos.cpp
+   - Sol.cpp
+   - Sonido.cpp
+
+
+/****************************************************************************
+  ARCHIVO: Asteroide.h
+ ****************************************************************************/
+#pragma once
+#include "Obstaculo.h"
+
+namespace PoliNavis {
+
+	// Asteroide del Nivel 1: roca irregular (poligono de 9 vertices) que gira.
+	// Cada uno tiene una silueta unica generada al azar al crearse.
+	public ref class Asteroide : public Obstaculo {
+	public:
+		Asteroide(float px, float py, float pdx, float pdy, float pradio);
+		virtual void dibujar(Graphics^ g) override;
+	private:
+		array<float>^ forma;
+		Color color;
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Azar.h
+ ****************************************************************************/
+﻿#pragma once
+using namespace System;
+
+namespace PoliNavis {
+
+	// Generador central de numeros aleatorios para todo el juego
+	public ref class Azar abstract sealed {
+	public:
+		static Random^ generador = gcnew Random();
+
+		// entero en [minimo, maximoExcluido)
+		static int entre(int minimo, int maximoExcluido) {
+			return generador->Next(minimo, maximoExcluido);
+		}
+
+		// real en [0, 1)
+		static float real() {
+			return (float)generador->NextDouble();
+		}
+
+		// real en [a, b)
+		static float entreF(float a, float b) {
+			return a + (b - a) * real();
+		}
+
+		static bool moneda() {
+			return generador->Next(2) == 0;
+		}
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Cometa.h
+ ****************************************************************************/
+#pragma once
+#include "Obstaculo.h"
+
+namespace PoliNavis {
+
+	// Cometa del Nivel 1: nucleo brillante + cola que apunta al lado
+	// contrario de su movimiento. Hecho con circulos y poligonos.
+	public ref class Cometa : public Obstaculo {
+	public:
+		Cometa(float px, float py, float pdx, float pdy, float pradio);
+		virtual void dibujar(Graphics^ g) override;
+	private:
+		Color color;
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Config.h
+ ****************************************************************************/
+#pragma once
+
+namespace PoliNavis {
+
+	// Constantes globales del juego (ventana fija). Todo el juego ocurre
+	// dentro de una sola ventana de ANCHO x ALTO pixeles.
+	public ref class Config abstract sealed {
+	public:
+		literal int ANCHO = 1000;          // ancho del area de juego
+		literal int ALTO = 700;            // alto del area de juego
+		literal int TICKS_SEGUNDO = 60;    // el temporizador corre a ~60 ticks/seg
+
+		// Vidas y energia de la nave
+		literal int VIDAS_INICIALES = 3;
+		literal int ENERGIA_INICIAL = 100;
+
+		// Punto A (origen) y Punto B (estacion / salida).
+		// La nave parte de la esquina inferior izquierda y debe llegar
+		// a la estacion en la esquina superior derecha.
+		literal int AX = 70;               // Punto A x
+		literal int AY = 620;              // Punto A y
+		literal int BX = 905;              // Punto B (estacion) x
+		literal int BY = 95;               // Punto B (estacion) y
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Entidad.h
+ ****************************************************************************/
+#pragma once
+using namespace System;
+using namespace System::Drawing;
+
+namespace PoliNavis {
+
+	// ===== CLASE BASE ABSTRACTA (raiz de toda la jerarquia POO) =====
+	// Demuestra ABSTRACCION y ENCAPSULAMIENTO: todo objeto del juego tiene
+	// una posicion (x, y) y una velocidad (dx, dy), sabe moverse y dibujarse.
+	// De aqui heredan Nave, Sol, Planeta, Obstaculo y Estacion.
+	public ref class Entidad abstract {
+	protected:
+		float x, y;       // posicion (encapsuladas: solo se tocan con get/set)
+		float dx, dy;     // velocidad por tick
+
+	public:
+		Entidad(float px, float py);
+
+		// metodos abstractos: cada hija decide COMO se mueve y se dibuja
+		virtual void mover() = 0;
+		virtual void dibujar(Graphics^ g) = 0;
+
+		// rectangulo de colision (las hijas lo ajustan a su forma)
+		virtual RectangleF area();
+
+		float getX();
+		float getY();
+		void setPos(float px, float py);
+		void setVel(float pdx, float pdy);
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Entrada.h
+ ****************************************************************************/
+﻿#pragma once
+
+namespace PoliNavis {
+
+	// Estado del teclado y del raton que se comparte con los minijuegos.
+	// Las teclas se mantienen en true mientras esten presionadas.
+	public ref class Entrada {
+	public:
+		bool izquierda;
+		bool derecha;
+		bool arriba;
+		bool abajo;
+		bool disparo;
+		int ratonX;
+		int ratonY;
+
+		Entrada() {
+			izquierda = false;
+			derecha = false;
+			arriba = false;
+			abajo = false;
+			disparo = false;
+			ratonX = 0;
+			ratonY = 0;
+		}
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Estacion.h
+ ****************************************************************************/
+#pragma once
+#include "Entidad.h"
+
+namespace PoliNavis {
+
+	// Meta del nivel. tipo 0 = estacion espacial (Nivel 1, Punto B);
+	// tipo 1 = portal de salida (Nivel 2, Lugar 2). Hecha con figuras.
+	public ref class Estacion : public Entidad {
+	public:
+		Estacion(float px, float py, int ptipo);
+
+		virtual void mover() override;
+		virtual void dibujar(Graphics^ g) override;
+		virtual RectangleF area() override;
+
+	private:
+		int tipo;
+		float fase;
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Estilos.h
+ ****************************************************************************/
+﻿#pragma once
+using namespace System;
+using namespace System::Drawing;
+using namespace System::Drawing::Drawing2D;
+
+namespace PoliNavis {
+
+	// Fuentes y utilidades de dibujo compartidas por todo el juego
+	public ref class Estilos abstract sealed {
+	public:
+		static Font^ titulo        = gcnew Font(L"Segoe UI", 42.0f, FontStyle::Bold);
+		static Font^ enorme        = gcnew Font(L"Segoe UI", 32.0f, FontStyle::Bold);
+		static Font^ grande        = gcnew Font(L"Segoe UI", 24.0f, FontStyle::Bold);
+		static Font^ subtitulo     = gcnew Font(L"Segoe UI", 17.0f, FontStyle::Bold);
+		static Font^ boton         = gcnew Font(L"Segoe UI", 15.0f, FontStyle::Bold);
+		static Font^ normalNegrita = gcnew Font(L"Segoe UI", 12.0f, FontStyle::Bold);
+		static Font^ normal        = gcnew Font(L"Segoe UI", 11.5f);
+		static Font^ pequena       = gcnew Font(L"Segoe UI", 9.5f);
+		static Font^ hud           = gcnew Font(L"Consolas", 11.0f, FontStyle::Bold);
+
+		static StringFormat^ centrado    = crearFormato(StringAlignment::Center, StringAlignment::Center);
+		static StringFormat^ izquierda   = crearFormato(StringAlignment::Near, StringAlignment::Center);
+		static StringFormat^ centroArriba = crearFormato(StringAlignment::Center, StringAlignment::Near);
+
+		static void rellenarRedondeado(Graphics^ g, Color color, float x, float y, float ancho, float alto, float radio);
+		static void bordeRedondeado(Graphics^ g, Color color, float grosor, float x, float y, float ancho, float alto, float radio);
+		static void textoCentrado(Graphics^ g, String^ texto, Font^ fuente, Color color, float cx, float cy);
+		static void textoSombra(Graphics^ g, String^ texto, Font^ fuente, Color color, float cx, float cy);
+		static void textoIzquierda(Graphics^ g, String^ texto, Font^ fuente, Color color, float x, float y);
+		static Color oscurecer(Color color, float factor);   // factor 0..1 (0 = negro)
+		static Color aclarar(Color color, float factor);     // factor 0..1 (1 = blanco)
+
+	private:
+		static StringFormat^ crearFormato(StringAlignment horizontal, StringAlignment vertical);
+		static void agregarRectRedondeado(GraphicsPath^ ruta, float x, float y, float ancho, float alto, float radio);
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: FiguraKhaos.h
+ ****************************************************************************/
+#pragma once
+#include "Obstaculo.h"
+
+namespace PoliNavis {
+
+	// Cuerpo de la "Galaxia Nebulosa del Khaos" (Nivel 2). Es un poligono de
+	// 3 a 8 lados (o rectangulo) con colores neon, que se mueve de forma
+	// CAOTICA: rebota en los bordes y cambia de direccion al azar. Mas
+	// impredecible y veloz que los obstaculos del Nivel 1.
+	public ref class FiguraKhaos : public Obstaculo {
+	public:
+		FiguraKhaos(float px, float py, float pdx, float pdy, float pradio, int plados);
+		virtual void mover() override;       // movimiento caotico con rebote
+		virtual void dibujar(Graphics^ g) override;
+	private:
+		int lados;
+		Color color;
+		int caos;        // ticks para el proximo cambio brusco de rumbo
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Fondo.h
+ ****************************************************************************/
+﻿#pragma once
+using namespace System;
+using namespace System::Drawing;
+
+namespace PoliNavis {
+
+	// Cielo espacial animado: degradado, estrellas que parpadean y estrellas fugaces
+	public ref class Fondo abstract sealed {
+	public:
+		static void dibujar(Graphics^ g, int tick);                              // fondo completo
+		static void dibujarEstrellas(Graphics^ g, int tick, int alfaMaximo);     // solo las estrellas
+
+	private:
+		literal int CANTIDAD = 130;
+		static array<float>^ ex;       // posiciones x de las estrellas
+		static array<float>^ ey;       // posiciones y
+		static array<float>^ etam;     // tamano de cada estrella
+		static array<float>^ efase;    // fase del parpadeo
+		static float fugazX = 0.0f;
+		static float fugazY = 0.0f;
+		static float fugazVX = 0.0f;
+		static float fugazVY = 0.0f;
+		static int fugazVida = 0;
+		static void crear();
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Juego.h
+ ****************************************************************************/
+#pragma once
+#include "Menu.h"
+#include "Nave.h"
+#include "Sol.h"
+#include "Planeta.h"
+#include "Obstaculo.h"
+#include "Estacion.h"
+#include "Entrada.h"
+
+using namespace System::Collections::Generic;
+using namespace System::Windows::Forms;
+
+namespace PoliNavis {
+
+	// ===== CLASE CONTROLADORA =====
+	// Integra TODAS las clases del juego (Menu, Nave, Sol, Planetas,
+	// Obstaculos y Estacion), administra los estados (menu, niveles,
+	// mensajes) y coordina el bucle actualizar()/dibujar() que llama MyForm.
+	public ref class Juego {
+	public:
+		Juego();
+
+		void actualizar();              // un tick de logica
+		void dibujar(Graphics^ g);      // dibuja la pantalla activa
+
+		void teclaAbajo(Keys tecla);
+		void teclaArriba(Keys tecla);
+		void clic(int mx, int my);
+		void ratonMovido(int mx, int my);
+
+		String^ getEstado();
+
+	private:
+		String^ estado;
+		int tick, tickEstado;
+
+		Menu^ menu;
+		Entrada^ entrada;
+
+		Nave^ nave;
+		Sol^ sol;
+		List<Planeta^>^ planetas;
+		List<Obstaculo^>^ obstaculos;
+		Estacion^ meta;
+
+		int nivel;            // 1 o 2
+		int colisiones;
+		int ticksNivel;       // tiempo del nivel actual (en ticks)
+		int tiempoNivel1;     // segundos logrados en el Nivel 1
+		int spawnTimer;
+		String^ datoLeyenda;  // dato educativo del planeta resaltado
+
+		void cambiar(String^ nuevo);
+		void iniciarNivel(int n);
+		void actualizarNivel();
+		void aplicarInput();
+		void spawnObstaculoNivel1();
+		void revisarColisiones();
+		float inicioX();
+		float inicioY();
+
+		void dibujarFondoNivel(Graphics^ g);
+		void dibujarPanel(Graphics^ g);
+		void dibujarLeyenda(Graphics^ g);
+		void dibujarPuntos(Graphics^ g);
+		void dibujarAgujeroNegro(Graphics^ g);
+		void dibujarMensaje(Graphics^ g, String^ titulo, String^ sub, String^ pie, Color color);
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Menu.h
+ ****************************************************************************/
+#pragma once
+using namespace System;
+using namespace System::Drawing;
+
+namespace PoliNavis {
+
+	// Acciones que el menu devuelve al controlador
+	public enum class AccionMenu {
+		Ninguna, Nivel1, Nivel2, Instrucciones, Creadores, Salir, Volver
+	};
+
+	// Menu principal + pantallas de Instrucciones y Creadores (obligatorias).
+	// Todo se dibuja en la misma ventana. Devuelve una AccionMenu al hacer
+	// clic; el controlador Juego decide que hacer.
+	public ref class Menu {
+	public:
+		Menu();
+
+		void dibujarPrincipal(Graphics^ g, int tick);
+		void dibujarInstrucciones(Graphics^ g, int tick);
+		void dibujarCreadores(Graphics^ g, int tick);
+
+		AccionMenu clicPrincipal(int mx, int my);
+		AccionMenu clicVolver(int mx, int my);     // boton volver en sub-pantallas
+		bool hoverPrincipal(int mx, int my);       // resalta boton; true si cambio
+		void moverSeleccion(int d);
+		AccionMenu seleccionActual();
+
+	private:
+		int opcion;
+		RectangleF rectBoton(int i);
+		RectangleF rectVolver();
+		void dibujarFondo(Graphics^ g, int tick, bool menu);
+		void boton(Graphics^ g, int i, String^ texto, int tick);
+		void botonVolver(Graphics^ g);
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: MyForm.h
+ ****************************************************************************/
+#pragma once
+#include "Juego.h"
+
+namespace PoliNavis {
+
+	using namespace System;
+	using namespace System::ComponentModel;
+	using namespace System::Windows::Forms;
+	using namespace System::Drawing;
+
+	// Ventana UNICA del juego. El temporizador avanza la logica y el evento
+	// Paint dibuja cada cuadro. Reenvia teclado y raton al controlador Juego.
+	public ref class MyForm : public System::Windows::Forms::Form {
+	public:
+		MyForm(void) {
+			InitializeComponent();
+			this->SetStyle(ControlStyles::AllPaintingInWmPaint
+				| ControlStyles::UserPaint
+				| ControlStyles::OptimizedDoubleBuffer, true);
+			this->UpdateStyles();
+			juego = gcnew Juego();
+		}
+
+	protected:
+		~MyForm() { if (components) delete components; }
+
+		// dejar pasar las flechas al evento KeyDown
+		virtual bool ProcessDialogKey(Keys keyData) override {
+			Keys c = keyData & Keys::KeyCode;
+			if (c == Keys::Up || c == Keys::Down || c == Keys::Left || c == Keys::Right)
+				return false;
+			return Form::ProcessDialogKey(keyData);
+		}
+
+	private:
+		System::Windows::Forms::Timer^ temporizador;
+		System::ComponentModel::IContainer^ components;
+		Juego^ juego;
+
+		void InitializeComponent(void) {
+			this->components = (gcnew System::ComponentModel::Container());
+			this->temporizador = (gcnew System::Windows::Forms::Timer(this->components));
+			this->SuspendLayout();
+			this->temporizador->Enabled = true;
+			this->temporizador->Interval = 16;     // ~60 cuadros por segundo
+			this->temporizador->Tick += gcnew System::EventHandler(this, &MyForm::alTick);
+			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::None;
+			this->BackColor = System::Drawing::Color::Black;
+			this->ClientSize = System::Drawing::Size(1000, 700);
+			this->FormBorderStyle = System::Windows::Forms::FormBorderStyle::FixedSingle;
+			this->MaximizeBox = false;
+			this->StartPosition = System::Windows::Forms::FormStartPosition::CenterScreen;
+			this->KeyPreview = true;
+			this->Name = L"MyForm";
+			this->Text = L"PoliNavis - Viaje Interestelar";
+			this->Paint += gcnew System::Windows::Forms::PaintEventHandler(this, &MyForm::alPintar);
+			this->KeyDown += gcnew System::Windows::Forms::KeyEventHandler(this, &MyForm::alTeclaAbajo);
+			this->KeyUp += gcnew System::Windows::Forms::KeyEventHandler(this, &MyForm::alTeclaArriba);
+			this->MouseMove += gcnew System::Windows::Forms::MouseEventHandler(this, &MyForm::alMoverRaton);
+			this->MouseDown += gcnew System::Windows::Forms::MouseEventHandler(this, &MyForm::alClic);
+			this->ResumeLayout(false);
+		}
+
+		System::Void alTick(System::Object^ sender, System::EventArgs^ e) {
+			juego->actualizar();
+			this->Invalidate();
+		}
+		System::Void alPintar(System::Object^ sender, System::Windows::Forms::PaintEventArgs^ e) {
+			e->Graphics->SmoothingMode = System::Drawing::Drawing2D::SmoothingMode::AntiAlias;
+			e->Graphics->TextRenderingHint = System::Drawing::Text::TextRenderingHint::AntiAlias;
+			juego->dibujar(e->Graphics);
+		}
+		System::Void alTeclaAbajo(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e) {
+			juego->teclaAbajo(e->KeyCode);
+		}
+		System::Void alTeclaArriba(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e) {
+			juego->teclaArriba(e->KeyCode);
+		}
+		System::Void alMoverRaton(System::Object^ sender, System::Windows::Forms::MouseEventArgs^ e) {
+			juego->ratonMovido(e->X, e->Y);
+		}
+		System::Void alClic(System::Object^ sender, System::Windows::Forms::MouseEventArgs^ e) {
+			juego->clic(e->X, e->Y);
+		}
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Nave.h
+ ****************************************************************************/
+#pragma once
+#include "Entidad.h"
+
+namespace PoliNavis {
+
+	ref class Particula;
+
+	// La nave que controla el jugador. Construida SOLO con poligonos, lineas
+	// y rectangulos (sin sprites). Se mueve en las 4 direcciones con el
+	// teclado y apunta hacia donde viaja. Tiene vidas y energia; al chocar
+	// regresa al Punto A perdiendo una vida (regla de la rubrica).
+	public ref class Nave : public Entidad {
+	public:
+		Nave(float px, float py);
+
+		virtual void mover() override;
+		virtual void dibujar(Graphics^ g) override;
+		virtual RectangleF area() override;
+
+		void acelerar(float ax, float ay);   // fija la velocidad deseada (input)
+		void reiniciarEn(float px, float py); // vuelve al origen, parpadea
+		void perderVida();
+		void gastarEnergia(int cantidad);
+		void recargarEnergia(int cantidad);
+
+		int getVidas();
+		int getEnergia();
+		bool sinVidas();
+		bool esInvulnerable();
+		void setColorTrazo(Color c);          // paleta (Nivel 1 vs Nivel 2)
+		bool propulsando();
+
+	private:
+		int vidas;
+		int energia;
+		int invulnerable;     // ticks de parpadeo tras reiniciar
+		float angulo;         // hacia donde apunta (grados)
+		float faseLlama;      // animacion del propulsor
+		Color colorTrazo;     // color de detalle segun el nivel
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Obstaculo.h
+ ****************************************************************************/
+#pragma once
+#include "Entidad.h"
+
+namespace PoliNavis {
+
+	// ===== CLASE ABSTRACTA Obstaculo (hereda de Entidad) =====
+	// Base de todo lo que la nave debe esquivar. Se mueve en linea recta con
+	// la velocidad (dx, dy) que le asigna el spawner (trayectoria aleatoria,
+	// mas rapida que la nave). De aqui heredan Cometa, Asteroide y FiguraKhaos.
+	public ref class Obstaculo abstract : public Entidad {
+	protected:
+		float radio;
+		float giro;          // rotacion propia (visual)
+		float velGiro;
+
+	public:
+		Obstaculo(float px, float py, float pdx, float pdy, float pradio);
+
+		virtual void mover() override;
+		virtual RectangleF area() override;
+
+		bool fueraDePantalla();   // salio del area con margen => se elimina
+		float getRadio();
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Particula.h
+ ****************************************************************************/
+﻿#pragma once
+using namespace System;
+using namespace System::Drawing;
+using namespace System::Collections::Generic;
+
+namespace PoliNavis {
+
+	// Particula simple: se usa para llamas, polvo, explosiones y destellos
+	public ref class Particula {
+	public:
+		float x, y, vx, vy, radio;
+		int vida, vidaMax;
+		Color color;
+		bool conGravedad;
+
+		Particula(float px, float py, float pvx, float pvy, float pradio, int pvida, Color pcolor, bool pgravedad);
+		void mover();
+		void dibujar(Graphics^ g);
+		bool muerta();
+	};
+
+	// Ayudas para trabajar con listas de particulas
+	public ref class Particulas abstract sealed {
+	public:
+		static void actualizar(List<Particula^>^ lista);
+		static void dibujar(Graphics^ g, List<Particula^>^ lista);
+		static void explosion(List<Particula^>^ lista, float x, float y, Color color, int cantidad);
+		static void polvo(List<Particula^>^ lista, float x, float y, Color color, int cantidad);
+		static void llama(List<Particula^>^ lista, float x, float y, float fuerza);
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Planeta.h
+ ****************************************************************************/
+#pragma once
+#include "Entidad.h"
+
+namespace PoliNavis {
+
+	// ===== CLASE ABSTRACTA Planeta (hereda de Entidad) =====
+	// Modela un planeta con sus DOS movimientos obligatorios:
+	//   - TRASLACION: orbita alrededor del Sol (cambia x, y).
+	//   - ROTACION: gira sobre su propio eje (cambia 'rotacion').
+	// Cada planeta concreto solo implementa su aspecto en dibujarSuperficie().
+	// Demuestra HERENCIA y POLIMORFISMO: la lista de Planeta^ se dibuja igual
+	// sin saber el tipo concreto.
+	public ref class Planeta abstract : public Entidad {
+	protected:
+		float solX, solY;        // centro de la orbita (el Sol)
+		float radioOrbita;       // distancia al Sol (traslacion)
+		float anguloOrbita;      // posicion actual en la orbita (grados)
+		float velOrbita;         // velocidad de traslacion
+		float rotacion;          // angulo de giro propio (rotacion)
+		float velRotacion;       // velocidad de rotacion
+		float radio;             // tamano del planeta
+		float impulso;           // multiplicador temporal de velocidad (evento)
+		String^ nombre;
+		String^ dato;            // dato educativo para la leyenda
+
+	public:
+		Planeta(float psolX, float psolY, float pradioOrbita, float panguloIni,
+			float pvelOrbita, float pvelRotacion, float pradio, String^ pnombre, String^ pdato);
+
+		virtual void mover() override;
+		virtual void dibujar(Graphics^ g) override;
+		virtual RectangleF area() override;
+
+		// cada planeta dibuja su superficie (relieve, bandas, etc.) usando
+		// 'rot' para que el detalle gire de forma visible.
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) = 0;
+		// extra que se dibuja FUERA del recorte circular (anillos). Por defecto nada.
+		virtual void dibujarExtra(Graphics^ g, float r) {}
+
+		void acelerar();         // evento: gira/traslada mas rapido un instante
+		void dibujarOrbita(Graphics^ g);
+
+		// dibuja una mancha de superficie en cierta "longitud" del planeta;
+		// al variar 'rot' la mancha se desplaza por el disco => rotacion visible.
+		static void marca(Graphics^ g, float cx, float cy, float r,
+			float longitud, float rot, float lat, float tam, Color color);
+
+		String^ getNombre();
+		String^ getDato();
+		float getRadio();
+		Color colorLeyenda;      // color para el punto de la leyenda
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Planetas.h
+ ****************************************************************************/
+#pragma once
+#include "Planeta.h"
+
+// Los 8 planetas concretos. Cada uno HEREDA de Planeta y solo reimplementa
+// su aspecto (POLIMORFISMO). Tierra y Saturno son obligatorios y los mas
+// detallados. Constructor: (solX, solY, radioOrbita, anguloIni, velOrbita,
+// velRotacion, radio).
+namespace PoliNavis {
+
+	public ref class Mercurio : public Planeta {
+	public:
+		Mercurio(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+	};
+
+	public ref class Venus : public Planeta {
+	public:
+		Venus(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+	};
+
+	public ref class Tierra : public Planeta {
+	public:
+		Tierra(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+		virtual void dibujarExtra(Graphics^ g, float r) override;   // la Luna
+	private:
+		float lunaAng;
+	};
+
+	public ref class Marte : public Planeta {
+	public:
+		Marte(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+	};
+
+	public ref class Jupiter : public Planeta {
+	public:
+		Jupiter(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+	};
+
+	public ref class Saturno : public Planeta {
+	public:
+		Saturno(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+		virtual void dibujarExtra(Graphics^ g, float r) override;   // los anillos
+	};
+
+	public ref class Urano : public Planeta {
+	public:
+		Urano(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+		virtual void dibujarExtra(Graphics^ g, float r) override;   // anillo vertical
+	};
+
+	public ref class Neptuno : public Planeta {
+	public:
+		Neptuno(float sx, float sy, float ro, float a0);
+		virtual void dibujarSuperficie(Graphics^ g, float r, float rot) override;
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Recursos.h
+ ****************************************************************************/
+#pragma once
+using namespace System;
+using namespace System::Drawing;
+
+namespace PoliNavis {
+
+	// Carga las imagenes de fondo DECORATIVAS (lo unico permitido por la
+	// rubrica como imagen). Si no encuentra el archivo, devuelve nullptr
+	// y el juego dibuja un fondo de estrellas con figuras como respaldo,
+	// asi el programa nunca se cae aunque falte la carpeta img.
+	public ref class Recursos abstract sealed {
+	public:
+		static Image^ fondoMenu;       // menu.png
+		static Image^ fondoEspacio;    // espacio.png (Nivel 1)
+		static Image^ fondoNebulosa;   // nebulosa.png (Nivel 2)
+		static bool cargado = false;
+
+		static void cargar();
+
+	private:
+		static Image^ intentarCargar(String^ nombre);
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Sol.h
+ ****************************************************************************/
+#pragma once
+#include "Entidad.h"
+
+namespace PoliNavis {
+
+	// El Sol: centro del sistema solar y de todas las orbitas del Nivel 1.
+	// Dibujado con circulos y lineas (rayos giratorios). No es obstaculo.
+	public ref class Sol : public Entidad {
+	public:
+		Sol(float px, float py, float pradio);
+
+		virtual void mover() override;
+		virtual void dibujar(Graphics^ g) override;
+
+		float getRadio();
+
+	private:
+		float radio;
+		float giro;
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Sonido.h
+ ****************************************************************************/
+﻿#pragma once
+using namespace System;
+
+namespace PoliNavis {
+
+	// Efectos de sonido hechos con tonos puros (Console::Beep).
+	// Se reproducen en un hilo aparte para que la ventana nunca se congele.
+	public ref class Sonido abstract sealed {
+	public:
+		static bool activado = true;
+
+		static void tono(int frecuencia, int duracion);
+		static void mover();          // al cambiar de opcion en un menu
+		static void seleccionar();    // al elegir una opcion
+		static void error();          // opcion bloqueada o fallo
+		static void disparo();
+		static void explosion();
+		static void item();           // recoger una estrella o artefacto
+		static void danio();          // el jugador recibe danio
+		static void victoria();
+		static void derrota();
+		static void notaSimon(int indice);   // las 4 notas de los cristales de Urano
+		static void anillo();         // cruzar un anillo en Saturno
+		static void despegueNave();
+		static void aterrizajeNave();
+
+	private:
+		static bool sonando = false;
+		static void lanzar(array<int>^ datos);
+		static void trabajador(Object^ estado);
+	};
+}
+
+/****************************************************************************
+  ARCHIVO: Asteroide.cpp
+ ****************************************************************************/
+#include "Asteroide.h"
+#include "Azar.h"
+#include "Estilos.h"
+
+namespace PoliNavis {
+
+	Asteroide::Asteroide(float px, float py, float pdx, float pdy, float pradio)
+		: Obstaculo(px, py, pdx, pdy, pradio) {
+		forma = gcnew array<float>(9);
+		for (int i = 0; i < 9; i++) forma[i] = Azar::entreF(0.68f, 1.0f);
+		int tono = Azar::entre(0, 3);
+		if (tono == 0) color = Color::FromArgb(150, 130, 110);
+		else if (tono == 1) color = Color::FromArgb(140, 110, 95);
+		else color = Color::FromArgb(120, 105, 100);
+	}
+
+	void Asteroide::dibujar(Graphics^ g) {
+		array<PointF>^ p = gcnew array<PointF>(9);
+		for (int i = 0; i < 9; i++) {
+			double a = (giro + i * 40.0) * Math::PI / 180.0;
+			float rr = radio * forma[i];
+			p[i] = PointF(x + (float)Math::Cos(a) * rr, y + (float)Math::Sin(a) * rr);
+		}
+		SolidBrush cuerpo(color);
+		g->FillPolygon(%cuerpo, p);
+		Pen borde(Estilos::oscurecer(color, 0.55f), 2.0f);
+		g->DrawPolygon(%borde, p);
+		// crateres
+		SolidBrush crater(Color::FromArgb(120, Estilos::oscurecer(color, 0.5f)));
+		g->FillEllipse(%crater, x - radio * 0.4f, y - radio * 0.25f, radio * 0.45f, radio * 0.38f);
+		g->FillEllipse(%crater, x + radio * 0.1f, y + radio * 0.2f, radio * 0.32f, radio * 0.28f);
+		// brillo
+		SolidBrush brillo(Color::FromArgb(45, 255, 255, 255));
+		g->FillEllipse(%brillo, x - radio * 0.5f, y - radio * 0.55f, radio * 0.6f, radio * 0.4f);
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Cometa.cpp
+ ****************************************************************************/
+#include "Cometa.h"
+#include "Azar.h"
+
+namespace PoliNavis {
+
+	Cometa::Cometa(float px, float py, float pdx, float pdy, float pradio)
+		: Obstaculo(px, py, pdx, pdy, pradio) {
+		color = Azar::moneda() ? Color::FromArgb(120, 220, 255) : Color::FromArgb(180, 230, 255);
+	}
+
+	void Cometa::dibujar(Graphics^ g) {
+		// direccion contraria al movimiento = hacia donde apunta la cola
+		float largo = (float)Math::Sqrt(dx * dx + dy * dy);
+		if (largo < 0.1f) largo = 0.1f;
+		float nx = -dx / largo, ny = -dy / largo;
+		float perpX = -ny, perpY = nx;
+
+		// cola: triangulo largo que se desvanece
+		array<PointF>^ cola = gcnew array<PointF>(3);
+		cola[0] = PointF(x + perpX * radio, y + perpY * radio);
+		cola[1] = PointF(x - perpX * radio, y - perpY * radio);
+		cola[2] = PointF(x + nx * radio * 7.0f, y + ny * radio * 7.0f);
+		SolidBrush brushCola(Color::FromArgb(70, color));
+		g->FillPolygon(%brushCola, cola);
+		// cola interior mas brillante
+		array<PointF>^ cola2 = gcnew array<PointF>(3);
+		cola2[0] = PointF(x + perpX * radio * 0.5f, y + perpY * radio * 0.5f);
+		cola2[1] = PointF(x - perpX * radio * 0.5f, y - perpY * radio * 0.5f);
+		cola2[2] = PointF(x + nx * radio * 4.5f, y + ny * radio * 4.5f);
+		SolidBrush brushCola2(Color::FromArgb(130, 255, 255, 255));
+		g->FillPolygon(%brushCola2, cola2);
+
+		// halo y nucleo
+		SolidBrush halo(Color::FromArgb(90, color));
+		g->FillEllipse(%halo, x - radio * 1.5f, y - radio * 1.5f, radio * 3.0f, radio * 3.0f);
+		SolidBrush nucleo(Color::FromArgb(255, 255, 255));
+		g->FillEllipse(%nucleo, x - radio * 0.7f, y - radio * 0.7f, radio * 1.4f, radio * 1.4f);
+		SolidBrush brillo(color);
+		g->FillEllipse(%brillo, x - radio, y - radio, radio * 2.0f, radio * 2.0f);
+		SolidBrush centro(Color::FromArgb(255, 255, 255, 255));
+		g->FillEllipse(%centro, x - radio * 0.4f, y - radio * 0.4f, radio * 0.8f, radio * 0.8f);
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Entidad.cpp
+ ****************************************************************************/
+#include "Entidad.h"
+
+namespace PoliNavis {
+
+	Entidad::Entidad(float px, float py) {
+		x = px; y = py;
+		dx = 0; dy = 0;
+	}
+
+	RectangleF Entidad::area() {
+		return RectangleF(x - 10.0f, y - 10.0f, 20.0f, 20.0f);
+	}
+
+	float Entidad::getX() { return x; }
+	float Entidad::getY() { return y; }
+
+	void Entidad::setPos(float px, float py) { x = px; y = py; }
+	void Entidad::setVel(float pdx, float pdy) { dx = pdx; dy = pdy; }
+}
+
+/****************************************************************************
+  ARCHIVO: Estacion.cpp
+ ****************************************************************************/
+#include "Estacion.h"
+
+namespace PoliNavis {
+
+	Estacion::Estacion(float px, float py, int ptipo) : Entidad(px, py) {
+		tipo = ptipo;
+		fase = 0.0f;
+	}
+
+	void Estacion::mover() {
+		fase += 0.08f;
+	}
+
+	RectangleF Estacion::area() {
+		return RectangleF(x - 34.0f, y - 34.0f, 68.0f, 68.0f);
+	}
+
+	void Estacion::dibujar(Graphics^ g) {
+		// anillo de luz pulsante (atrae al jugador a la meta)
+		int alfa = 90 + (int)(60.0 * Math::Sin(fase));
+		Color guia = (tipo == 0) ? Color::FromArgb(alfa, 110, 230, 255) : Color::FromArgb(alfa, 200, 110, 255);
+		Pen aura(guia, 3.0f);
+		float rp = 42.0f + (float)Math::Sin(fase) * 5.0f;
+		g->DrawEllipse(%aura, x - rp, y - rp, rp * 2.0f, rp * 2.0f);
+
+		if (tipo == 0) {
+			// ----- ESTACION ESPACIAL (Nivel 1) -----
+			// paneles solares
+			SolidBrush panel(Color::FromArgb(40, 80, 180));
+			g->FillRectangle(%panel, x - 60.0f, y - 8.0f, 26.0f, 16.0f);
+			g->FillRectangle(%panel, x + 34.0f, y - 8.0f, 26.0f, 16.0f);
+			Pen marco(Color::FromArgb(150, 160, 175), 1.0f);
+			g->DrawRectangle(%marco, x - 60.0f, y - 8.0f, 26.0f, 16.0f);
+			g->DrawRectangle(%marco, x + 34.0f, y - 8.0f, 26.0f, 16.0f);
+			Pen eje(Color::FromArgb(180, 185, 195), 3.0f);
+			g->DrawLine(%eje, x - 34.0f, y, x + 34.0f, y);
+			// anillo toroidal
+			Pen anillo(Color::FromArgb(200, 205, 220), 6.0f);
+			g->DrawEllipse(%anillo, x - 28.0f, y - 28.0f, 56.0f, 56.0f);
+			// nucleo central
+			SolidBrush nucleo(Color::FromArgb(210, 215, 230));
+			g->FillEllipse(%nucleo, x - 14.0f, y - 14.0f, 28.0f, 28.0f);
+			SolidBrush ventana(Color::FromArgb(120, 220, 255));
+			g->FillEllipse(%ventana, x - 8.0f, y - 8.0f, 16.0f, 16.0f);
+			// luces de atraque
+			for (int i = 0; i < 4; i++) {
+				bool on = ((int)(fase * 2) + i) % 2 == 0;
+				SolidBrush luz(on ? Color::FromArgb(255, 90, 90) : Color::FromArgb(90, 60, 60));
+				double a = i * 90.0 * Math::PI / 180.0;
+				g->FillEllipse(%luz, x + (float)Math::Cos(a) * 28.0f - 3.0f,
+					y + (float)Math::Sin(a) * 28.0f - 3.0f, 6.0f, 6.0f);
+			}
+		}
+		else {
+			// ----- PORTAL DE SALIDA (Nivel 2) -----
+			for (int k = 4; k >= 1; k--) {
+				int a = 40 + k * 20;
+				SolidBrush aro(Color::FromArgb(a, 200, 110, 255));
+				float r = 10.0f + k * 7.0f + (float)Math::Sin(fase + k) * 2.0f;
+				g->FillEllipse(%aro, x - r, y - r, r * 2.0f, r * 2.0f);
+			}
+			SolidBrush centro(Color::FromArgb(255, 255, 255));
+			g->FillEllipse(%centro, x - 8.0f, y - 8.0f, 16.0f, 16.0f);
+			// destellos giratorios
+			Pen chispa(Color::FromArgb(200, 230, 180, 255), 2.0f);
+			for (int i = 0; i < 6; i++) {
+				double a = (fase * 40.0 + i * 60.0) * Math::PI / 180.0;
+				g->DrawLine(%chispa, x, y,
+					x + (float)Math::Cos(a) * 30.0f, y + (float)Math::Sin(a) * 30.0f);
+			}
+		}
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Estilos.cpp
+ ****************************************************************************/
+﻿#include "Estilos.h"
+
+namespace PoliNavis {
+
+	StringFormat^ Estilos::crearFormato(StringAlignment horizontal, StringAlignment vertical) {
+		StringFormat^ formato = gcnew StringFormat();
+		formato->Alignment = horizontal;
+		formato->LineAlignment = vertical;
+		return formato;
+	}
+
+	void Estilos::agregarRectRedondeado(GraphicsPath^ ruta, float x, float y, float ancho, float alto, float radio) {
+		float d = radio * 2.0f;
+		ruta->AddArc(x, y, d, d, 180.0f, 90.0f);
+		ruta->AddArc(x + ancho - d, y, d, d, 270.0f, 90.0f);
+		ruta->AddArc(x + ancho - d, y + alto - d, d, d, 0.0f, 90.0f);
+		ruta->AddArc(x, y + alto - d, d, d, 90.0f, 90.0f);
+		ruta->CloseFigure();
+	}
+
+	void Estilos::rellenarRedondeado(Graphics^ g, Color color, float x, float y, float ancho, float alto, float radio) {
+		GraphicsPath ruta;
+		agregarRectRedondeado(%ruta, x, y, ancho, alto, radio);
+		SolidBrush pincel(color);
+		g->FillPath(%pincel, %ruta);
+	}
+
+	void Estilos::bordeRedondeado(Graphics^ g, Color color, float grosor, float x, float y, float ancho, float alto, float radio) {
+		GraphicsPath ruta;
+		agregarRectRedondeado(%ruta, x, y, ancho, alto, radio);
+		Pen pluma(color, grosor);
+		g->DrawPath(%pluma, %ruta);
+	}
+
+	void Estilos::textoCentrado(Graphics^ g, String^ texto, Font^ fuente, Color color, float cx, float cy) {
+		SolidBrush pincel(color);
+		g->DrawString(texto, fuente, %pincel, PointF(cx, cy), centrado);
+	}
+
+	void Estilos::textoSombra(Graphics^ g, String^ texto, Font^ fuente, Color color, float cx, float cy) {
+		SolidBrush sombra(Color::FromArgb(170, 0, 0, 0));
+		g->DrawString(texto, fuente, %sombra, PointF(cx + 3.0f, cy + 3.0f), centrado);
+		SolidBrush pincel(color);
+		g->DrawString(texto, fuente, %pincel, PointF(cx, cy), centrado);
+	}
+
+	void Estilos::textoIzquierda(Graphics^ g, String^ texto, Font^ fuente, Color color, float x, float y) {
+		SolidBrush pincel(color);
+		g->DrawString(texto, fuente, %pincel, PointF(x, y), izquierda);
+	}
+
+	Color Estilos::oscurecer(Color color, float factor) {
+		return Color::FromArgb(color.A,
+			(int)(color.R * factor),
+			(int)(color.G * factor),
+			(int)(color.B * factor));
+	}
+
+	Color Estilos::aclarar(Color color, float factor) {
+		return Color::FromArgb(color.A,
+			(int)(color.R + (255 - color.R) * factor),
+			(int)(color.G + (255 - color.G) * factor),
+			(int)(color.B + (255 - color.B) * factor));
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: FiguraKhaos.cpp
+ ****************************************************************************/
+#include "FiguraKhaos.h"
+#include "Config.h"
+#include "Azar.h"
+
+namespace PoliNavis {
+
+	FiguraKhaos::FiguraKhaos(float px, float py, float pdx, float pdy, float pradio, int plados)
+		: Obstaculo(px, py, pdx, pdy, pradio) {
+		lados = plados;
+		velGiro = Azar::entreF(-7.0f, 7.0f);   // giran mas rapido que el Nivel 1
+		caos = Azar::entre(20, 70);
+		// paleta neon totalmente distinta al Nivel 1
+		array<Color>^ paleta = gcnew array<Color> {
+			Color::FromArgb(255, 60, 200), Color::FromArgb(60, 255, 220),
+			Color::FromArgb(180, 90, 255), Color::FromArgb(255, 230, 70),
+			Color::FromArgb(80, 255, 120), Color::FromArgb(255, 120, 60)
+		};
+		color = paleta[Azar::entre(0, paleta->Length)];
+	}
+
+	void FiguraKhaos::mover() {
+		x += dx;
+		y += dy;
+		giro += velGiro;
+
+		// rebote en los bordes (la figura no abandona la galaxia)
+		if (x < radio && dx < 0) dx = -dx;
+		if (x > Config::ANCHO - radio && dx > 0) dx = -dx;
+		if (y < radio && dy < 0) dy = -dy;
+		if (y > Config::ALTO - radio && dy > 0) dy = -dy;
+
+		// cambios bruscos de rumbo: caos geometrico impredecible
+		caos--;
+		if (caos <= 0) {
+			caos = Azar::entre(20, 70);
+			dx += Azar::entreF(-1.6f, 1.6f);
+			dy += Azar::entreF(-1.6f, 1.6f);
+			// limitar la rapidez para que no se descontrole
+			float v = (float)Math::Sqrt(dx * dx + dy * dy);
+			float vmax = 7.5f;
+			if (v > vmax) { dx = dx / v * vmax; dy = dy / v * vmax; }
+		}
+	}
+
+	void FiguraKhaos::dibujar(Graphics^ g) {
+		array<PointF>^ p = gcnew array<PointF>(lados);
+		for (int i = 0; i < lados; i++) {
+			double a = (giro + i * (360.0 / lados)) * Math::PI / 180.0;
+			p[i] = PointF(x + (float)Math::Cos(a) * radio, y + (float)Math::Sin(a) * radio);
+		}
+		// resplandor neon
+		SolidBrush halo(Color::FromArgb(60, color));
+		g->FillEllipse(%halo, x - radio * 1.4f, y - radio * 1.4f, radio * 2.8f, radio * 2.8f);
+		// relleno translucido + borde neon brillante
+		SolidBrush relleno(Color::FromArgb(110, color));
+		g->FillPolygon(%relleno, p);
+		Pen borde(color, 2.5f);
+		g->DrawPolygon(%borde, p);
+		// nucleo
+		SolidBrush nucleo(Color::FromArgb(220, 255, 255, 255));
+		g->FillEllipse(%nucleo, x - radio * 0.22f, y - radio * 0.22f, radio * 0.44f, radio * 0.44f);
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Fondo.cpp
+ ****************************************************************************/
+﻿#include "Fondo.h"
+#include "Azar.h"
+#include "Config.h"
+
+using namespace System::Drawing::Drawing2D;
+
+namespace PoliNavis {
+
+	void Fondo::crear() {
+		ex = gcnew array<float>(CANTIDAD);
+		ey = gcnew array<float>(CANTIDAD);
+		etam = gcnew array<float>(CANTIDAD);
+		efase = gcnew array<float>(CANTIDAD);
+		for (int i = 0; i < CANTIDAD; i++) {
+			ex[i] = Azar::entreF(0.0f, (float)Config::ANCHO);
+			ey[i] = Azar::entreF(0.0f, (float)Config::ALTO);
+			etam[i] = Azar::entreF(1.0f, 2.8f);
+			efase[i] = Azar::entreF(0.0f, 6.2832f);
+		}
+	}
+
+	void Fondo::dibujarEstrellas(Graphics^ g, int tick, int alfaMaximo) {
+		if (ex == nullptr) crear();
+		for (int i = 0; i < CANTIDAD; i++) {
+			float brillo = 0.45f + 0.55f * (float)Math::Abs(Math::Sin(tick * 0.04 + efase[i]));
+			int alfa = (int)(alfaMaximo * brillo);
+			if (alfa < 0) alfa = 0;
+			if (alfa > 255) alfa = 255;
+			SolidBrush pincel(Color::FromArgb(alfa, 255, 255, 255));
+			g->FillEllipse(%pincel, ex[i], ey[i], etam[i], etam[i]);
+		}
+	}
+
+	void Fondo::dibujar(Graphics^ g, int tick) {
+		if (ex == nullptr) crear();
+
+		// degradado oscuro del espacio
+		LinearGradientBrush cielo(
+			RectangleF(0.0f, 0.0f, (float)Config::ANCHO, (float)Config::ALTO),
+			Color::FromArgb(6, 6, 18), Color::FromArgb(24, 14, 48), 90.0f);
+		g->FillRectangle(%cielo, 0.0f, 0.0f, (float)Config::ANCHO, (float)Config::ALTO);
+
+		dibujarEstrellas(g, tick, 255);
+
+		// de vez en cuando pasa una estrella fugaz
+		if (fugazVida <= 0 && Azar::entre(0, 300) == 7) {
+			fugazX = Azar::entreF(100.0f, 900.0f);
+			fugazY = Azar::entreF(20.0f, 200.0f);
+			fugazVX = Azar::entreF(5.0f, 9.0f) * (Azar::moneda() ? 1.0f : -1.0f);
+			fugazVY = Azar::entreF(1.5f, 3.5f);
+			fugazVida = 40;
+		}
+		if (fugazVida > 0) {
+			fugazVida--;
+			fugazX += fugazVX;
+			fugazY += fugazVY;
+			int alfa = Math::Min(255, fugazVida * 8);
+			Pen pluma(Color::FromArgb(alfa, 255, 255, 220), 2.0f);
+			g->DrawLine(%pluma, fugazX, fugazY, fugazX - fugazVX * 5.0f, fugazY - fugazVY * 5.0f);
+		}
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Juego.cpp
+ ****************************************************************************/
+#include "Juego.h"
+#include "Planetas.h"
+#include "Cometa.h"
+#include "Asteroide.h"
+#include "FiguraKhaos.h"
+#include "Config.h"
+#include "Estilos.h"
+#include "Fondo.h"
+#include "Recursos.h"
+#include "Azar.h"
+#include "Sonido.h"
+
+namespace PoliNavis {
+
+	// velocidad de la nave (los obstaculos siempre van mas rapido)
+	static const float VEL = 4.3f;
+	static const float SOLX = 500.0f, SOLY = 360.0f;
+
+	Juego::Juego() {
+		Recursos::cargar();
+		estado = L"MENU";
+		tick = tickEstado = 0;
+		menu = gcnew Menu();
+		entrada = gcnew Entrada();
+		planetas = gcnew List<Planeta^>();
+		obstaculos = gcnew List<Obstaculo^>();
+		nivel = 1;
+		colisiones = 0;
+		ticksNivel = 0;
+		tiempoNivel1 = 0;
+		spawnTimer = 0;
+		datoLeyenda = L"Haz clic en un planeta para acelerar su rotacion y traslacion.";
+		nave = gcnew Nave(Config::AX, Config::AY);
+		sol = gcnew Sol(SOLX, SOLY, 46.0f);
+		meta = gcnew Estacion(Config::BX, Config::BY, 0);
+	}
+
+	String^ Juego::getEstado() { return estado; }
+
+	void Juego::cambiar(String^ nuevo) {
+		estado = nuevo;
+		tickEstado = 0;
+	}
+
+	float Juego::inicioX() { return (nivel == 1) ? (float)Config::AX : 70.0f; }
+	float Juego::inicioY() { return (nivel == 1) ? (float)Config::AY : 350.0f; }
+
+	// ---------------- preparar un nivel ----------------
+	void Juego::iniciarNivel(int n) {
+		nivel = n;
+		colisiones = 0;
+		ticksNivel = 0;
+		spawnTimer = 0;
+		obstaculos->Clear();
+		planetas->Clear();
+
+		if (n == 1) {
+			nave = gcnew Nave(Config::AX, Config::AY);
+			nave->setColorTrazo(Color::FromArgb(120, 230, 255));
+			meta = gcnew Estacion(Config::BX, Config::BY, 0);
+			// 8 planetas: (radioOrbita, anguloInicial). Tierra y Saturno incluidos.
+			planetas->Add(gcnew Mercurio(SOLX, SOLY, 92.0f, 0.0f));
+			planetas->Add(gcnew Venus(SOLX, SOLY, 132.0f, 60.0f));
+			planetas->Add(gcnew Tierra(SOLX, SOLY, 178.0f, 130.0f));
+			planetas->Add(gcnew Marte(SOLX, SOLY, 218.0f, 220.0f));
+			planetas->Add(gcnew Jupiter(SOLX, SOLY, 290.0f, 300.0f));
+			planetas->Add(gcnew Saturno(SOLX, SOLY, 360.0f, 30.0f));
+			planetas->Add(gcnew Urano(SOLX, SOLY, 410.0f, 160.0f));
+			planetas->Add(gcnew Neptuno(SOLX, SOLY, 452.0f, 250.0f));
+			datoLeyenda = L"Haz clic en un planeta para acelerar su rotacion y traslacion.";
+			cambiar(L"NIVEL1");
+		}
+		else {
+			nave = gcnew Nave(70.0f, 350.0f);
+			nave->setColorTrazo(Color::FromArgb(255, 90, 220));
+			meta = gcnew Estacion(930.0f, 350.0f, 1);
+			// campo de figuras geometricas caoticas
+			for (int i = 0; i < 15; i++) {
+				float px = Azar::entreF(180.0f, 880.0f);
+				float py = Azar::entreF(60.0f, 640.0f);
+				float ang = Azar::entreF(0.0f, 6.2832f);
+				float vel = Azar::entreF(2.5f, 6.0f);
+				int lados = Azar::entre(3, 9);   // 3..8 lados (incluye rectangulos)
+				float radio = Azar::entreF(16.0f, 40.0f);
+				obstaculos->Add(gcnew FiguraKhaos(px, py,
+					(float)Math::Cos(ang) * vel, (float)Math::Sin(ang) * vel, radio, lados));
+			}
+			datoLeyenda = L"Galaxia del Khaos: figuras de distintos lados con movimiento impredecible.";
+			cambiar(L"NIVEL2");
+		}
+		Sonido::seleccionar();
+	}
+
+	// ---------------- bucle de logica ----------------
+	void Juego::actualizar() {
+		tick++; tickEstado++;
+		if (estado == L"NIVEL1" || estado == L"NIVEL2") actualizarNivel();
+		else if (estado == L"COMPLETO1") {
+			// tras unos segundos pasa solo al Nivel 2
+			if (tickEstado > 240) iniciarNivel(2);
+		}
+	}
+
+	void Juego::actualizarNivel() {
+		ticksNivel++;
+		meta->mover();
+		aplicarInput();
+		nave->mover();
+		if (nave->getEnergia() < 100 && ticksNivel % 25 == 0) nave->recargarEnergia(1);
+
+		if (nivel == 1) {
+			sol->mover();
+			for each (Planeta^ p in planetas) p->mover();
+			// aparicion de cometas/asteroides a intervalos
+			spawnTimer--;
+			if (spawnTimer <= 0) {
+				spawnObstaculoNivel1();
+				spawnTimer = Math::Max(35, 90 - ticksNivel / 120);  // cada vez mas seguido
+			}
+		}
+
+		for each (Obstaculo^ o in obstaculos) o->mover();
+		// quitar los que salieron (solo Nivel 1; en Nivel 2 rebotan)
+		if (nivel == 1) {
+			for (int i = obstaculos->Count - 1; i >= 0; i--)
+				if (obstaculos[i]->fueraDePantalla()) obstaculos->RemoveAt(i);
+		}
+
+		revisarColisiones();
+	}
+
+	void Juego::aplicarInput() {
+		float vx = 0.0f, vy = 0.0f;
+		if (entrada->izquierda) vx -= VEL;
+		if (entrada->derecha) vx += VEL;
+		if (entrada->arriba) vy -= VEL;
+		if (entrada->abajo) vy += VEL;
+		nave->acelerar(vx, vy);
+	}
+
+	void Juego::spawnObstaculoNivel1() {
+		// nace en un borde al azar y cruza hacia el lado opuesto
+		int borde = Azar::entre(0, 4);
+		float px, py, vx, vy;
+		float vel = Azar::entreF(4.8f, 7.5f);    // mas rapido que la nave (VEL=4.3)
+		if (borde == 0) { px = -20.0f; py = Azar::entreF(40.0f, 660.0f); vx = vel; vy = Azar::entreF(-2.0f, 2.0f); }
+		else if (borde == 1) { px = Config::ANCHO + 20.0f; py = Azar::entreF(40.0f, 660.0f); vx = -vel; vy = Azar::entreF(-2.0f, 2.0f); }
+		else if (borde == 2) { px = Azar::entreF(40.0f, 960.0f); py = -20.0f; vy = vel; vx = Azar::entreF(-2.0f, 2.0f); }
+		else { px = Azar::entreF(40.0f, 960.0f); py = Config::ALTO + 20.0f; vy = -vel; vx = Azar::entreF(-2.0f, 2.0f); }
+
+		if (Azar::moneda())
+			obstaculos->Add(gcnew Cometa(px, py, vx, vy, Azar::entreF(7.0f, 11.0f)));
+		else
+			obstaculos->Add(gcnew Asteroide(px, py, vx, vy, Azar::entreF(13.0f, 22.0f)));
+	}
+
+	void Juego::revisarColisiones() {
+		// llegada a la meta (Punto B / portal)
+		if (nave->area().IntersectsWith(meta->area())) {
+			if (nivel == 1) {
+				tiempoNivel1 = ticksNivel / 60;
+				Sonido::victoria();
+				cambiar(L"COMPLETO1");
+			}
+			else {
+				Sonido::victoria();
+				cambiar(L"COMPLETO2");
+			}
+			return;
+		}
+
+		if (nave->esInvulnerable()) return;
+
+		bool choco = false;
+		// contra obstaculos
+		for each (Obstaculo^ o in obstaculos) {
+			if (nave->area().IntersectsWith(o->area())) { choco = true; break; }
+		}
+		// contra planetas (Nivel 1): tambien hay que evitarlos
+		if (!choco && nivel == 1) {
+			for each (Planeta^ p in planetas) {
+				if (nave->area().IntersectsWith(p->area())) { choco = true; break; }
+			}
+		}
+
+		if (choco) {
+			colisiones++;
+			nave->perderVida();
+			nave->gastarEnergia(12);
+			nave->reiniciarEn(inicioX(), inicioY());
+			if (nave->sinVidas()) {
+				Sonido::derrota();
+				cambiar(L"DERROTA");
+			}
+		}
+	}
+
+	// ---------------- entrada ----------------
+	void Juego::teclaAbajo(Keys t) {
+		if (t == Keys::Left || t == Keys::A) entrada->izquierda = true;
+		if (t == Keys::Right || t == Keys::D) entrada->derecha = true;
+		if (t == Keys::Up || t == Keys::W) entrada->arriba = true;
+		if (t == Keys::Down || t == Keys::S) entrada->abajo = true;
+
+		if (estado == L"MENU") {
+			if (t == Keys::Up || t == Keys::W) { menu->moverSeleccion(-1); Sonido::mover(); }
+			else if (t == Keys::Down || t == Keys::S) { menu->moverSeleccion(1); Sonido::mover(); }
+			else if (t == Keys::Return || t == Keys::Space) {
+				AccionMenu a = menu->seleccionActual();
+				if (a == AccionMenu::Nivel1) iniciarNivel(1);
+				else if (a == AccionMenu::Nivel2) iniciarNivel(2);
+				else if (a == AccionMenu::Instrucciones) cambiar(L"INSTRUCCIONES");
+				else if (a == AccionMenu::Creadores) cambiar(L"CREADORES");
+				else if (a == AccionMenu::Salir) Application::Exit();
+			}
+			else if (t == Keys::Escape) Application::Exit();
+		}
+		else if (estado == L"INSTRUCCIONES" || estado == L"CREADORES") {
+			if (t == Keys::Escape || t == Keys::Return) cambiar(L"MENU");
+		}
+		else if (estado == L"NIVEL1" || estado == L"NIVEL2") {
+			if (t == Keys::Escape) cambiar(L"MENU");
+		}
+		else if (estado == L"COMPLETO1") {
+			if (t == Keys::Return || t == Keys::Space) iniciarNivel(2);
+			else if (t == Keys::Escape) cambiar(L"MENU");
+		}
+		else if (estado == L"COMPLETO2" || estado == L"DERROTA") {
+			if (t == Keys::Return || t == Keys::Space) cambiar(L"MENU");
+			else if (t == Keys::R) iniciarNivel(nivel);
+		}
+	}
+
+	void Juego::teclaArriba(Keys t) {
+		if (t == Keys::Left || t == Keys::A) entrada->izquierda = false;
+		if (t == Keys::Right || t == Keys::D) entrada->derecha = false;
+		if (t == Keys::Up || t == Keys::W) entrada->arriba = false;
+		if (t == Keys::Down || t == Keys::S) entrada->abajo = false;
+	}
+
+	void Juego::ratonMovido(int mx, int my) {
+		if (estado == L"MENU") { if (menu->hoverPrincipal(mx, my)) Sonido::mover(); }
+	}
+
+	void Juego::clic(int mx, int my) {
+		if (estado == L"MENU") {
+			AccionMenu a = menu->clicPrincipal(mx, my);
+			if (a == AccionMenu::Nivel1) iniciarNivel(1);
+			else if (a == AccionMenu::Nivel2) iniciarNivel(2);
+			else if (a == AccionMenu::Instrucciones) cambiar(L"INSTRUCCIONES");
+			else if (a == AccionMenu::Creadores) cambiar(L"CREADORES");
+			else if (a == AccionMenu::Salir) Application::Exit();
+		}
+		else if (estado == L"INSTRUCCIONES" || estado == L"CREADORES") {
+			if (menu->clicVolver(mx, my) == AccionMenu::Volver) cambiar(L"MENU");
+		}
+		else if (estado == L"NIVEL1") {
+			// clic sobre un planeta => acelera su rotacion/traslacion (evento)
+			for each (Planeta^ p in planetas) {
+				float dx = mx - p->getX(), dy = my - p->getY();
+				if (Math::Sqrt(dx * dx + dy * dy) <= p->getRadio() + 8.0f) {
+					p->acelerar();
+					datoLeyenda = p->getNombre() + ": " + p->getDato();
+					Sonido::item();
+					return;
+				}
+			}
+		}
+	}
+
+	// ---------------- dibujo ----------------
+	void Juego::dibujar(Graphics^ g) {
+		if (estado == L"MENU") { menu->dibujarPrincipal(g, tick); return; }
+		if (estado == L"INSTRUCCIONES") { menu->dibujarInstrucciones(g, tick); return; }
+		if (estado == L"CREADORES") { menu->dibujarCreadores(g, tick); return; }
+
+		// fondo + escena del nivel
+		dibujarFondoNivel(g);
+		if (nivel == 2) dibujarAgujeroNegro(g);
+
+		if (nivel == 1) {
+			for each (Planeta^ p in planetas) p->dibujarOrbita(g);
+			sol->dibujar(g);
+			for each (Planeta^ p in planetas) p->dibujar(g);
+		}
+
+		meta->dibujar(g);
+		dibujarPuntos(g);
+		for each (Obstaculo^ o in obstaculos) o->dibujar(g);
+		nave->dibujar(g);
+
+		dibujarPanel(g);
+		dibujarLeyenda(g);
+
+		// mensajes de exito / derrota
+		if (estado == L"COMPLETO1")
+			dibujarMensaje(g, L"NIVEL 1 COMPLETO", L"Recargando combustible...",
+				String::Format(L"Tiempo: {0:00}:{1:00}   -   ENTER para el Nivel 2", tiempoNivel1 / 60, tiempoNivel1 % 60),
+				Color::FromArgb(120, 240, 140));
+		else if (estado == L"COMPLETO2")
+			dibujarMensaje(g, L"MISION CUMPLIDA", L"Has escapado de la Galaxia Nebulosa del Khaos!",
+				String::Format(L"Tiempo total Nivel 2: {0:00}:{1:00}   -   ENTER: menu", ticksNivel / 3600, (ticksNivel / 60) % 60),
+				Color::FromArgb(120, 240, 140));
+		else if (estado == L"DERROTA")
+			dibujarMensaje(g, L"MISION FALLIDA", L"La nave se quedo sin vidas",
+				L"ENTER: menu     R: reintentar nivel", Color::FromArgb(250, 110, 110));
+	}
+
+	void Juego::dibujarFondoNivel(Graphics^ g) {
+		Image^ img = (nivel == 1) ? Recursos::fondoEspacio : Recursos::fondoNebulosa;
+		if (img != nullptr) {
+			g->DrawImage(img, 0, 0, Config::ANCHO, Config::ALTO);
+			SolidBrush velo(Color::FromArgb(nivel == 1 ? 90 : 120, nivel == 1 ? 6 : 30, 6, nivel == 1 ? 16 : 40));
+			g->FillRectangle(%velo, 0, 0, Config::ANCHO, Config::ALTO);
+		}
+		else {
+			Fondo::dibujar(g, tick);
+		}
+	}
+
+	void Juego::dibujarAgujeroNegro(Graphics^ g) {
+		// decoracion del Nivel 2: un agujero negro girando al centro-fondo
+		float cx = 500.0f, cy = 360.0f;
+		for (int k = 6; k >= 1; k--) {
+			int a = 12 + k * 6;
+			SolidBrush halo(Color::FromArgb(a, 150, 80, 220));
+			float r = 40.0f + k * 18.0f;
+			g->FillEllipse(%halo, cx - r, cy - r, r * 2.0f, r * 2.0f);
+		}
+		Pen disco(Color::FromArgb(120, 200, 130, 255), 3.0f);
+		for (int i = 0; i < 3; i++) {
+			float r = 70.0f + i * 16.0f;
+			g->DrawArc(%disco, cx - r, cy - r * 0.4f, r * 2.0f, r * 0.8f,
+				(float)(tick * (2 + i)) , 250.0f);
+		}
+		SolidBrush nucleo(Color::FromArgb(255, 10, 8, 20));
+		g->FillEllipse(%nucleo, cx - 40.0f, cy - 40.0f, 80.0f, 80.0f);
+	}
+
+	void Juego::dibujarPuntos(Graphics^ g) {
+		// marca del Punto A (origen) y etiqueta del Punto B
+		float ax = inicioX(), ay = inicioY();
+		Pen aro(Color::FromArgb(150, 110, 230, 255), 2.0f);
+		g->DrawEllipse(%aro, ax - 20.0f, ay - 20.0f, 40.0f, 40.0f);
+		Estilos::textoCentrado(g, (nivel == 1 ? L"A" : L"1"), Estilos::normalNegrita, Color::FromArgb(180, 220, 255), ax, ay - 32.0f);
+		float etiqY = Math::Max(62.0f, meta->getY() - 52.0f);
+		Estilos::textoCentrado(g, (nivel == 1 ? L"ESTACION (B)" : L"SALIDA (2)"), Estilos::pequena,
+			Color::FromArgb(200, 220, 255), meta->getX(), etiqY);
+	}
+
+	void Juego::dibujarPanel(Graphics^ g) {
+		// barra superior con el panel de control
+		SolidBrush barra(Color::FromArgb(175, 6, 10, 24));
+		g->FillRectangle(%barra, 0.0f, 0.0f, (float)Config::ANCHO, 44.0f);
+		Pen linea(Color::FromArgb(120, 90, 200, 255), 1.5f);
+		g->DrawLine(%linea, 0.0f, 44.0f, (float)Config::ANCHO, 44.0f);
+
+		int seg = ticksNivel / 60;
+		Estilos::textoIzquierda(g, String::Format(L"TIEMPO  {0:00}:{1:00}", seg / 60, seg % 60),
+			Estilos::hud, Color::FromArgb(150, 220, 255), 16.0f, 22.0f);
+		Estilos::textoIzquierda(g, String::Format(L"COLISIONES  {0}", colisiones),
+			Estilos::hud, Color::FromArgb(255, 180, 120), 200.0f, 22.0f);
+
+		// energia
+		Estilos::textoIzquierda(g, L"ENERGIA", Estilos::hud, Color::FromArgb(150, 220, 255), 380.0f, 22.0f);
+		float bx = 470.0f, bw = 120.0f;
+		SolidBrush fondoB(Color::FromArgb(50, 60, 80));
+		g->FillRectangle(%fondoB, bx, 15.0f, bw, 14.0f);
+		Color cE = nave->getEnergia() > 50 ? Color::FromArgb(90, 220, 110)
+			: (nave->getEnergia() > 25 ? Color::FromArgb(240, 210, 80) : Color::FromArgb(235, 80, 70));
+		SolidBrush llenoB(cE);
+		g->FillRectangle(%llenoB, bx, 15.0f, bw * nave->getEnergia() / 100.0f, 14.0f);
+		Pen marco(Color::FromArgb(200, 205, 220), 1.0f);
+		g->DrawRectangle(%marco, bx, 15.0f, bw, 14.0f);
+		Estilos::textoIzquierda(g, String::Format(L"{0}%", nave->getEnergia()), Estilos::hud, Color::White, bx + bw + 8.0f, 22.0f);
+
+		// vidas (corazones)
+		Estilos::textoIzquierda(g, L"VIDAS", Estilos::hud, Color::FromArgb(150, 220, 255), 700.0f, 22.0f);
+		for (int i = 0; i < Config::VIDAS_INICIALES; i++) {
+			float cx = 770.0f + i * 30.0f, cy = 22.0f;
+			Color c = (i < nave->getVidas()) ? Color::FromArgb(235, 70, 80) : Color::FromArgb(70, 75, 95);
+			SolidBrush ch(c);
+			g->FillEllipse(%ch, cx - 9.0f, cy - 7.0f, 10.0f, 10.0f);
+			g->FillEllipse(%ch, cx - 1.0f, cy - 7.0f, 10.0f, 10.0f);
+			array<PointF>^ punta = gcnew array<PointF>(3);
+			punta[0] = PointF(cx - 8.5f, cy - 1.0f); punta[1] = PointF(cx + 8.5f, cy - 1.0f); punta[2] = PointF(cx, cy + 9.0f);
+			g->FillPolygon(%ch, punta);
+		}
+		// objetivo
+		Estilos::textoIzquierda(g, String::Format(L"META: llega a {0}", nivel == 1 ? L"la ESTACION" : L"la SALIDA"),
+			Estilos::hud, Color::FromArgb(180, 255, 180), 900.0f, 22.0f);
+	}
+
+	void Juego::dibujarLeyenda(Graphics^ g) {
+		if (nivel == 1) {
+			// panel lateral con los nombres de los planetas (componente educativo)
+			float px = 12.0f, py = 70.0f, pw = 150.0f, ph = 8.0f + planetas->Count * 22.0f + 6.0f;
+			Estilos::rellenarRedondeado(g, Color::FromArgb(150, 6, 10, 26), px, py, pw, ph, 10.0f);
+			Estilos::bordeRedondeado(g, Color::FromArgb(120, 90, 160, 230), 1.5f, px, py, pw, ph, 10.0f);
+			Estilos::textoIzquierda(g, L"PLANETAS", Estilos::pequena, Color::FromArgb(150, 210, 255), px + 12.0f, py + 14.0f);
+			for (int i = 0; i < planetas->Count; i++) {
+				float fy = py + 30.0f + i * 22.0f;
+				SolidBrush punto(planetas[i]->colorLeyenda);
+				g->FillEllipse(%punto, px + 14.0f, fy - 6.0f, 12.0f, 12.0f);
+				Estilos::textoIzquierda(g, planetas[i]->getNombre(), Estilos::pequena, Color::White, px + 34.0f, fy);
+			}
+		}
+		// franja inferior con el dato educativo
+		SolidBrush franja(Color::FromArgb(165, 6, 10, 24));
+		g->FillRectangle(%franja, 0.0f, (float)Config::ALTO - 34.0f, (float)Config::ANCHO, 34.0f);
+		Estilos::textoCentrado(g, datoLeyenda, Estilos::normal, Color::FromArgb(200, 220, 245),
+			500.0f, (float)Config::ALTO - 17.0f);
+	}
+
+	void Juego::dibujarMensaje(Graphics^ g, String^ titulo, String^ sub, String^ pie, Color color) {
+		SolidBrush velo(Color::FromArgb(150, 0, 0, 12));
+		g->FillRectangle(%velo, 0.0f, 0.0f, (float)Config::ANCHO, (float)Config::ALTO);
+		Estilos::rellenarRedondeado(g, Color::FromArgb(235, 10, 16, 38), 230.0f, 250.0f, 540.0f, 200.0f, 18.0f);
+		Estilos::bordeRedondeado(g, color, 3.0f, 230.0f, 250.0f, 540.0f, 200.0f, 18.0f);
+		Estilos::textoSombra(g, titulo, Estilos::grande, color, 500.0f, 300.0f);
+		Estilos::textoCentrado(g, sub, Estilos::subtitulo, Color::White, 500.0f, 350.0f);
+		int a = 150 + (int)(100.0 * Math::Sin(tickEstado * 0.1));
+		if (a < 0) a = 0; if (a > 255) a = 255;
+		Estilos::textoCentrado(g, pie, Estilos::normalNegrita, Color::FromArgb(a, 160, 230, 255), 500.0f, 410.0f);
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Menu.cpp
+ ****************************************************************************/
+#include "Menu.h"
+#include "Estilos.h"
+#include "Config.h"
+#include "Fondo.h"
+#include "Recursos.h"
+
+namespace PoliNavis {
+
+	// Las etiquetas de los botones se crean dentro de la funcion (en C++/CLI
+	// no se permite un arreglo administrado como variable global).
+	static array<String^>^ opciones() {
+		return gcnew array<String^> {
+			L"NIVEL 1  -  Sistema Solar",
+			L"NIVEL 2  -  Galaxia Nebulosa del Khaos",
+			L"INSTRUCCIONES",
+			L"CREADORES",
+			L"SALIR"
+		};
+	}
+
+	Menu::Menu() { opcion = 0; }
+
+	RectangleF Menu::rectBoton(int i) {
+		return RectangleF(290.0f, 250.0f + i * 70.0f, 420.0f, 54.0f);
+	}
+	RectangleF Menu::rectVolver() {
+		return RectangleF(36.0f, 626.0f, 200.0f, 46.0f);
+	}
+
+	void Menu::dibujarFondo(Graphics^ g, int tick, bool menu) {
+		Image^ img = menu ? Recursos::fondoMenu : Recursos::fondoEspacio;
+		if (img != nullptr) {
+			g->DrawImage(img, 0, 0, Config::ANCHO, Config::ALTO);
+			// velo para que el texto resalte sobre la foto
+			SolidBrush velo(Color::FromArgb(110, 4, 6, 16));
+			g->FillRectangle(%velo, 0, 0, Config::ANCHO, Config::ALTO);
+		}
+		else {
+			Fondo::dibujar(g, tick);   // respaldo: estrellas con figuras
+		}
+	}
+
+	// ===================== PRINCIPAL =====================
+	void Menu::dibujarPrincipal(Graphics^ g, int tick) {
+		dibujarFondo(g, tick, true);
+
+		Estilos::textoSombra(g, L"PoliNavis", Estilos::titulo, Color::FromArgb(255, 215, 90), 500.0f, 110.0f);
+		Estilos::textoCentrado(g, L"Viaje Interestelar", Estilos::subtitulo, Color::FromArgb(150, 210, 255), 500.0f, 165.0f);
+		Estilos::textoCentrado(g, L"Lleva la nave del Punto A al Punto B esquivando cometas y asteroides",
+			Estilos::pequena, Color::FromArgb(150, 170, 210), 500.0f, 200.0f);
+
+		array<String^>^ op = opciones();
+		for (int i = 0; i < 5; i++) boton(g, i, op[i], tick);
+
+		Estilos::textoCentrado(g, L"Usa el RATON o las flechas y ENTER",
+			Estilos::pequena, Color::FromArgb(130, 150, 200), 500.0f, 660.0f);
+	}
+
+	void Menu::boton(Graphics^ g, int i, String^ texto, int tick) {
+		RectangleF r = rectBoton(i);
+		bool m = (opcion == i);
+		float bx = r.X + (m ? 8.0f : 0.0f);
+		if (m) {
+			int a = 160 + (int)(60.0 * Math::Sin(tick * 0.12));
+			Estilos::rellenarRedondeado(g, Color::FromArgb(230, 35, 80, 150), bx, r.Y, r.Width, r.Height, 12.0f);
+			Estilos::bordeRedondeado(g, Color::FromArgb(a, 110, 230, 255), 2.5f, bx - 3.0f, r.Y - 3.0f, r.Width + 6.0f, r.Height + 6.0f, 14.0f);
+		}
+		else {
+			Estilos::rellenarRedondeado(g, Color::FromArgb(200, 16, 26, 56), bx, r.Y, r.Width, r.Height, 12.0f);
+			Estilos::bordeRedondeado(g, Color::FromArgb(150, 70, 95, 150), 1.5f, bx, r.Y, r.Width, r.Height, 12.0f);
+		}
+		Estilos::textoCentrado(g, texto, Estilos::boton, Color::White, bx + r.Width / 2.0f, r.Y + r.Height / 2.0f);
+	}
+
+	bool Menu::hoverPrincipal(int mx, int my) {
+		for (int i = 0; i < 5; i++) {
+			if (rectBoton(i).Contains((float)mx, (float)my)) {
+				if (opcion != i) { opcion = i; return true; }
+				return false;
+			}
+		}
+		return false;
+	}
+
+	AccionMenu Menu::seleccionActual() {
+		switch (opcion) {
+		case 0: return AccionMenu::Nivel1;
+		case 1: return AccionMenu::Nivel2;
+		case 2: return AccionMenu::Instrucciones;
+		case 3: return AccionMenu::Creadores;
+		default: return AccionMenu::Salir;
+		}
+	}
+
+	AccionMenu Menu::clicPrincipal(int mx, int my) {
+		for (int i = 0; i < 5; i++) {
+			if (rectBoton(i).Contains((float)mx, (float)my)) {
+				opcion = i;
+				return seleccionActual();
+			}
+		}
+		return AccionMenu::Ninguna;
+	}
+
+	void Menu::moverSeleccion(int d) {
+		opcion = (opcion + d + 5) % 5;
+	}
+
+	// ===================== INSTRUCCIONES =====================
+	void Menu::dibujarInstrucciones(Graphics^ g, int tick) {
+		dibujarFondo(g, tick, false);
+		Estilos::textoSombra(g, L"INSTRUCCIONES", Estilos::enorme, Color::FromArgb(255, 215, 90), 500.0f, 70.0f);
+
+		Estilos::rellenarRedondeado(g, Color::FromArgb(205, 12, 18, 40), 90.0f, 120.0f, 820.0f, 470.0f, 16.0f);
+		Estilos::bordeRedondeado(g, Color::FromArgb(160, 90, 140, 220), 2.0f, 90.0f, 120.0f, 820.0f, 470.0f, 16.0f);
+
+		Color cel = Color::FromArgb(140, 210, 255), bl = Color::FromArgb(220, 228, 245);
+		float xi = 120.0f;
+		Estilos::textoIzquierda(g, L"OBJETIVO EDUCATIVO", Estilos::normalNegrita, cel, xi, 150.0f);
+		Estilos::textoIzquierda(g, L"Aprende los nombres de los planetas y sus movimientos de ROTACION (giro sobre su eje)", Estilos::normal, bl, xi, 178.0f);
+		Estilos::textoIzquierda(g, L"y TRASLACION (orbita alrededor del Sol) mientras navegas por el espacio.", Estilos::normal, bl, xi, 200.0f);
+
+		Estilos::textoIzquierda(g, L"NIVEL 1 - Sistema Solar", Estilos::normalNegrita, cel, xi, 240.0f);
+		Estilos::textoIzquierda(g, L"Lleva la nave del Punto A (abajo-izquierda) a la Estacion Espacial (arriba-derecha).", Estilos::normal, bl, xi, 266.0f);
+		Estilos::textoIzquierda(g, L"Esquiva cometas y asteroides: si chocas, vuelves al inicio y pierdes una vida.", Estilos::normal, bl, xi, 288.0f);
+		Estilos::textoIzquierda(g, L"Hay 8 planetas con orbita y rotacion. Haz CLIC en un planeta para acelerarlo.", Estilos::normal, bl, xi, 310.0f);
+
+		Estilos::textoIzquierda(g, L"NIVEL 2 - Galaxia Nebulosa del Khaos", Estilos::normalNegrita, cel, xi, 350.0f);
+		Estilos::textoIzquierda(g, L"Un agujero negro te absorbe a una galaxia de figuras geometricas caoticas.", Estilos::normal, bl, xi, 376.0f);
+		Estilos::textoIzquierda(g, L"Llega del Lugar 1 al portal de salida (Lugar 2) esquivando poligonos impredecibles.", Estilos::normal, bl, xi, 398.0f);
+
+		Estilos::textoIzquierda(g, L"CONTROLES", Estilos::normalNegrita, cel, xi, 438.0f);
+		Estilos::textoIzquierda(g, L"Mover la nave:  Flechas  o  W A S D", Estilos::normal, bl, xi, 466.0f);
+		Estilos::textoIzquierda(g, L"Acelerar planeta:  CLIC sobre el planeta (Nivel 1)", Estilos::normal, bl, xi, 488.0f);
+		Estilos::textoIzquierda(g, L"Volver al menu / pausar:  ESC", Estilos::normal, bl, xi, 510.0f);
+
+		Estilos::textoIzquierda(g, L"PANEL: arriba veras el tiempo, las colisiones, la energia y las vidas restantes.",
+			Estilos::normal, Color::FromArgb(255, 220, 120), xi, 552.0f);
+
+		botonVolver(g);
+	}
+
+	// ===================== CREADORES =====================
+	void Menu::dibujarCreadores(Graphics^ g, int tick) {
+		dibujarFondo(g, tick, false);
+		Estilos::textoSombra(g, L"CREADORES", Estilos::enorme, Color::FromArgb(255, 215, 90), 500.0f, 70.0f);
+
+		array<String^>^ nombres = gcnew array<String^> {
+			L"Bryan Cordova", L"Lenin Palomino", L"Gustavo Arimana", L"Mustafa Altuntas", L"Biary Tineo"
+		};
+		array<String^>^ roles = gcnew array<String^> {
+			L"Lider de proyecto y clase controladora (Juego)",
+			L"Diseno de la nave, planetas y figuras (POO)",
+			L"Niveles, colisiones y panel de control",
+			L"Obstaculos, fisica del Nivel 2 y sonido",
+			L"Menu, instrucciones, UML y documentacion"
+		};
+		array<Color>^ col = gcnew array<Color> {
+			Color::FromArgb(70, 130, 220), Color::FromArgb(235, 140, 50),
+			Color::FromArgb(90, 190, 110), Color::FromArgb(220, 80, 80),
+			Color::FromArgb(180, 120, 240)
+		};
+
+		for (int i = 0; i < 5; i++) {
+			float fy = 140.0f + i * 86.0f;
+			Estilos::rellenarRedondeado(g, Color::FromArgb(200, 14, 22, 48), 220.0f, fy, 560.0f, 70.0f, 14.0f);
+			Estilos::bordeRedondeado(g, Color::FromArgb(150, col[i]), 2.0f, 220.0f, fy, 560.0f, 70.0f, 14.0f);
+			// casco mini del color del integrante
+			SolidBrush casco(col[i]);
+			g->FillEllipse(%casco, 250.0f, fy + 18.0f, 34.0f, 34.0f);
+			SolidBrush visor(Color::FromArgb(30, 40, 75));
+			g->FillEllipse(%visor, 259.0f, fy + 27.0f, 20.0f, 16.0f);
+			Estilos::textoIzquierda(g, nombres[i], Estilos::subtitulo, Color::White, 310.0f, fy + 26.0f);
+			Estilos::textoIzquierda(g, roles[i], Estilos::normal, Color::FromArgb(170, 200, 240), 310.0f, fy + 50.0f);
+		}
+
+		Estilos::textoCentrado(g, L"PoliNavis - Practica Calificada 1 - Algoritmos de Programacion",
+			Estilos::pequena, Color::FromArgb(130, 150, 200), 500.0f, 600.0f);
+		botonVolver(g);
+	}
+
+	void Menu::botonVolver(Graphics^ g) {
+		RectangleF r = rectVolver();
+		Estilos::rellenarRedondeado(g, Color::FromArgb(210, 16, 26, 56), r.X, r.Y, r.Width, r.Height, 12.0f);
+		Estilos::bordeRedondeado(g, Color::FromArgb(170, 110, 200, 255), 2.0f, r.X, r.Y, r.Width, r.Height, 12.0f);
+		Estilos::textoCentrado(g, L"< VOLVER  (ESC)", Estilos::normalNegrita, Color::White, r.X + r.Width / 2.0f, r.Y + r.Height / 2.0f);
+	}
+
+	AccionMenu Menu::clicVolver(int mx, int my) {
+		if (rectVolver().Contains((float)mx, (float)my)) return AccionMenu::Volver;
+		return AccionMenu::Ninguna;
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: MyForm.cpp
+ ****************************************************************************/
+#include "MyForm.h"
+
+using namespace System;
+using namespace System::Windows::Forms;
+
+[STAThread]
+void main() {
+	Application::EnableVisualStyles();
+	Application::SetCompatibleTextRenderingDefault(false);
+	Application::Run(gcnew PoliNavis::MyForm());
+}
+
+/****************************************************************************
+  ARCHIVO: Nave.cpp
+ ****************************************************************************/
+#include "Nave.h"
+#include "Config.h"
+#include "Sonido.h"
+
+using namespace System::Drawing::Drawing2D;
+
+namespace PoliNavis {
+
+	Nave::Nave(float px, float py) : Entidad(px, py) {
+		vidas = Config::VIDAS_INICIALES;
+		energia = Config::ENERGIA_INICIAL;
+		invulnerable = 0;
+		angulo = -45.0f;        // mirando arriba-derecha (hacia el Punto B)
+		faseLlama = 0.0f;
+		colorTrazo = Color::FromArgb(120, 230, 255);
+	}
+
+	void Nave::acelerar(float ax, float ay) {
+		dx = ax;
+		dy = ay;
+	}
+
+	void Nave::mover() {
+		x += dx;
+		y += dy;
+
+		// limites de la ventana
+		if (x < 18.0f) x = 18.0f;
+		if (x > Config::ANCHO - 18.0f) x = Config::ANCHO - 18.0f;
+		if (y < 18.0f) y = 18.0f;
+		if (y > Config::ALTO - 18.0f) y = Config::ALTO - 18.0f;
+
+		// si se mueve, la nave apunta hacia su direccion
+		if (dx != 0.0f || dy != 0.0f) {
+			angulo = (float)(Math::Atan2(dy, dx) * 180.0 / Math::PI) + 90.0f;
+			faseLlama += 0.6f;
+		}
+		if (invulnerable > 0) invulnerable--;
+	}
+
+	bool Nave::propulsando() {
+		return dx != 0.0f || dy != 0.0f;
+	}
+
+	void Nave::reiniciarEn(float px, float py) {
+		x = px; y = py;
+		dx = dy = 0.0f;
+		angulo = -45.0f;
+		invulnerable = 120;     // 2 segundos de gracia
+	}
+
+	void Nave::perderVida() {
+		vidas--;
+		Sonido::danio();
+	}
+
+	void Nave::gastarEnergia(int cantidad) {
+		energia -= cantidad;
+		if (energia < 0) energia = 0;
+	}
+
+	void Nave::recargarEnergia(int cantidad) {
+		energia += cantidad;
+		if (energia > 100) energia = 100;
+	}
+
+	int Nave::getVidas() { return vidas; }
+	int Nave::getEnergia() { return energia; }
+	bool Nave::sinVidas() { return vidas <= 0; }
+	bool Nave::esInvulnerable() { return invulnerable > 0; }
+	void Nave::setColorTrazo(Color c) { colorTrazo = c; }
+
+	RectangleF Nave::area() {
+		return RectangleF(x - 13.0f, y - 13.0f, 26.0f, 26.0f);
+	}
+
+	void Nave::dibujar(Graphics^ g) {
+		// parpadeo de invulnerabilidad
+		if (invulnerable > 0 && (invulnerable / 5) % 2 == 0) return;
+
+		g->TranslateTransform(x, y);
+		g->RotateTransform(angulo);
+
+		// ----- propulsor (llama animada detras) -----
+		if (propulsando()) {
+			float fl = (float)Math::Sin(faseLlama) * 5.0f + 14.0f;
+			array<PointF>^ fuego = gcnew array<PointF>(3);
+			fuego[0] = PointF(-6.0f, 12.0f);
+			fuego[1] = PointF(6.0f, 12.0f);
+			fuego[2] = PointF(0.0f, 12.0f + fl);
+			SolidBrush naranja(Color::FromArgb(230, 255, 150, 40));
+			g->FillPolygon(%naranja, fuego);
+			array<PointF>^ fuego2 = gcnew array<PointF>(3);
+			fuego2[0] = PointF(-3.0f, 12.0f);
+			fuego2[1] = PointF(3.0f, 12.0f);
+			fuego2[2] = PointF(0.0f, 12.0f + fl * 0.6f);
+			SolidBrush amarillo(Color::FromArgb(245, 255, 240, 150));
+			g->FillPolygon(%amarillo, fuego2);
+		}
+
+		// ----- alas (poligonos) -----
+		array<PointF>^ alaIzq = gcnew array<PointF>(3);
+		alaIzq[0] = PointF(-4.0f, 2.0f);
+		alaIzq[1] = PointF(-16.0f, 12.0f);
+		alaIzq[2] = PointF(-4.0f, 12.0f);
+		array<PointF>^ alaDer = gcnew array<PointF>(3);
+		alaDer[0] = PointF(4.0f, 2.0f);
+		alaDer[1] = PointF(16.0f, 12.0f);
+		alaDer[2] = PointF(4.0f, 12.0f);
+		SolidBrush rojo(Color::FromArgb(210, 70, 70));
+		g->FillPolygon(%rojo, alaIzq);
+		g->FillPolygon(%rojo, alaDer);
+
+		// ----- cuerpo (rombo / poligono) -----
+		array<PointF>^ cuerpo = gcnew array<PointF>(4);
+		cuerpo[0] = PointF(0.0f, -18.0f);   // nariz
+		cuerpo[1] = PointF(8.0f, 8.0f);
+		cuerpo[2] = PointF(0.0f, 14.0f);
+		cuerpo[3] = PointF(-8.0f, 8.0f);
+		SolidBrush plata(Color::FromArgb(225, 230, 240));
+		g->FillPolygon(%plata, cuerpo);
+		Pen filo(colorTrazo, 2.0f);
+		g->DrawPolygon(%filo, cuerpo);
+
+		// ----- cabina (poligono de vidrio) -----
+		array<PointF>^ cabina = gcnew array<PointF>(4);
+		cabina[0] = PointF(0.0f, -10.0f);
+		cabina[1] = PointF(4.0f, 2.0f);
+		cabina[2] = PointF(0.0f, 5.0f);
+		cabina[3] = PointF(-4.0f, 2.0f);
+		SolidBrush vidrio(colorTrazo);
+		g->FillPolygon(%vidrio, cabina);
+
+		// ----- detalle central (linea) -----
+		Pen linea(Color::FromArgb(150, 70, 70), 1.5f);
+		g->DrawLine(%linea, 0.0f, 6.0f, 0.0f, 12.0f);
+
+		g->ResetTransform();
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Obstaculo.cpp
+ ****************************************************************************/
+#include "Obstaculo.h"
+#include "Config.h"
+#include "Azar.h"
+
+namespace PoliNavis {
+
+	Obstaculo::Obstaculo(float px, float py, float pdx, float pdy, float pradio)
+		: Entidad(px, py) {
+		dx = pdx; dy = pdy;
+		radio = pradio;
+		giro = Azar::entreF(0.0f, 360.0f);
+		velGiro = Azar::entreF(-4.0f, 4.0f);
+	}
+
+	void Obstaculo::mover() {
+		x += dx;
+		y += dy;
+		giro += velGiro;
+	}
+
+	bool Obstaculo::fueraDePantalla() {
+		float m = radio + 40.0f;
+		return x < -m || x > Config::ANCHO + m || y < -m || y > Config::ALTO + m;
+	}
+
+	RectangleF Obstaculo::area() {
+		return RectangleF(x - radio * 0.8f, y - radio * 0.8f, radio * 1.6f, radio * 1.6f);
+	}
+
+	float Obstaculo::getRadio() { return radio; }
+}
+
+/****************************************************************************
+  ARCHIVO: Particula.cpp
+ ****************************************************************************/
+﻿#include "Particula.h"
+#include "Azar.h"
+
+namespace PoliNavis {
+
+	Particula::Particula(float px, float py, float pvx, float pvy, float pradio, int pvida, Color pcolor, bool pgravedad) {
+		x = px; y = py;
+		vx = pvx; vy = pvy;
+		radio = pradio;
+		vida = pvida; vidaMax = pvida;
+		color = pcolor;
+		conGravedad = pgravedad;
+	}
+
+	void Particula::mover() {
+		x += vx;
+		y += vy;
+		if (conGravedad) vy += 0.15f;
+		vida--;
+	}
+
+	bool Particula::muerta() {
+		return vida <= 0;
+	}
+
+	void Particula::dibujar(Graphics^ g) {
+		if (vida <= 0) return;
+		int alfa = (int)(255.0f * vida / vidaMax);
+		if (alfa < 0) alfa = 0;
+		if (alfa > 255) alfa = 255;
+		float r = radio * (0.4f + 0.6f * vida / vidaMax);
+		SolidBrush pincel(Color::FromArgb(alfa, color));
+		g->FillEllipse(%pincel, x - r, y - r, r * 2.0f, r * 2.0f);
+	}
+
+	void Particulas::actualizar(List<Particula^>^ lista) {
+		for (int i = lista->Count - 1; i >= 0; i--) {
+			lista[i]->mover();
+			if (lista[i]->muerta()) lista->RemoveAt(i);
+		}
+	}
+
+	void Particulas::dibujar(Graphics^ g, List<Particula^>^ lista) {
+		for each (Particula^ p in lista) {
+			p->dibujar(g);
+		}
+	}
+
+	void Particulas::explosion(List<Particula^>^ lista, float x, float y, Color color, int cantidad) {
+		for (int i = 0; i < cantidad; i++) {
+			float angulo = Azar::entreF(0.0f, 6.2832f);
+			float velocidad = Azar::entreF(1.0f, 4.5f);
+			lista->Add(gcnew Particula(x, y,
+				(float)Math::Cos(angulo) * velocidad,
+				(float)Math::Sin(angulo) * velocidad,
+				Azar::entreF(2.0f, 5.0f), Azar::entre(20, 45), color, false));
+		}
+	}
+
+	void Particulas::polvo(List<Particula^>^ lista, float x, float y, Color color, int cantidad) {
+		for (int i = 0; i < cantidad; i++) {
+			lista->Add(gcnew Particula(
+				x + Azar::entreF(-22.0f, 22.0f), y + Azar::entreF(-4.0f, 2.0f),
+				Azar::entreF(-1.8f, 1.8f), Azar::entreF(-1.4f, -0.2f),
+				Azar::entreF(3.0f, 7.0f), Azar::entre(30, 60), color, false));
+		}
+	}
+
+	void Particulas::llama(List<Particula^>^ lista, float x, float y, float fuerza) {
+		lista->Add(gcnew Particula(
+			x + Azar::entreF(-4.0f, 4.0f), y,
+			Azar::entreF(-0.6f, 0.6f), Azar::entreF(1.5f, 3.0f) * fuerza,
+			Azar::entreF(3.0f, 6.0f), Azar::entre(12, 26),
+			(Azar::moneda() ? Color::FromArgb(255, 180, 60) : Color::FromArgb(255, 230, 120)),
+			false));
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Planeta.cpp
+ ****************************************************************************/
+#include "Planeta.h"
+
+using namespace System::Drawing::Drawing2D;
+
+namespace PoliNavis {
+
+	Planeta::Planeta(float psolX, float psolY, float pradioOrbita, float panguloIni,
+		float pvelOrbita, float pvelRotacion, float pradio, String^ pnombre, String^ pdato)
+		: Entidad(psolX + pradioOrbita, psolY) {
+		solX = psolX; solY = psolY;
+		radioOrbita = pradioOrbita;
+		anguloOrbita = panguloIni;
+		velOrbita = pvelOrbita;
+		rotacion = 0.0f;
+		velRotacion = pvelRotacion;
+		radio = pradio;
+		impulso = 1.0f;
+		nombre = pnombre;
+		dato = pdato;
+		colorLeyenda = Color::White;
+	}
+
+	void Planeta::mover() {
+		// TRASLACION: avanza en la orbita y recalcula su posicion
+		anguloOrbita += velOrbita * impulso;
+		double a = anguloOrbita * Math::PI / 180.0;
+		x = solX + (float)Math::Cos(a) * radioOrbita;
+		y = solY + (float)Math::Sin(a) * radioOrbita * 0.62f;  // orbita en perspectiva
+
+		// ROTACION: gira sobre su eje
+		rotacion += velRotacion * impulso;
+
+		// el impulso por evento decae poco a poco hasta 1
+		if (impulso > 1.0f) {
+			impulso -= 0.04f;
+			if (impulso < 1.0f) impulso = 1.0f;
+		}
+	}
+
+	void Planeta::acelerar() {
+		impulso = 6.0f;   // al hacer clic, gira y orbita mucho mas rapido
+	}
+
+	RectangleF Planeta::area() {
+		return RectangleF(x - radio * 0.85f, y - radio * 0.85f, radio * 1.7f, radio * 1.7f);
+	}
+
+	void Planeta::dibujarOrbita(Graphics^ g) {
+		Pen orbita(Color::FromArgb(35, 200, 220, 255), 1.0f);
+		g->DrawEllipse(%orbita, solX - radioOrbita, solY - radioOrbita * 0.62f,
+			radioOrbita * 2.0f, radioOrbita * 0.62f * 2.0f);
+	}
+
+	void Planeta::dibujar(Graphics^ g) {
+		// halo
+		SolidBrush halo(Color::FromArgb(30, 200, 220, 255));
+		g->FillEllipse(%halo, x - radio * 1.2f, y - radio * 1.2f, radio * 2.4f, radio * 2.4f);
+
+		// recorte circular: la superficie no se sale del planeta
+		GraphicsPath recorte;
+		recorte.AddEllipse(x - radio, y - radio, radio * 2.0f, radio * 2.0f);
+		g->SetClip(%recorte);
+		dibujarSuperficie(g, radio, rotacion);
+		// sombra esferica (da volumen 3D y marca el terminador)
+		SolidBrush sombra(Color::FromArgb(70, 0, 0, 25));
+		g->FillEllipse(%sombra, x - radio + radio * 0.5f, y - radio + radio * 0.35f,
+			radio * 2.0f, radio * 2.0f);
+		g->ResetClip();
+
+		// borde
+		Pen borde(Color::FromArgb(90, 255, 255, 255), 1.0f);
+		g->DrawEllipse(%borde, x - radio, y - radio, radio * 2.0f, radio * 2.0f);
+
+		dibujarExtra(g, radio);
+	}
+
+	void Planeta::marca(Graphics^ g, float cx, float cy, float r,
+		float longitud, float rot, float lat, float tam, Color color) {
+		double ang = (longitud - rot) * Math::PI / 180.0;
+		double frente = Math::Cos(ang);
+		if (frente <= 0.05) return;                    // esta en la cara oculta
+		float mx = cx + (float)Math::Sin(ang) * r * 0.78f;
+		float my = cy + lat * r;
+		float escala = (float)frente;                  // perspectiva al borde
+		float t = tam * (0.5f + 0.5f * escala);
+		SolidBrush pincel(color);
+		g->FillEllipse(%pincel, mx - t, my - t * 0.85f, t * 2.0f, t * 1.7f);
+	}
+
+	String^ Planeta::getNombre() { return nombre; }
+	String^ Planeta::getDato() { return dato; }
+	float Planeta::getRadio() { return radio; }
+}
+
+/****************************************************************************
+  ARCHIVO: Planetas.cpp
+ ****************************************************************************/
+#include "Planetas.h"
+#include "Azar.h"
+
+using namespace System::Drawing::Drawing2D;
+
+namespace PoliNavis {
+
+	// ---------------- MERCURIO ----------------
+	Mercurio::Mercurio(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 1.30f, 2.2f, 12.0f, L"Mercurio",
+			L"El mas cercano al Sol. Traslacion: 88 dias.") {
+		colorLeyenda = Color::FromArgb(150, 140, 130);
+	}
+	void Mercurio::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		SolidBrush base(Color::FromArgb(150, 140, 130));
+		g->FillEllipse(%base, x - r, y - r, r * 2.0f, r * 2.0f);
+		// crateres que giran con el planeta
+		marca(g, x, y, r, 20.0f, rot, -0.3f, r * 0.30f, Color::FromArgb(110, 100, 92));
+		marca(g, x, y, r, 90.0f, rot, 0.15f, r * 0.34f, Color::FromArgb(105, 96, 88));
+		marca(g, x, y, r, 160.0f, rot, 0.4f, r * 0.24f, Color::FromArgb(115, 104, 96));
+		marca(g, x, y, r, 250.0f, rot, -0.15f, r * 0.28f, Color::FromArgb(100, 92, 84));
+	}
+
+	// ---------------- VENUS ----------------
+	Venus::Venus(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 0.95f, 1.0f, 16.0f, L"Venus",
+			L"Rota al reves y muy lento. El mas caliente.") {
+		colorLeyenda = Color::FromArgb(218, 180, 98);
+	}
+	void Venus::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		SolidBrush base(Color::FromArgb(218, 180, 98));
+		g->FillEllipse(%base, x - r, y - r, r * 2.0f, r * 2.0f);
+		Pen banda(Color::FromArgb(120, 240, 215, 150), r * 0.16f);
+		g->DrawArc(%banda, x - r * 1.1f, y - r * 0.9f, r * 2.2f, r * 1.2f, 20.0f, 140.0f);
+		g->DrawArc(%banda, x - r * 1.05f, y - r * 0.1f, r * 2.1f, r * 1.1f, 200.0f, 140.0f);
+		marca(g, x, y, r, 60.0f, rot, -0.2f, r * 0.3f, Color::FromArgb(120, 235, 205, 140));
+		marca(g, x, y, r, 200.0f, rot, 0.25f, r * 0.26f, Color::FromArgb(120, 235, 205, 140));
+	}
+
+	// ---------------- TIERRA (obligatorio) ----------------
+	Tierra::Tierra(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 0.78f, 2.6f, 17.0f, L"Tierra",
+			L"Nuestro hogar. Rotacion: 24 h. Traslacion: 365 dias.") {
+		colorLeyenda = Color::FromArgb(60, 130, 210);
+		lunaAng = 0.0f;
+	}
+	void Tierra::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		// oceano
+		SolidBrush oceano(Color::FromArgb(52, 110, 200));
+		g->FillEllipse(%oceano, x - r, y - r, r * 2.0f, r * 2.0f);
+		// continentes verdes que ROTAN (detalle identificable)
+		marca(g, x, y, r, 30.0f, rot, -0.25f, r * 0.42f, Color::FromArgb(80, 170, 90));
+		marca(g, x, y, r, 80.0f, rot, 0.2f, r * 0.34f, Color::FromArgb(70, 160, 80));
+		marca(g, x, y, r, 175.0f, rot, 0.05f, r * 0.4f, Color::FromArgb(85, 175, 95));
+		marca(g, x, y, r, 250.0f, rot, 0.35f, r * 0.3f, Color::FromArgb(75, 165, 85));
+		// nubes blancas (giran un poco distinto)
+		marca(g, x, y, r, 120.0f, rot * 1.15f, -0.45f, r * 0.3f, Color::FromArgb(130, 255, 255, 255));
+		marca(g, x, y, r, 300.0f, rot * 1.15f, 0.5f, r * 0.28f, Color::FromArgb(120, 255, 255, 255));
+		// casquete polar
+		SolidBrush polo(Color::FromArgb(180, 240, 245, 255));
+		g->FillEllipse(%polo, x - r * 0.35f, y - r * 1.02f, r * 0.7f, r * 0.4f);
+	}
+	void Tierra::dibujarExtra(Graphics^ g, float r) {
+		lunaAng += 3.0f;
+		double a = lunaAng * Math::PI / 180.0;
+		float lx = x + (float)Math::Cos(a) * r * 1.9f;
+		float ly = y + (float)Math::Sin(a) * r * 1.9f * 0.6f;
+		SolidBrush luna(Color::FromArgb(205, 205, 210));
+		g->FillEllipse(%luna, lx - r * 0.22f, ly - r * 0.22f, r * 0.44f, r * 0.44f);
+	}
+
+	// ---------------- MARTE ----------------
+	Marte::Marte(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 0.62f, 2.5f, 14.0f, L"Marte",
+			L"El planeta rojo. Tiene casquetes polares de hielo.") {
+		colorLeyenda = Color::FromArgb(200, 95, 55);
+	}
+	void Marte::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		SolidBrush base(Color::FromArgb(200, 95, 55));
+		g->FillEllipse(%base, x - r, y - r, r * 2.0f, r * 2.0f);
+		marca(g, x, y, r, 40.0f, rot, 0.1f, r * 0.36f, Color::FromArgb(160, 70, 40));
+		marca(g, x, y, r, 150.0f, rot, -0.2f, r * 0.3f, Color::FromArgb(150, 65, 38));
+		marca(g, x, y, r, 240.0f, rot, 0.3f, r * 0.28f, Color::FromArgb(165, 72, 42));
+		SolidBrush polo(Color::FromArgb(230, 240, 245, 255));
+		g->FillEllipse(%polo, x - r * 0.4f, y - r * 1.02f, r * 0.8f, r * 0.42f);
+	}
+
+	// ---------------- JUPITER ----------------
+	Jupiter::Jupiter(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 0.42f, 3.6f, 30.0f, L"Jupiter",
+			L"El mas grande. Rotacion muy rapida: ~10 horas.") {
+		colorLeyenda = Color::FromArgb(205, 170, 125);
+	}
+	void Jupiter::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		SolidBrush base(Color::FromArgb(205, 170, 125));
+		g->FillEllipse(%base, x - r, y - r, r * 2.0f, r * 2.0f);
+		SolidBrush b1(Color::FromArgb(150, 175, 130, 85));
+		SolidBrush b2(Color::FromArgb(120, 230, 205, 165));
+		g->FillRectangle(%b1, x - r, y - r * 0.75f, r * 2.0f, r * 0.26f);
+		g->FillRectangle(%b2, x - r, y - r * 0.38f, r * 2.0f, r * 0.20f);
+		g->FillRectangle(%b1, x - r, y - r * 0.02f, r * 2.0f, r * 0.28f);
+		g->FillRectangle(%b2, x - r, y + r * 0.42f, r * 2.0f, r * 0.20f);
+		// gran mancha roja que rota
+		marca(g, x, y, r, 90.0f, rot, 0.12f, r * 0.32f, Color::FromArgb(195, 85, 60));
+	}
+
+	// ---------------- SATURNO (obligatorio, con anillos) ----------------
+	Saturno::Saturno(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 0.32f, 3.2f, 24.0f, L"Saturno",
+			L"Famoso por sus anillos de hielo y roca.") {
+		colorLeyenda = Color::FromArgb(216, 186, 120);
+	}
+	void Saturno::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		SolidBrush base(Color::FromArgb(216, 186, 120));
+		g->FillEllipse(%base, x - r, y - r, r * 2.0f, r * 2.0f);
+		SolidBrush banda(Color::FromArgb(110, 190, 155, 95));
+		g->FillRectangle(%banda, x - r, y - r * 0.5f, r * 2.0f, r * 0.24f);
+		g->FillRectangle(%banda, x - r, y + r * 0.1f, r * 2.0f, r * 0.28f);
+		marca(g, x, y, r, 70.0f, rot, -0.2f, r * 0.22f, Color::FromArgb(150, 175, 140, 80));
+	}
+	void Saturno::dibujarExtra(Graphics^ g, float r) {
+		// anillos: dos arcos (el de atras ya quedaria tapado; dibujamos elipse completa)
+		g->TranslateTransform(x, y);
+		g->RotateTransform(-18.0f);
+		Pen anillo(Color::FromArgb(230, 225, 200, 150), r * 0.20f);
+		g->DrawEllipse(%anillo, -r * 1.9f, -r * 0.62f, r * 3.8f, r * 1.24f);
+		Pen surco(Color::FromArgb(150, 150, 125, 85), r * 0.06f);
+		g->DrawEllipse(%surco, -r * 1.6f, -r * 0.5f, r * 3.2f, r * 1.0f);
+		g->ResetTransform();
+	}
+
+	// ---------------- URANO ----------------
+	Urano::Urano(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 0.24f, 2.0f, 19.0f, L"Urano",
+			L"Gira inclinado de lado. Gigante helado.") {
+		colorLeyenda = Color::FromArgb(130, 212, 225);
+	}
+	void Urano::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		SolidBrush base(Color::FromArgb(130, 212, 225));
+		g->FillEllipse(%base, x - r, y - r, r * 2.0f, r * 2.0f);
+		marca(g, x, y, r, 50.0f, rot, -0.2f, r * 0.34f, Color::FromArgb(90, 255, 255, 255));
+		marca(g, x, y, r, 210.0f, rot, 0.25f, r * 0.3f, Color::FromArgb(70, 180, 230, 235));
+	}
+	void Urano::dibujarExtra(Graphics^ g, float r) {
+		g->TranslateTransform(x, y);
+		g->RotateTransform(72.0f);
+		Pen anillo(Color::FromArgb(120, 220, 240, 250), 2.0f);
+		g->DrawEllipse(%anillo, -r * 1.55f, -r * 0.4f, r * 3.1f, r * 0.8f);
+		g->ResetTransform();
+	}
+
+	// ---------------- NEPTUNO ----------------
+	Neptuno::Neptuno(float sx, float sy, float ro, float a0)
+		: Planeta(sx, sy, ro, a0, 0.18f, 2.4f, 18.0f, L"Neptuno",
+			L"El mas lejano. Vientos de hasta 2000 km/h.") {
+		colorLeyenda = Color::FromArgb(45, 75, 200);
+	}
+	void Neptuno::dibujarSuperficie(Graphics^ g, float r, float rot) {
+		SolidBrush base(Color::FromArgb(45, 75, 200));
+		g->FillEllipse(%base, x - r, y - r, r * 2.0f, r * 2.0f);
+		Pen viento(Color::FromArgb(110, 220, 235, 255), r * 0.07f);
+		g->DrawArc(%viento, x - r * 0.9f, y + r * 0.2f, r * 1.8f, r * 0.5f, 10.0f, 160.0f);
+		// gran mancha oscura que rota
+		marca(g, x, y, r, 110.0f, rot, -0.1f, r * 0.3f, Color::FromArgb(160, 25, 40, 120));
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Recursos.cpp
+ ****************************************************************************/
+#include "Recursos.h"
+
+using namespace System::IO;
+
+namespace PoliNavis {
+
+	// Busca la imagen en varias rutas posibles: junto al .exe, en la carpeta
+	// del proyecto o subiendo desde x64/Debug. Devuelve nullptr si no existe.
+	Image^ Recursos::intentarCargar(String^ nombre) {
+		array<String^>^ rutas = gcnew array<String^> {
+			"img/" + nombre,
+			"../../img/" + nombre,
+			"../../PoliNavis/img/" + nombre,
+			nombre
+		};
+		for each (String^ ruta in rutas) {
+			try {
+				if (File::Exists(ruta)) return Image::FromFile(ruta);
+			}
+			catch (Exception^) {
+				// ruta invalida: probar la siguiente
+			}
+		}
+		return nullptr;
+	}
+
+	void Recursos::cargar() {
+		if (cargado) return;
+		cargado = true;
+		fondoMenu = intentarCargar("menu.png");
+		fondoEspacio = intentarCargar("espacio.png");
+		fondoNebulosa = intentarCargar("nebulosa.png");
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Sol.cpp
+ ****************************************************************************/
+#include "Sol.h"
+
+namespace PoliNavis {
+
+	Sol::Sol(float px, float py, float pradio) : Entidad(px, py) {
+		radio = pradio;
+		giro = 0.0f;
+	}
+
+	void Sol::mover() {
+		giro += 0.4f;   // los rayos giran lentamente
+	}
+
+	float Sol::getRadio() { return radio; }
+
+	void Sol::dibujar(Graphics^ g) {
+		// halos translucidos
+		for (int capa = 3; capa >= 1; capa--) {
+			SolidBrush halo(Color::FromArgb(18 * capa, 255, 170, 40));
+			float r = radio + capa * 16.0f;
+			g->FillEllipse(%halo, x - r, y - r, r * 2.0f, r * 2.0f);
+		}
+		// rayos giratorios (lineas)
+		Pen rayo(Color::FromArgb(80, 255, 200, 80), 2.0f);
+		for (int i = 0; i < 12; i++) {
+			double a = (giro + i * 30.0) * Math::PI / 180.0;
+			g->DrawLine(%rayo,
+				x + (float)Math::Cos(a) * (radio + 4.0f), y + (float)Math::Sin(a) * (radio + 4.0f),
+				x + (float)Math::Cos(a) * (radio + 18.0f), y + (float)Math::Sin(a) * (radio + 18.0f));
+		}
+		// cuerpo
+		SolidBrush sol(Color::FromArgb(255, 200, 60));
+		g->FillEllipse(%sol, x - radio, y - radio, radio * 2.0f, radio * 2.0f);
+		SolidBrush nucleo(Color::FromArgb(255, 240, 150));
+		g->FillEllipse(%nucleo, x - radio * 0.7f, y - radio * 0.7f, radio * 1.4f, radio * 1.4f);
+		// manchas solares
+		SolidBrush mancha(Color::FromArgb(90, 230, 120, 20));
+		g->FillEllipse(%mancha, x - radio * 0.3f, y - radio * 0.1f, radio * 0.3f, radio * 0.25f);
+	}
+}
+
+/****************************************************************************
+  ARCHIVO: Sonido.cpp
+ ****************************************************************************/
+﻿#include "Sonido.h"
+
+using namespace System::Threading;
+
+namespace PoliNavis {
+
+	// Encola la secuencia de tonos {frecuencia, duracion, frecuencia, duracion, ...}
+	void Sonido::lanzar(array<int>^ datos) {
+		if (!activado) return;
+		ThreadPool::QueueUserWorkItem(gcnew WaitCallback(&Sonido::trabajador), datos);
+	}
+
+	void Sonido::trabajador(Object^ estado) {
+		if (sonando) return;          // evita que los pitidos se amontonen
+		sonando = true;
+		array<int>^ datos = (array<int>^)estado;
+		for (int i = 0; i + 1 < datos->Length; i += 2) {
+			Console::Beep(datos[i], datos[i + 1]);
+		}
+		sonando = false;
+	}
+
+	void Sonido::tono(int frecuencia, int duracion) {
+		lanzar(gcnew array<int> { frecuencia, duracion });
+	}
+
+	void Sonido::mover() { tono(700, 35); }
+
+	void Sonido::seleccionar() {
+		lanzar(gcnew array<int> { 880, 55, 1175, 75 });
+	}
+
+	void Sonido::error() {
+		lanzar(gcnew array<int> { 220, 130 });
+	}
+
+	void Sonido::disparo() { tono(1000, 28); }
+
+	void Sonido::explosion() {
+		lanzar(gcnew array<int> { 180, 45, 130, 55 });
+	}
+
+	void Sonido::item() {
+		lanzar(gcnew array<int> { 1320, 45, 1760, 55 });
+	}
+
+	void Sonido::danio() {
+		lanzar(gcnew array<int> { 200, 90 });
+	}
+
+	void Sonido::victoria() {
+		lanzar(gcnew array<int> { 659, 95, 784, 95, 880, 95, 1047, 170 });
+	}
+
+	void Sonido::derrota() {
+		lanzar(gcnew array<int> { 392, 130, 330, 130, 262, 200 });
+	}
+
+	void Sonido::notaSimon(int indice) {
+		int frecuencia = 523;
+		if (indice == 1) frecuencia = 659;
+		else if (indice == 2) frecuencia = 784;
+		else if (indice == 3) frecuencia = 1047;
+		tono(frecuencia, 220);
+	}
+
+	void Sonido::anillo() { tono(940, 40); }
+
+	void Sonido::despegueNave() {
+		lanzar(gcnew array<int> { 150, 120, 220, 120, 320, 150 });
+	}
+
+	void Sonido::aterrizajeNave() {
+		lanzar(gcnew array<int> { 320, 120, 220, 120, 150, 150 });
+	}
+}

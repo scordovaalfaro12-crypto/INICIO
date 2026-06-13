@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier><Extensions>cpp;cc;cxx</Extensions></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier><Extensions>h;hh;hpp</Extensions></Filter>
+    <Filter Include="Recursos"><UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier><Extensions>png;jpg;wav</Extensions></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Asteroide.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Cometa.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Entidad.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Estacion.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Estilos.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="FiguraKhaos.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Fondo.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Juego.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Menu.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="MyForm.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Nave.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Obstaculo.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Particula.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Planeta.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Planetas.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Recursos.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Sol.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Sonido.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Asteroide.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Azar.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Cometa.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Config.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Entidad.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Entrada.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Estacion.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Estilos.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="FiguraKhaos.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Fondo.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Juego.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Menu.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="MyForm.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Nave.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Obstaculo.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Particula.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Planeta.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Planetas.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Recursos.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Sol.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Sonido.h"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="img/espacio.png"><Filter>Recursos</Filter></None>
+    <None Include="img/menu.png"><Filter>Recursos</Filter></None>
+    <None Include="img/nebulosa.png"><Filter>Recursos</Filter></None>
+  </ItemGroup>
+</Project>
