@@ -10,8 +10,8 @@ namespace PoliNavis {
 	// no se permite un arreglo administrado como variable global).
 	static array<String^>^ opciones() {
 		return gcnew array<String^> {
-			L"NIVEL 1  -  Sistema Solar",
-			L"NIVEL 2  -  Galaxia Nebulosa del Khaos",
+			L"NIVEL 1 - Sistema Solar",
+			L"NIVEL 2 - Galaxia del Khaos",
 			L"INSTRUCCIONES",
 			L"CREADORES",
 			L"SALIR"
@@ -21,7 +21,8 @@ namespace PoliNavis {
 	Menu::Menu() { opcion = 0; }
 
 	RectangleF Menu::rectBoton(int i) {
-		return RectangleF(290.0f, 250.0f + i * 70.0f, 420.0f, 54.0f);
+		// columna a la izquierda para no tapar el arte de menu.png
+		return RectangleF(60.0f, 250.0f + i * 80.0f, 380.0f, 62.0f);
 	}
 	RectangleF Menu::rectVolver() {
 		return RectangleF(36.0f, 626.0f, 200.0f, 46.0f);
@@ -31,8 +32,10 @@ namespace PoliNavis {
 		Image^ img = menu ? Recursos::fondoMenu : Recursos::fondoEspacio;
 		if (img != nullptr) {
 			g->DrawImage(img, 0, 0, Config::ANCHO, Config::ALTO);
-			// velo para que el texto resalte sobre la foto
-			SolidBrush velo(Color::FromArgb(110, 4, 6, 16));
+			// en el menu el velo es tenue para lucir el arte; en las
+			// sub-pantallas es mas oscuro para que el texto se lea bien.
+			int a = menu ? 40 : 140;
+			SolidBrush velo(Color::FromArgb(a, 4, 6, 16));
 			g->FillRectangle(%velo, 0, 0, Config::ANCHO, Config::ALTO);
 		}
 		else {
@@ -44,16 +47,22 @@ namespace PoliNavis {
 	void Menu::dibujarPrincipal(Graphics^ g, int tick) {
 		dibujarFondo(g, tick, true);
 
-		Estilos::textoSombra(g, L"PoliNavis", Estilos::titulo, Color::FromArgb(255, 215, 90), 500.0f, 110.0f);
-		Estilos::textoCentrado(g, L"Viaje Interestelar", Estilos::subtitulo, Color::FromArgb(150, 210, 255), 500.0f, 165.0f);
-		Estilos::textoCentrado(g, L"Lleva la nave del Punto A al Punto B esquivando cometas y asteroides",
-			Estilos::pequena, Color::FromArgb(150, 170, 210), 500.0f, 200.0f);
+		// Si NO hay imagen de fondo, dibujamos un titulo propio (respaldo).
+		// Si hay menu.png, su arte ya trae el titulo, asi que no lo tapamos.
+		if (Recursos::fondoMenu == nullptr) {
+			Estilos::textoSombra(g, L"PoliNavis", Estilos::titulo, Color::FromArgb(255, 215, 90), 500.0f, 110.0f);
+			Estilos::textoCentrado(g, L"Viaje Interestelar", Estilos::subtitulo, Color::FromArgb(150, 210, 255), 500.0f, 165.0f);
+		}
+
+		// panel translucido detras de la columna de botones (legibilidad)
+		Estilos::rellenarRedondeado(g, Color::FromArgb(120, 6, 10, 26), 48.0f, 236.0f, 404.0f, 408.0f, 16.0f);
+		Estilos::bordeRedondeado(g, Color::FromArgb(90, 110, 180, 240), 1.5f, 48.0f, 236.0f, 404.0f, 408.0f, 16.0f);
 
 		array<String^>^ op = opciones();
 		for (int i = 0; i < 5; i++) boton(g, i, op[i], tick);
 
-		Estilos::textoCentrado(g, L"Usa el RATON o las flechas y ENTER",
-			Estilos::pequena, Color::FromArgb(130, 150, 200), 500.0f, 660.0f);
+		Estilos::textoCentrado(g, L"Raton o flechas + ENTER", Estilos::pequena,
+			Color::FromArgb(190, 210, 240), 250.0f, 664.0f);
 	}
 
 	void Menu::boton(Graphics^ g, int i, String^ texto, int tick) {
