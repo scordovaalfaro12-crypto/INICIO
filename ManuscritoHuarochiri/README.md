@@ -61,6 +61,18 @@ Juego (ref class controladora) → estados (Intro/Jugando/Pausa/Completado/Victo
 Forms: MenuForm → JuegoForm / MenuInstruccionesForm / CreditosForm
 ```
 
+## Gestión de archivos (FILES/)
+
+El juego lee y escribe dos archivos con las librerías estándar de C++ (`fstream`),
+validando su existencia e integridad (muestra un `MessageBox` si hay problemas):
+
+- **`FILES/PARAMETERS.txt`** (texto): configuración leída al iniciar — vidas,
+  tiempo de cada nivel, número de enemigos por nivel, aliados, nodos y pilares.
+  Si no existe, se crea con valores por defecto. Editarlo cambia la dificultad.
+- **`FILES/SCORES.bin`** (binario): registros de puntuación (nombre del jugador,
+  puntaje y fecha). Se agrega uno al terminar cada partida y la tabla de mejores
+  puntajes se muestra en las pantallas YOU WIN / YOU LOST.
+
 ## Equipo
 
 | Integrante | Rol |

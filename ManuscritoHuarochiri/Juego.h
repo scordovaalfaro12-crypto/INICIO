@@ -5,6 +5,7 @@
 #include "ObjetosNivel.h"
 #include "RayoTrace.h"
 #include "Decoraciones.h"
+#include "GestorArchivos.h"
 
 // Clase controladora: administra los 3 niveles, el estado del juego,
 // la camara, el HUD, el audio y todas las entidades.
@@ -57,6 +58,13 @@ private:
 	SantuarioMacahuisa* santuario;
 	AliadoAlgoritmo* aliado;
 
+	// ----- Gestion de archivos (PARAMETERS.txt y SCORES.bin en FILES/) -----
+	GestorArchivos* gestor;
+	Configuracion* config;   // puntero: una ref class no admite struct nativo por valor
+	vector<Puntaje>* mejoresPuntajes;
+	String^ nombreJugador;
+	bool puntajeGuardado;
+
 	// ----- Estado general -----
 	Estado estado;
 	int nivelActual;
@@ -105,6 +113,8 @@ private:
 	void mostrarMensaje(String^ texto);
 	void estallido(int px, int py, int cantidad, int tono);
 	void sumarPuntos(int px, int py, int valor, int tono);
+	void registrarPuntaje();           // escribe el score en SCORES.bin (una vez)
+	void generarEnemigos(int nivel, int W, int H);
 	void perderVidaJugador(int golpeDesdeX, int golpeDesdeY);
 	void dispararRayo();
 	void completarNivel();
@@ -119,6 +129,7 @@ private:
 	void dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla);
 	void dibujarMinimapa(Graphics^ g, int anchoPantalla, int altoPantalla);
 	void dibujarCorazon(Graphics^ g, int px, int py, bool lleno);
+	void dibujarTablaPuntajes(Graphics^ g, int anchoPantalla, float y);
 	void dibujarPanel(Graphics^ g, int anchoPantalla, int altoPantalla,
 		String^ titulo, array<String^>^ lineas, String^ pie, Brush^ colorTitulo);
 	void dibujarOverlays(Graphics^ g, int anchoPantalla, int altoPantalla);

@@ -1,7 +1,22 @@
 #include "Juego.h"
+#include <msclr/marshal.h>
+#include <string.h>
 
 Juego::Juego() {
 	srand((unsigned)time(0));
+
+	// Gestion de archivos: leer configuracion y validar (requisito del curso)
+	gestor = new GestorArchivos();
+	config = new Configuracion(gestor->cargarParametros());
+	mejoresPuntajes = new vector<Puntaje>(gestor->cargarPuntajes());
+	puntajeGuardado = false;
+	nombreJugador = Environment::UserName;
+	if (gestor->huboError()) {
+		MessageBox::Show(gcnew String(gestor->getUltimoError().c_str()),
+			"Gestion de archivos",
+			MessageBoxButtons::OK, MessageBoxIcon::Warning);
+		gestor->limpiarError();
+	}
 
 	// Imagenes
 	imgDeidadLluvia = gcnew Bitmap("imgPersonajes/deidadLluvia.png");
@@ -78,6 +93,47 @@ Juego::~Juego() {
 	delete bolasFuego;
 	delete particulas;
 	delete textosFlotantes;
+	delete mejoresPuntajes;
+	delete config;
+	delete gestor;
+}
+
+// Construye un registro con el nombre del jugador, su puntaje y la fecha,
+// y lo agrega a SCORES.bin. Solo se guarda una vez por partida terminada.
+void Juego::registrarPuntaje() {
+	if (puntajeGuardado) return;
+	puntajeGuardado = true;
+
+	Puntaje p;
+	msclr::interop::marshal_context ctx;
+	const char* nombre = ctx.marshal_as<const char*>(nombreJugador);
+	const char* fecha = ctx.marshal_as<const char*>(DateTime::Now.ToString("yyyy-MM-dd"));
+	strncpy_s(p.nombre, sizeof(p.nombre), nombre, _TRUNCATE);
+	strncpy_s(p.fecha, sizeof(p.fecha), fecha, _TRUNCATE);
+	p.puntaje = score;
+
+	gestor->guardarPuntaje(p);
+	*mejoresPuntajes = gestor->cargarPuntajes();
+	if (gestor->huboError()) gestor->limpiarError();
+}
+
+// Crea config->enemigos[nivel-1] llamas de patrulla en posiciones aleatorias,
+// evitando el punto de aparicion del jugador. Los enemigos especiales
+// (golem, lobo, jefe) se colocan aparte en iniciarNivel.
+void Juego::generarEnemigos(int nivel, int W, int H) {
+	int cantidad = config->enemigos[nivel - 1];
+	int velocidad = (nivel == 2) ? 4 : 3;
+	int radio = 360 + nivel * 30;
+	for (int i = 0; i < cantidad; i++) {
+		int ex, ey, intentos = 0;
+		do {
+			ex = 200 + rand() % (W - 400);
+			ey = 200 + rand() % (H - 400);
+			intentos++;
+		} while (intentos < 20 &&
+			abs(ex - spawnX) < 500 && abs(ey - spawnY) < 500);
+		enemigos->push_back(new LlamaDigital(ex, ey, velocidad, radio));
+	}
 }
 
 void Juego::cargarTextos() {
@@ -150,6 +206,7 @@ void Juego::iniciarNivel(int numero) {
 	contadorBolaFuego = 0;
 	velJugadorX = velJugadorY = 0;
 	sacudida = 0;
+	puntajeGuardado = false;
 	teclaArriba = teclaAbajo = teclaIzquierda = teclaDerecha = teclaInteractuar = false;
 
 	fondoActual = (numero == 2) ? imgEscenario2 : imgEscenario1;
@@ -159,29 +216,23 @@ void Juego::iniciarNivel(int numero) {
 	if (jugador != nullptr) delete jugador;
 	jugador = new DeidadLluvia(imgDeidadLluvia);
 	jugador->setConPoder(poderDesbloqueado);
+	jugador->setVida(config->vidas); // vidas leidas de PARAMETERS.txt
 	int anchoJ = jugador->getAncho();
 	int altoJ = jugador->getAlto();
 
 	if (numero == 1) {
 		// Recuperar los 7 nodos de datos esquivando las llamas digitales
 		tituloNivel = "RECONSTRUCCION EN LA RED";
-		tiempoRestante = 180 * 33;
+		tiempoRestante = config->tiempo[0] * 33;
 		spawnX = (int)(0.50 * W) - anchoJ / 2;
 		spawnY = (int)(0.82 * H) - altoJ / 2;
 
-		nodos->push_back(new NodoDato((int)(0.08 * W), (int)(0.12 * H), 0));
-		nodos->push_back(new NodoDato((int)(0.34 * W), (int)(0.07 * H), 1));
-		nodos->push_back(new NodoDato((int)(0.63 * W), (int)(0.10 * H), 2));
-		nodos->push_back(new NodoDato((int)(0.90 * W), (int)(0.16 * H), 3));
-		nodos->push_back(new NodoDato((int)(0.09 * W), (int)(0.56 * H), 4));
-		nodos->push_back(new NodoDato((int)(0.50 * W), (int)(0.47 * H), 5));
-		nodos->push_back(new NodoDato((int)(0.88 * W), (int)(0.62 * H), 6));
+		double nodoX[7] = { 0.08, 0.34, 0.63, 0.90, 0.09, 0.50, 0.88 };
+		double nodoY[7] = { 0.12, 0.07, 0.10, 0.16, 0.56, 0.47, 0.62 };
+		for (int n = 0; n < config->nodosNivel1; n++)
+			nodos->push_back(new NodoDato((int)(nodoX[n] * W), (int)(nodoY[n] * H), n));
 
-		enemigos->push_back(new LlamaDigital((int)(0.74 * W), (int)(0.18 * H), 3, 340));
-		enemigos->push_back(new LlamaDigital((int)(0.86 * W), (int)(0.48 * H), 3, 340));
-		enemigos->push_back(new LlamaDigital((int)(0.55 * W), (int)(0.30 * H), 3, 330));
-		enemigos->push_back(new LlamaDigital((int)(0.63 * W), (int)(0.74 * H), 3, 330));
-		enemigos->push_back(new LlamaDigital((int)(0.25 * W), (int)(0.32 * H), 2, 300));
+		generarEnemigos(1, W, H); // cantidad segun PARAMETERS.txt
 		enemigos->push_back(new GolemLava((int)(0.88 * W), (int)(0.60 * H)));   // custodia un nodo lejano
 
 		// Ambiente: lava viva en la zona volcanica, rio brillante, antorchas
@@ -209,7 +260,7 @@ void Juego::iniciarNivel(int numero) {
 	else if (numero == 2) {
 		// Escoltar la ofrenda digital hasta el Santuario de Macahuisa
 		tituloNivel = "LA OFRENDA DIGITAL";
-		tiempoRestante = 200 * 33;
+		tiempoRestante = config->tiempo[1] * 33;
 		spawnX = (int)(0.10 * W) - anchoJ / 2;
 		spawnY = (int)(0.86 * H) - altoJ / 2;
 		jugador->setConOfrenda(true);
@@ -219,13 +270,9 @@ void Juego::iniciarNivel(int numero) {
 		aliado->setX(spawnX - 80);
 		aliado->setY(spawnY - 60);
 
-		enemigos->push_back(new LlamaDigital((int)(0.50 * W), (int)(0.30 * H), 4, 400));
-		enemigos->push_back(new LlamaDigital((int)(0.62 * W), (int)(0.47 * H), 4, 400));
-		enemigos->push_back(new LlamaDigital((int)(0.38 * W), (int)(0.47 * H), 4, 400));
-		enemigos->push_back(new LlamaDigital((int)(0.50 * W), (int)(0.64 * H), 4, 400));
+		generarEnemigos(2, W, H); // cantidad segun PARAMETERS.txt
 		enemigos->push_back(new LoboLava((int)(0.27 * W), (int)(0.70 * H)));  // cazador rapido
 		enemigos->push_back(new LoboLava((int)(0.72 * W), (int)(0.28 * H)));  // cazador rapido
-		enemigos->push_back(new LlamaDigital((int)(0.30 * W), (int)(0.20 * H), 3, 380));
 
 		// Ambiente: el sol de los Andes, rio chispeante y antorchas del santuario
 		decoraciones->push_back(new SolAndino((int)(0.47 * W), (int)(0.05 * H)));
@@ -249,18 +296,18 @@ void Juego::iniciarNivel(int numero) {
 	else {
 		// Activar los 3 pilares de informacion protegidos por Huallallo
 		tituloNivel = "EL CODIGO MADRE";
-		tiempoRestante = 260 * 33;
+		tiempoRestante = config->tiempo[2] * 33;
 		spawnX = (int)(0.50 * W) - anchoJ / 2;
 		spawnY = (int)(0.82 * H) - altoJ / 2;
 
-		pilares->push_back(new PilarInformacion((int)(0.13 * W), (int)(0.14 * H)));
-		pilares->push_back(new PilarInformacion((int)(0.86 * W), (int)(0.18 * H)));
-		pilares->push_back(new PilarInformacion((int)(0.15 * W), (int)(0.78 * H)));
+		double pilarX[3] = { 0.13, 0.86, 0.15 };
+		double pilarY[3] = { 0.14, 0.18, 0.78 };
+		for (int n = 0; n < config->pilaresNivel3; n++)
+			pilares->push_back(new PilarInformacion((int)(pilarX[n] * W), (int)(pilarY[n] * H)));
 
 		jefe = new HuallalloJefe((int)(0.52 * W), (int)(0.42 * H));
 
-		enemigos->push_back(new LlamaDigital((int)(0.30 * W), (int)(0.40 * H), 3, 420));
-		enemigos->push_back(new LlamaDigital((int)(0.70 * W), (int)(0.55 * H), 3, 420));
+		generarEnemigos(3, W, H); // cantidad segun PARAMETERS.txt
 		enemigos->push_back(new GolemLava((int)(0.45 * W), (int)(0.30 * H)));  // tanque que estorba la carga
 		enemigos->push_back(new LoboLava((int)(0.62 * W), (int)(0.62 * H)));   // cazador rapido
 
@@ -439,6 +486,8 @@ void Juego::actualizar() {
 	tickGlobal++;
 	if (mensajeTicks > 0) mensajeTicks--;
 	if (fragmentoTicks > 0) fragmentoTicks--;
+	// Al terminar la partida, registrar el puntaje en SCORES.bin (una sola vez)
+	if (estado == Estado::Victoria || estado == Estado::Derrota) registrarPuntaje();
 	if (estado == Estado::Jugando) actualizarJugando();
 }
 
@@ -708,7 +757,7 @@ void Juego::actualizarNivel3() {
 		}
 	}
 
-	if (completos >= 3) completarNivel();
+	if (completos >= (int)pilares->size()) completarNivel();
 }
 
 // ------------------------------------------------------------------
@@ -945,7 +994,7 @@ void Juego::dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla) {
 		dibujarCorazon(g, anchoPantalla - 180 + i * 38, 13, i < jugador->getVida());
 
 	// Tira que muestra cuanto falta para el borrado del servidor
-	int tiempoTotal = (nivelActual == 1) ? 180 : (nivelActual == 2 ? 200 : 260);
+	int tiempoTotal = config->tiempo[nivelActual - 1];
 	double proporcion = (double)segundos / tiempoTotal;
 	if (proporcion > 1) proporcion = 1;
 	g->FillRectangle(colorTiempo, 0, 60, (int)(anchoPantalla * proporcion), 5);
@@ -961,7 +1010,7 @@ void Juego::dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla) {
 		int completos = 0;
 		for (int i = 0; i < (int)pilares->size(); i++)
 			if (pilares->at(i)->estaCompleto()) completos++;
-		objetivo = String::Format("PILARES COMPILADOS: {0}/3  -  Manten E junto a un pilar; no dejes que Huallallo los drene", completos);
+		objetivo = String::Format("PILARES COMPILADOS: {0}/{1}  -  Manten E junto a un pilar; no dejes que Huallallo los drene", completos, (int)pilares->size());
 	}
 	g->DrawString(objetivo, fuenteNormal, Brushes::White, 20.0f, (float)(altoPantalla - 42));
 	g->DrawString("P: pausa   ESC: menu", fuenteChica, Brushes::Gray,
@@ -989,6 +1038,28 @@ void Juego::dibujarHUD(Graphics^ g, int anchoPantalla, int altoPantalla) {
 		RectangleF sombra = RectangleF(3.0f, (float)(altoPantalla / 5) + 3, (float)anchoPantalla, 60.0f);
 		g->DrawString(mensaje, fuenteGrande, Brushes::Black, sombra, centrado);
 		g->DrawString(mensaje, fuenteGrande, Brushes::Gold, zona, centrado);
+	}
+}
+
+// Tabla de mejores puntajes leida de SCORES.bin (demuestra lectura binaria).
+void Juego::dibujarTablaPuntajes(Graphics^ g, int anchoPantalla, float y) {
+	g->DrawString("MEJORES PUNTAJES (FILES/SCORES.bin)", fuenteNormal, Brushes::Cyan,
+		RectangleF(0.0f, y, (float)anchoPantalla, 30.0f), centrado);
+	int filas = (int)mejoresPuntajes->size();
+	if (filas > 5) filas = 5;
+	if (filas == 0) {
+		g->DrawString("(aun no hay puntajes registrados)", fuenteChica, Brushes::Gray,
+			RectangleF(0.0f, y + 32, (float)anchoPantalla, 24.0f), centrado);
+		return;
+	}
+	for (int i = 0; i < filas; i++) {
+		Puntaje p = mejoresPuntajes->at(i);
+		String^ nombre = gcnew String(p.nombre);
+		String^ fecha = gcnew String(p.fecha);
+		String^ linea = String::Format("{0}. {1,-16}  {2:D6}   {3}",
+			i + 1, nombre, p.puntaje, fecha);
+		g->DrawString(linea, fuenteNormal, Brushes::White,
+			RectangleF(0.0f, y + 34 + i * 26, (float)anchoPantalla, 26.0f), centrado);
 	}
 }
 
@@ -1110,26 +1181,27 @@ void Juego::dibujarOverlays(Graphics^ g, int anchoPantalla, int altoPantalla) {
 			RectangleF(0.0f, (float)altoPantalla * 0.47f, (float)anchoPantalla, 40.0f), centrado);
 		g->DrawString("El conocimiento ahora es libre.", fuenteGrande, Brushes::Cyan,
 			RectangleF(0.0f, (float)altoPantalla * 0.54f, (float)anchoPantalla, 50.0f), centrado);
-		g->DrawString(String::Format("SCORE FINAL: {0}", score), fuenteGrande, Brushes::Gold,
-			RectangleF(0.0f, (float)altoPantalla * 0.65f, (float)anchoPantalla, 50.0f), centrado);
-		g->DrawString("Quien decide que conocimiento merece ser recordado?",
-			fuenteChica, Brushes::Gray,
-			RectangleF(0.0f, (float)altoPantalla * 0.74f, (float)anchoPantalla, 30.0f), centrado);
+		g->DrawString(String::Format("{0}  -  SCORE FINAL: {1}", nombreJugador, score),
+			fuenteGrande, Brushes::Gold,
+			RectangleF(0.0f, (float)altoPantalla * 0.63f, (float)anchoPantalla, 50.0f), centrado);
+		dibujarTablaPuntajes(g, anchoPantalla, (float)altoPantalla * 0.71f);
 		g->DrawString("ENTER: volver al menu", fuenteNormal, Brushes::Gold,
-			RectangleF(0.0f, (float)altoPantalla * 0.84f, (float)anchoPantalla, 40.0f), centrado);
+			RectangleF(0.0f, (float)altoPantalla * 0.90f, (float)anchoPantalla, 40.0f), centrado);
 	}
 	else if (estado == Estado::Derrota) {
 		g->FillRectangle(velRojo, 0, 0, anchoPantalla, altoPantalla);
-		g->DrawString("GAME OVER", fuenteTitulo, Brushes::Red,
-			RectangleF(0.0f, (float)altoPantalla * 0.28f, (float)anchoPantalla, 110.0f), centrado);
+		g->DrawString("YOU LOST", fuenteTitulo, Brushes::Red,
+			RectangleF(0.0f, (float)altoPantalla * 0.20f, (float)anchoPantalla, 110.0f), centrado);
 		g->DrawString("El olvido gano esta vez... pero la memoria resiste.",
 			fuenteNormal, Brushes::White,
-			RectangleF(0.0f, (float)altoPantalla * 0.46f, (float)anchoPantalla, 40.0f), centrado);
-		g->DrawString(String::Format("SCORE: {0}", score), fuenteGrande, Brushes::Gold,
-			RectangleF(0.0f, (float)altoPantalla * 0.54f, (float)anchoPantalla, 50.0f), centrado);
+			RectangleF(0.0f, (float)altoPantalla * 0.38f, (float)anchoPantalla, 40.0f), centrado);
+		g->DrawString(String::Format("{0}  -  SCORE: {1}", nombreJugador, score),
+			fuenteGrande, Brushes::Gold,
+			RectangleF(0.0f, (float)altoPantalla * 0.45f, (float)anchoPantalla, 50.0f), centrado);
+		dibujarTablaPuntajes(g, anchoPantalla, (float)altoPantalla * 0.55f);
 		g->DrawString("R: reintentar nivel      ENTER: volver al menu",
 			fuenteGrande, Brushes::White,
-			RectangleF(0.0f, (float)altoPantalla * 0.66f, (float)anchoPantalla, 50.0f), centrado);
+			RectangleF(0.0f, (float)altoPantalla * 0.85f, (float)anchoPantalla, 50.0f), centrado);
 	}
 }
 

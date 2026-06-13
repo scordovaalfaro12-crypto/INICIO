@@ -1,0 +1,12 @@
+# Configuracion del juego Manuscrito de Huarochiri
+# Edita estos valores para cambiar la dificultad.
+vidas=3
+tiempoNivel1=180
+tiempoNivel2=200
+tiempoNivel3=260
+enemigosNivel1=5
+enemigosNivel2=5
+enemigosNivel3=2
+aliados=1
+nodosNivel1=7
+pilaresNivel3=3

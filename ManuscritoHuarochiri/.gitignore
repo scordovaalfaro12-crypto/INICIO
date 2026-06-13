@@ -17,3 +17,5 @@ Win32/
 *.resources
 *.vcxproj.user
 Interop.*.dll
+# SCORES.bin se genera y actualiza en tiempo de ejecucion (no versionar)
+SCORES.bin
