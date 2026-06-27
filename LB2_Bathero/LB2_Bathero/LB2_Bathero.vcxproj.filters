@@ -21,6 +21,30 @@
     <ClCompile Include="MyForm.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
+    <ClCompile Include="Util.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
+    <ClCompile Include="Sprite.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
+    <ClCompile Include="Bathero.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemigo.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemigo1.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemigo2.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
+    <ClCompile Include="Bumeran.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
+    <ClCompile Include="Controlador.cpp">
+      <Filter>Clases del juego</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MyForm.h">

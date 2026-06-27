@@ -1,10 +1,10 @@
 #pragma once
 //==============================================================================
-//  MyForm.h  -  Formulario principal (Windows Forms / C++ CLR)
+//  MyForm.h  -  Declaracion del formulario principal (Windows Forms / C++ CLR)
 //------------------------------------------------------------------------------
 //  Crea el lienzo, el temporizador (cronometro) y delega TODA la logica del
-//  juego al objeto Controlador. En cada "tick" actualiza, dibuja sobre el
-//  buffer y vuelca ese buffer al lienzo (tecnica de doble buffer).
+//  juego al objeto Controlador. La implementacion de los manejadores de eventos
+//  esta en MyForm.cpp.
 //==============================================================================
 #include "Controlador.h"
 
@@ -38,6 +38,13 @@ namespace LB2_Bathero {
 		System::Windows::Forms::Panel^ lienzo;
 		System::Windows::Forms::Timer^ cronometro;
 		System::ComponentModel::IContainer^ components;
+
+		// Manejadores de eventos (implementados en MyForm.cpp).
+		void MyForm_Load(System::Object^ sender, System::EventArgs^ e);
+		void cronometro_Tick(System::Object^ sender, System::EventArgs^ e);
+		void MyForm_KeyDown(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e);
+		void MyForm_KeyUp(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e);
+		void MyForm_PreviewKeyDown(System::Object^ sender, System::Windows::Forms::PreviewKeyDownEventArgs^ e);
 
 #pragma region Windows Form Designer generated code
 		void InitializeComponent(void) {
@@ -78,45 +85,5 @@ namespace LB2_Bathero {
 			this->ResumeLayout(false);
 		}
 #pragma endregion
-
-		// Inicia el cronometro al cargar el formulario.
-		void MyForm_Load(System::Object^ sender, System::EventArgs^ e) {
-			this->cronometro->Start();
-			this->Focus();
-		}
-
-		// Bucle principal de la animacion.
-		void cronometro_Tick(System::Object^ sender, System::EventArgs^ e) {
-			ctrl->Actualizar();   // logica (movimiento, colisiones)
-			ctrl->Dibujar();      // dibuja todo sobre el buffer
-
-			// Volcado del buffer al lienzo en una sola operacion (sin parpadeo).
-			Graphics^ gl = lienzo->CreateGraphics();
-			gl->DrawImage(ctrl->Buffer, 0, 0);
-			delete gl;
-
-			// Fin de la simulacion: se muestra el reporte.
-			if (ctrl->Terminado) {
-				cronometro->Stop();
-				MessageBox::Show(ctrl->Reporte(), "Reporte final",
-					MessageBoxButtons::OK, MessageBoxIcon::Information);
-				this->Close();
-			}
-		}
-
-		void MyForm_KeyDown(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e) {
-			ctrl->TeclaAbajo(e->KeyCode);
-		}
-
-		void MyForm_KeyUp(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e) {
-			ctrl->TeclaArriba(e->KeyCode);
-		}
-
-		// Permite que las teclas de flecha lleguen al evento KeyDown.
-		void MyForm_PreviewKeyDown(System::Object^ sender, System::Windows::Forms::PreviewKeyDownEventArgs^ e) {
-			if (e->KeyCode == Keys::Up || e->KeyCode == Keys::Down ||
-				e->KeyCode == Keys::Left || e->KeyCode == Keys::Right)
-				e->IsInputKey = true;
-		}
 	};
 }

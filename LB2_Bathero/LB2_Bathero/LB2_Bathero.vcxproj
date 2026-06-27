@@ -153,6 +153,14 @@
     <ClInclude Include="MyForm.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Util.cpp" />
+    <ClCompile Include="Sprite.cpp" />
+    <ClCompile Include="Bathero.cpp" />
+    <ClCompile Include="Enemigo.cpp" />
+    <ClCompile Include="Enemigo1.cpp" />
+    <ClCompile Include="Enemigo2.cpp" />
+    <ClCompile Include="Bumeran.cpp" />
+    <ClCompile Include="Controlador.cpp" />
     <ClCompile Include="MyForm.cpp" />
   </ItemGroup>
   <ItemGroup>

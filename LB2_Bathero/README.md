@@ -41,20 +41,21 @@ Simulación donde **Bathero** debe atrapar a dos tipos de villanos lanzando su
 
 ## Estructura del proyecto (Programación Orientada a Objetos)
 
+Cada clase está separada en su **`.h` (declaración)** y **`.cpp` (implementación)**:
+
 ```
 LB2_Bathero/
 ├── LB2_Bathero.sln
 └── LB2_Bathero/
-    ├── MyForm.cpp        → Programa principal (punto de entrada main)
-    ├── MyForm.h          → Formulario: lienzo, cronómetro y eventos de teclado
-    ├── Controlador.h     → Objeto CONTROLADOR (buffer, animación, teclas, colisiones, reporte)
-    ├── Sprite.h          → Clase BASE (posición, recorte de spritesheet, colisión)
-    ├── Bathero.h         → Hereda de Sprite (héroe, movimiento con flechas)
-    ├── Enemigo.h         → Clase base de los villanos (hereda de Sprite)
-    ├── Enemigo1.h        → Hereda de Enemigo (movimiento horizontal)
-    ├── Enemigo2.h        → Hereda de Enemigo (movimiento vertical)
-    ├── Bumeran.h         → Hereda de Sprite (proyectil que gira y regresa)
-    ├── Util.h            → Carga de imágenes/recursos
+    ├── MyForm.h / MyForm.cpp        → Formulario + PROGRAMA PRINCIPAL (main)
+    ├── Controlador.h / .cpp         → Objeto CONTROLADOR (buffer, animación, teclas, colisiones, reporte)
+    ├── Sprite.h / .cpp              → Clase BASE (posición, recorte de spritesheet, colisión)
+    ├── Bathero.h / .cpp             → Hereda de Sprite (héroe, movimiento con flechas)
+    ├── Enemigo.h / .cpp             → Clase base de los villanos (hereda de Sprite)
+    ├── Enemigo1.h / .cpp            → Hereda de Enemigo (movimiento horizontal)
+    ├── Enemigo2.h / .cpp            → Hereda de Enemigo (movimiento vertical)
+    ├── Bumeran.h / .cpp             → Hereda de Sprite (proyectil que gira y regresa)
+    ├── Util.h / .cpp                → Carga de imágenes/recursos
     └── Recursos/
         ├── Bathero.png   (hoja 3×4)
         ├── Enemigos.png  (hoja 6×4: Enemigo1 cols 0–2, Enemigo2 cols 3–5)
