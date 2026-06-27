@@ -1,0 +1,20 @@
+# Carpetas de compilacion de Visual Studio
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww]in32/
+.vs/
+*.user
+*.suo
+ipch/
+*.aps
+*.pch
+*.pdb
+*.ilk
+*.obj
+*.tlog
+*.lastbuildstate
+*.idb
+*.exp
+*.lib

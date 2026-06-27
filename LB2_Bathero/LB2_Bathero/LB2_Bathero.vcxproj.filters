@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Archivos de origen">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx</Extensions>
+    </Filter>
+    <Filter Include="Archivos de encabezado">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx</Extensions>
+    </Filter>
+    <Filter Include="Clases del juego">
+      <UniqueIdentifier>{1F2C9B0A-7D3E-4C1A-9B2D-0A1B2C3D4E5F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Recursos">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>png;jpg;jpeg;bmp;gif</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="MyForm.cpp">
+      <Filter>Archivos de origen</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MyForm.h">
+      <Filter>Archivos de encabezado</Filter>
+    </ClInclude>
+    <ClInclude Include="Util.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+    <ClInclude Include="Sprite.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+    <ClInclude Include="Bathero.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemigo.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemigo1.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemigo2.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+    <ClInclude Include="Bumeran.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+    <ClInclude Include="Controlador.h">
+      <Filter>Clases del juego</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Recursos\Bathero.png">
+      <Filter>Recursos</Filter>
+    </None>
+    <None Include="Recursos\Enemigos.png">
+      <Filter>Recursos</Filter>
+    </None>
+    <None Include="Recursos\bumeran.png">
+      <Filter>Recursos</Filter>
+    </None>
+    <None Include="Recursos\fondo.png">
+      <Filter>Recursos</Filter>
+    </None>
+  </ItemGroup>
+</Project>
