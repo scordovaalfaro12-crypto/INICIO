@@ -36,19 +36,22 @@ namespace LB2_Bathero {
 		}
 	}
 
-	void MyForm::MyForm_KeyDown(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e) {
-		ctrl->TeclaAbajo(e->KeyCode);
-	}
+	// Captura TODAS las teclas (flechas, E, F, ESPACIO, X) directamente desde los
+	// mensajes de Windows. Es mas fiable que el evento KeyDown del formulario.
+	void MyForm::WndProc(System::Windows::Forms::Message% m) {
+		const int WM_KEYDOWN = 0x0100;
+		const int WM_KEYUP = 0x0101;
+		const int WM_SYSKEYDOWN = 0x0104;
+		const int WM_SYSKEYUP = 0x0105;
 
-	void MyForm::MyForm_KeyUp(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e) {
-		ctrl->TeclaArriba(e->KeyCode);
-	}
+		if (ctrl != nullptr) {
+			if (m.Msg == WM_KEYDOWN || m.Msg == WM_SYSKEYDOWN)
+				ctrl->TeclaAbajo((System::Windows::Forms::Keys)m.WParam.ToInt32());
+			else if (m.Msg == WM_KEYUP || m.Msg == WM_SYSKEYUP)
+				ctrl->TeclaArriba((System::Windows::Forms::Keys)m.WParam.ToInt32());
+		}
 
-	// Permite que las teclas de flecha lleguen al evento KeyDown.
-	void MyForm::MyForm_PreviewKeyDown(System::Object^ sender, System::Windows::Forms::PreviewKeyDownEventArgs^ e) {
-		if (e->KeyCode == Keys::Up || e->KeyCode == Keys::Down ||
-			e->KeyCode == Keys::Left || e->KeyCode == Keys::Right)
-			e->IsInputKey = true;
+		Form::WndProc(m); // procesamiento normal
 	}
 }
 

@@ -130,9 +130,9 @@ namespace LB2_Bathero {
 	void Controlador::DibujarHUD() {
 		g->FillRectangle(brochaHUD, 0, 0, ancho, 30);
 		String^ info = String::Format(
-			"Atrapados: {0}  (Enemigo1: {1} / Enemigo2: {2})    |    "
-			"FLECHAS: mover    E: Enemigo1    F: Enemigo2    ESPACIO: bumeran    X: salir",
-			Atrapados, atrapados1, atrapados2);
+			"Atrapados: {0}   En pantalla: {1}    |    "
+			"FLECHAS: mover   E: Enemigo1   F: Enemigo2   ESPACIO: bumeran   X: salir",
+			Atrapados, enemigos->Count);
 		g->DrawString(info, fuenteHUD, Brushes::White, 8, 7);
 	}
 

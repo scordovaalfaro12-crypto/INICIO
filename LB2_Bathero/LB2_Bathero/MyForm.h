@@ -3,8 +3,8 @@
 //  MyForm.h  -  Declaracion del formulario principal (Windows Forms / C++ CLR)
 //------------------------------------------------------------------------------
 //  Crea el lienzo, el temporizador (cronometro) y delega TODA la logica del
-//  juego al objeto Controlador. La implementacion de los manejadores de eventos
-//  esta en MyForm.cpp.
+//  juego al objeto Controlador. La captura del teclado se hace en WndProc para
+//  que funcione de forma fiable (independiente del foco de los controles).
 //==============================================================================
 #include "Controlador.h"
 
@@ -30,6 +30,9 @@ namespace LB2_Bathero {
 			if (ctrl != nullptr) ctrl->Liberar(); // liberar recursos del juego
 		}
 
+		// Captura de TODAS las teclas a nivel de mensajes de Windows.
+		virtual void WndProc(System::Windows::Forms::Message% m) override;
+
 	private:
 		static const int ANCHO = 1000;
 		static const int ALTO = 600;
@@ -42,9 +45,6 @@ namespace LB2_Bathero {
 		// Manejadores de eventos (implementados en MyForm.cpp).
 		void MyForm_Load(System::Object^ sender, System::EventArgs^ e);
 		void cronometro_Tick(System::Object^ sender, System::EventArgs^ e);
-		void MyForm_KeyDown(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e);
-		void MyForm_KeyUp(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e);
-		void MyForm_PreviewKeyDown(System::Object^ sender, System::Windows::Forms::PreviewKeyDownEventArgs^ e);
 
 #pragma region Windows Form Designer generated code
 		void InitializeComponent(void) {
@@ -69,7 +69,7 @@ namespace LB2_Bathero {
 			// MyForm
 			//
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
-			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
+			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::None;
 			this->ClientSize = System::Drawing::Size(ANCHO, ALTO);
 			this->Controls->Add(this->lienzo);
 			this->FormBorderStyle = System::Windows::Forms::FormBorderStyle::FixedSingle;
@@ -79,9 +79,6 @@ namespace LB2_Bathero {
 			this->StartPosition = System::Windows::Forms::FormStartPosition::CenterScreen;
 			this->Text = L"LB2 - Bathero atrapa villanos con su bumeran";
 			this->Load += gcnew System::EventHandler(this, &MyForm::MyForm_Load);
-			this->KeyDown += gcnew System::Windows::Forms::KeyEventHandler(this, &MyForm::MyForm_KeyDown);
-			this->KeyUp += gcnew System::Windows::Forms::KeyEventHandler(this, &MyForm::MyForm_KeyUp);
-			this->PreviewKeyDown += gcnew System::Windows::Forms::PreviewKeyDownEventHandler(this, &MyForm::MyForm_PreviewKeyDown);
 			this->ResumeLayout(false);
 		}
 #pragma endregion
