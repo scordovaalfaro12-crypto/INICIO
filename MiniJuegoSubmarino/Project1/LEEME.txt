@@ -1,0 +1,45 @@
+MINI JUEGO - SUBMARINO (C++/CLI Windows Forms)
+==============================================
+
+COMO ABRIR Y EJECUTAR (Visual Studio 2022)
+------------------------------------------
+1. Abrir el archivo  Project1.sln  con Visual Studio 2022.
+   (Requiere la carga de trabajo "Desarrollo de escritorio con C++"
+   y el componente "Compatibilidad de C++/CLI").
+2. Presionar F5 (o Ctrl+F5) para compilar y ejecutar.
+   La carpeta IMAGENES ya viene incluida y el juego la encuentra solo.
+
+CONTROLES
+---------
+- Flechas o W, A, S, D ....... mover el submarino
+- P .......................... aparecen de 3 a 5 peces enemigos
+- T .......................... aparecen de 4 a 6 tiburones enemigos
+- ESPACIO .................... disparar torpedo (en el sentido del submarino)
+- R .......................... volver a jugar (tras Game Over / Mision completa)
+
+REGLAS
+------
+- El submarino tiene 8 vidas, mostradas como capsulas de oxigeno
+  en la esquina superior derecha.
+- Cada colision con un pez o tiburon resta 1 vida. Con 0 vidas: "GAME OVER".
+- Los peces van de derecha a izquierda y son mas rapidos que el submarino.
+- Los tiburones van en ambos sentidos y son mas rapidos que los peces.
+- Los torpedos eliminan enemigos mostrando el efecto de explosion.
+- Hay 4 tesoros repartidos al azar: al tocar uno aparece "Tesoro rescatado"
+  y al juntar los 4 aparece "MISION COMPLETA".
+
+ESTRUCTURA DE CLASES (POO - herencia)
+-------------------------------------
+Entidad (clase padre: tamanio, vida, movimiento, dibujo, colisiones)
+  |-- Submarino            (jugador)
+  |-- Enemigo              (movimiento automatico)
+  |     |-- Pez            (tecla P)
+  |     |-- Tiburon        (tecla T)
+  |-- Torpedo              (disparo del submarino)
+  |-- Tesoro               (cofres a rescatar)
+  |-- Explosion            (efecto al eliminar un enemigo)
+
+Juego  : clase controladora (entidades, colisiones, vidas, mensajes)
+MyForm : formulario Windows Forms (timer, teclado y dibujo)
+
+Cada clase esta separada en su archivo .h (declaracion) y .cpp (implementacion).
