@@ -332,6 +332,21 @@ void Controlador::guardarResultados()
 	archivo.close();
 }
 
+String^ Controlador::getResumenPartida()
+{
+	String^ resumen = "";
+	resumen += String::Format("Tiempo total de la partida: {0} segundos\n", getTiempoSegundos());
+	resumen += String::Format("Velocirraptores capturados: {0}\n", capturadosRaptor);
+	resumen += String::Format("Pteranodones capturados: {0}\n", capturadosPtera);
+	resumen += String::Format("Dinosaurio Alfa capturado: {0}\n", capturadosAlfa);
+	resumen += String::Format("Dardos recogidos: {0}\n", dardosRecogidos);
+	resumen += String::Format("Dardos disparados: {0}\n", dardosDisparados);
+	resumen += String::Format("Disparos acertados: {0}\n", aciertos);
+	resumen += String::Format("Disparos fallidos: {0}\n", fallos);
+	resumen += String::Format("Vidas restantes: {0}", guarda->getVidas());
+	return resumen;
+}
+
 void Controlador::dibujar(BufferedGraphics^ buffer, Bitmap^ bmpGuarda, Bitmap^ bmpRaptor,
 	Bitmap^ bmpPtera, Bitmap^ bmpAlfa, Bitmap^ bmpDardo, Bitmap^ bmpHeli)
 {

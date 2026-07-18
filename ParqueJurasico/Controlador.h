@@ -76,6 +76,7 @@ public:
 	int getEstado();
 	int getTiempoSegundos();
 	void guardarResultados();     // genera RESULTADOS.TXT en modo texto
+	String^ getResumenPartida();  // resumen para mostrar al finalizar el juego
 
 private:
 	void generarVelocirraptores();

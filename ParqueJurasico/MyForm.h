@@ -146,11 +146,13 @@ namespace ParqueJurasico {
 			{
 				finMostrado = true;
 				timerJuego->Stop();
-				String^ texto = (controlador->getEstado() == Controlador::GANADO)
+				String^ titulo = (controlador->getEstado() == Controlador::GANADO)
 					? L"PARQUE ASEGURADO"
 					: L"LOS DINOSAURIOS ESCAPARON";
 				MessageBox::Show(this,
-					texto + L"\n\nSe genero el archivo RESULTADOS.TXT con el reporte de la partida.",
+					titulo + L"\n\n===== RESULTADOS DE LA PARTIDA =====\n" +
+					controlador->getResumenPartida() +
+					L"\n\n(El reporte tambien se guardo en RESULTADOS.TXT)",
 					L"Fin del juego", MessageBoxButtons::OK, MessageBoxIcon::Information);
 			}
 		}
