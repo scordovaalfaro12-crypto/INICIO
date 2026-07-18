@@ -1,5 +1,6 @@
 #pragma once
 #include "Controlador.h"
+#include <vector>
 
 namespace ParqueJurasico {
 
@@ -114,7 +115,7 @@ namespace ParqueJurasico {
 					"Error de recursos", MessageBoxButtons::OK, MessageBoxIcon::Error);
 				Environment::Exit(1);
 			}
-			// Se convierte a 32 bpp y se vuelve transparente el color de fondo
+			// Se convierte a 32 bpp y se elimina el fondo casi blanco de la hoja
 			Bitmap^ original = gcnew Bitmap(ruta);
 			Bitmap^ bmp = gcnew Bitmap(original->Width, original->Height,
 				System::Drawing::Imaging::PixelFormat::Format32bppArgb);
@@ -122,9 +123,52 @@ namespace ParqueJurasico {
 			g->DrawImage(original, 0, 0, original->Width, original->Height);
 			delete g;
 			delete original;
-			Color fondo = bmp->GetPixel(0, 0);
-			if (fondo.A == 255) bmp->MakeTransparent(fondo);
+			quitarFondoBlanco(bmp);
 			return bmp;
+		}
+
+		// Vuelve transparente el fondo de la hoja de sprites. Como el fondo no
+		// es un blanco uniforme (tiene ruido), se hace un relleno por difusion
+		// desde los bordes: solo se borran los pixeles casi blancos CONECTADOS
+		// con el exterior, conservando los blancos internos del dibujo (ojos, etc.).
+		void quitarFondoBlanco(Bitmap^ bmp)
+		{
+			Color esquina = bmp->GetPixel(0, 0);
+			// Si la hoja ya trae transparencia real o no es fondo claro, no se toca
+			if (esquina.A != 255 || esquina.R < 200 || esquina.G < 200 || esquina.B < 200)
+				return;
+
+			const int UMBRAL = 225;   // se considera fondo todo canal >= 225
+			int w = bmp->Width, h = bmp->Height;
+			System::Drawing::Imaging::BitmapData^ datos = bmp->LockBits(
+				System::Drawing::Rectangle(0, 0, w, h),
+				System::Drawing::Imaging::ImageLockMode::ReadWrite,
+				System::Drawing::Imaging::PixelFormat::Format32bppArgb);
+			unsigned char* base = (unsigned char*)datos->Scan0.ToPointer();
+			int stride = datos->Stride;
+
+			std::vector<unsigned char> visitado(w * h, 0);
+			std::vector<int> pila;
+			// Semillas: todos los pixeles del borde de la imagen
+			for (int x = 0; x < w; x++) { pila.push_back(x); pila.push_back((h - 1) * w + x); }
+			for (int y = 0; y < h; y++) { pila.push_back(y * w); pila.push_back(y * w + w - 1); }
+
+			while (!pila.empty())
+			{
+				int idx = pila.back();
+				pila.pop_back();
+				if (visitado[idx]) continue;
+				visitado[idx] = 1;
+				int x = idx % w, y = idx / w;
+				unsigned char* p = base + y * stride + x * 4;   // orden B, G, R, A
+				if (p[0] < UMBRAL || p[1] < UMBRAL || p[2] < UMBRAL) continue;
+				p[3] = 0;   // pixel de fondo: se vuelve transparente
+				if (x > 0)     pila.push_back(idx - 1);
+				if (x < w - 1) pila.push_back(idx + 1);
+				if (y > 0)     pila.push_back(idx - w);
+				if (y < h - 1) pila.push_back(idx + w);
+			}
+			bmp->UnlockBits(datos);
 		}
 
 		void cargarSprites()
