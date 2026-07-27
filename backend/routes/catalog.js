@@ -30,7 +30,10 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const b = req.body || {};
-  const tipo = b.tipo === 'extra' ? 'extra' : (b.tipo === 'matricula' ? 'matricula' : null);
+  // 'gasto' son los rubros de egreso (alquiler, luz, sueldos…). Sin él, la
+  // pantalla de precios prometía poder crearlos pero el servidor los rechazaba.
+  const TIPOS = ['matricula', 'extra', 'gasto'];
+  const tipo = TIPOS.includes(b.tipo) ? b.tipo : null;
   const nombre = requireText(b.nombre, 60);
 
   if (!tipo) return res.status(400).json({ error: 'Tipo inválido' });

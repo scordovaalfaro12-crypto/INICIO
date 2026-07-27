@@ -10,8 +10,8 @@
   <meta name="apple-mobile-web-app-title" content="ZONA VIP">
   <link rel="apple-touch-icon" href="/assets/logo.png">
   <title>Admin — ZONA VIP GYM</title>
-  <link rel="stylesheet" href="/assets/fonts.css?v=17" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=18" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <style>
     .admin-badge { background: var(--orange); color: var(--white); padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-left: 0.5rem; }
   </style>
@@ -109,7 +109,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>ID</th><th>Socio</th><th>Concepto</th><th>Método</th><th>Fecha de pago</th><th>Vence</th><th>Monto</th><th>Estado</th>
+                  <th>Socio</th><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Método</th><th>Monto</th>
                 </tr>
               </thead>
               <tbody id="dash-reservas-body"></tbody>
@@ -513,6 +513,24 @@
             </table>
           </div>
         </div>
+
+        <div class="panel">
+          <div class="panel__head"><h3>🧾 Rubros de gasto</h3></div>
+          <form id="form-nuevo-rubro" style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:flex-end;padding:1rem;">
+            <div class="field" style="flex:2;min-width:200px;">
+              <label>Nombre del rubro *</label>
+              <input type="text" name="nombre" maxlength="60" placeholder="Ej: Reparación de máquinas" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Agregar rubro</button>
+          </form>
+          <div class="table-wrap tabla-movil-tarjetas">
+            <table>
+              <thead><tr><th>Rubro</th><th>Acción</th></tr></thead>
+              <tbody id="rubros-precios-body"></tbody>
+            </table>
+          </div>
+        </div>
+
       </section>
 
     </main>
@@ -783,7 +801,7 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=17"></script>
-  <script src="admin.js?v=17"></script>
+  <script src="app.js?v=18"></script>
+  <script src="admin.js?v=18"></script>
 </body>
 </html>

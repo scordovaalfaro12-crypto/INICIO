@@ -15,10 +15,23 @@ const { query, queryOne, queryAll } = require('../db');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const config = require('../config');
 const { todayISO, addDays, diffDays } = require('../lib/dates');
-const { parseId, cleanText, parseFecha } = require('../lib/validate');
+const { parseId, parseFecha } = require('../lib/validate');
 const { responderError } = require('../lib/errores');
 
 router.use(authenticateToken, requireAdmin);
+
+// Frase que se muestra en el mostrador. Distingue los tres casos que importan:
+// vencida (no debería pasar sin renovar), a punto de vencer (momento de
+// cobrarle) y al día.
+function situacion(socio, diasRestantes) {
+  if (diasRestantes < 0) {
+    const d = Math.abs(diasRestantes);
+    return `⚠ ${socio.nombre} tiene la membresía VENCIDA hace ${d} día${d === 1 ? '' : 's'} (venció el ${socio.fecha_vence})`;
+  }
+  if (diasRestantes === 0) return `⚠ ${socio.nombre}: su ${socio.concepto} vence HOY`;
+  if (diasRestantes <= 3) return `${socio.nombre} entra, pero su ${socio.concepto} vence en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`;
+  return `${socio.nombre} al día · le quedan ${diasRestantes} días`;
+}
 
 // Hora local del negocio en formato HH:MM (el servidor corre en UTC).
 function horaAhora() {
@@ -67,14 +80,14 @@ router.get('/resumen', async (req, res) => {
       `SELECT m.id, m.nombre, m.telefono, m.concepto, m.fecha_vence,
               (SELECT MAX(a.fecha) FROM attendance a WHERE a.membership_id = m.id) AS ultima_visita
        FROM memberships m
-       WHERE m.estado = 'activa'
+       WHERE m.fecha_vence >= $2
          AND NOT EXISTS (
            SELECT 1 FROM attendance a
            WHERE a.membership_id = m.id AND a.fecha >= $1
          )
        ORDER BY m.nombre ASC
        LIMIT 50`,
-      [hace30]
+      [hace30, hoy]
     );
     res.json({ ...r, ausentes });
   } catch (err) {
@@ -94,6 +107,13 @@ router.post('/', async (req, res) => {
     const socio = await queryOne('SELECT id, nombre, concepto, fecha_vence, estado FROM memberships WHERE id = $1', [id]);
     if (!socio) return res.status(404).json({ error: 'Socio no encontrado' });
 
+    // La situación se calcula COMPARANDO LA FECHA, no leyendo la columna
+    // `estado`. Esa columna se refresca cada hora o al abrir el panel, así que
+    // podía estar desactualizada: en pruebas, una membresía vencida hacía 87
+    // días se anunciaba como "vence HOY" y en el mostrador la dejaban pasar.
+    const diasRestantes = diffDays(socio.fecha_vence, hoy);
+    const estado = diasRestantes < 0 ? 'vencida' : 'activa';
+
     // El índice único (membership_id, fecha) evita contar dos visitas el mismo
     // día; si ya marcó, se responde igual con su situación en vez de un error.
     const r = await query(
@@ -101,24 +121,18 @@ router.post('/', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (membership_id, fecha) WHERE membership_id IS NOT NULL DO NOTHING
        RETURNING id, hora`,
-      [id, socio.nombre, hoy, horaAhora(), socio.estado]
+      [id, socio.nombre, hoy, horaAhora(), estado]
     );
     const yaHabiaMarcado = r.rowCount === 0;
-
-    const diasRestantes = diffDays(socio.fecha_vence, hoy);
 
     res.status(yaHabiaMarcado ? 200 : 201).json({
       ya_marcado: yaHabiaMarcado,
       socio: {
         id: socio.id, nombre: socio.nombre, concepto: socio.concepto,
-        fecha_vence: socio.fecha_vence, estado: socio.estado,
+        fecha_vence: socio.fecha_vence, estado,
       },
       dias_restantes: diasRestantes,
-      mensaje: socio.estado !== 'activa'
-        ? `⚠ ${socio.nombre} tiene la membresía VENCIDA (venció el ${socio.fecha_vence})`
-        : diasRestantes <= 3
-          ? `${socio.nombre} entra, pero su ${socio.concepto} vence ${diasRestantes <= 0 ? 'HOY' : `en ${diasRestantes} día(s)`}`
-          : `${socio.nombre} al día · le quedan ${diasRestantes} días`,
+      mensaje: situacion(socio, diasRestantes),
     });
   } catch (err) {
     responderError(res, err, 'ASISTENCIA', 'Error al registrar la entrada');

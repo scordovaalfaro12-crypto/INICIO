@@ -11,7 +11,7 @@
 //  explica lo que pasa.
 // ==========================================================
 
-const VERSION = 'zvg-v3';
+const VERSION = 'zvg-v4';
 const CACHE = `zvg-cache-${VERSION}`;
 
 // Lo mínimo para que la aplicación abra sin internet.
@@ -19,6 +19,7 @@ const BASE = [
   '/login.html',
   '/admin.html',
   '/styles.css',
+  '/assets/fonts.css',
   '/app.js',
   '/admin.js',
   '/login.js',

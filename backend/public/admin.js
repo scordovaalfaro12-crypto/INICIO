@@ -183,6 +183,18 @@ function renderPrecios() {
         `).join('');
   }
 
+  const rubrosBody = document.getElementById('rubros-precios-body');
+  if (rubrosBody) {
+    rubrosBody.innerHTML = CATALOGO.gasto.length === 0
+      ? '<tr><td colspan="2" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin rubros todavía. Agrega el primero arriba.</td></tr>'
+      : CATALOGO.gasto.map(o => `
+          <tr>
+            <td><strong>${esc(o.nombre)}</strong></td>
+            <td><button class="link-orange" style="color:var(--red);" data-del-opcion="${o.id}">Quitar</button></td>
+          </tr>
+        `).join('');
+  }
+
   document.querySelectorAll('#tab-precios [data-del-opcion]').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (!confirm('¿Quitar esta opción?\n\nLos pagos ya registrados con ella NO se borran ni cambian; solo deja de aparecer para pagos nuevos.')) return;
@@ -233,6 +245,21 @@ if (formCategoria) {
   });
 }
 
+const formRubro = document.getElementById('form-nuevo-rubro');
+if (formRubro) {
+  formRubro.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const res = await api.createCatalogoOption({ tipo: 'gasto', nombre: fd.get('nombre') });
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast('Rubro agregado · ya aparece al registrar gastos');
+      e.target.reset();
+      cargarCatalogo();
+    });
+  });
+}
+
 function setupAdminNav() {
   document.querySelectorAll('.sidebar__nav a').forEach(link => {
     link.addEventListener('click', (e) => {
@@ -267,8 +294,8 @@ async function renderDashboard() {
   // Antes los errores se tragaban con `catch (e) {}` y la pantalla mostraba
   // "0 socios · S/ 0", como si el gimnasio estuviera vacío. Ahora un fallo se
   // ve como fallo y los datos guardados no se ponen en duda.
-  const [clases, resumen, finanzas, listaSocios] = await Promise.all([
-    api.getClasses(), api.getResumenSocios(), api.getFinanzas(), api.getMemberships({ limit: 6 }),
+  const [clases, resumen, finanzas, ultimosPagos] = await Promise.all([
+    api.getClasses(), api.getResumenSocios(), api.getFinanzas(), api.getPagos(6),
   ]);
 
   const el = (id) => document.getElementById(id);
@@ -299,23 +326,23 @@ async function renderDashboard() {
   const totalMes = (finanzas.mes && typeof finanzas.mes.total === 'number') ? finanzas.mes.total : 0;
   if (el('kpi-ingresos')) el('kpi-ingresos').textContent = formatMoney(totalMes);
 
-  // Últimas matrículas registradas (la tabla del dashboard).
+  // Los ÚLTIMOS PAGOS de verdad. Antes esta tabla decía "Últimos pagos
+  // registrados" pero traía socios ordenados por fecha de vencimiento: el
+  // primero de la lista podía haber pagado hacía medio año.
   const dashBody = el('dash-reservas-body');
   if (dashBody) {
-    const recent = (listaSocios && Array.isArray(listaSocios.items)) ? listaSocios.items.slice(0, 6) : [];
+    const recent = Array.isArray(ultimosPagos) ? ultimosPagos.slice(0, 6) : [];
     if (recent.length === 0) {
-      dashBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin matrículas registradas todavía</td></tr>';
+      dashBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin pagos registrados todavía</td></tr>';
     } else {
-      dashBody.innerHTML = recent.map(m => `
+      dashBody.innerHTML = recent.map(p => `
         <tr>
-          <td><strong>${m.id}</strong></td>
-          <td>${esc(m.nombre)}</td>
-          <td>${esc(m.concepto)}</td>
-          <td>${esc(m.metodo)}</td>
-          <td>${formatDate(m.fecha_pago)}</td>
-          <td>${formatDate(m.fecha_vence)}</td>
-          <td><strong>S/ ${formatPrice(m.monto)}</strong></td>
-          <td><span class="tag ${tagClass(m.estado)}">${esc(m.estado)}</span></td>
+          <td><strong>${esc(p.nombre)}</strong></td>
+          <td data-col="Fecha">${formatDate(p.fecha_pago)}</td>
+          <td data-col="Tipo">${p.tipo === 'renovacion' ? 'Renovación' : 'Matrícula'}</td>
+          <td data-col="Concepto">${esc(p.concepto)}</td>
+          <td data-col="Método">${esc(p.metodo)}</td>
+          <td data-col="Monto"><strong>S/ ${formatPrice(p.monto)}</strong></td>
         </tr>
       `).join('');
     }
@@ -1002,6 +1029,7 @@ if (formExtra) {
 
 // ============ ASISTENCIA (control de entrada) ============
 let temporizadorSocioAsis = null;
+let peticionSocioAsis = 0;
 
 async function renderAsistencia(fecha) {
   const inputFecha = document.getElementById('fecha-asistencia');
@@ -1089,7 +1117,11 @@ function buscarSocioParaEntrada() {
     const q = input.value.trim();
     if (q.length < 2) { cont.innerHTML = ''; return; }
 
+    // Igual que en la lista de socios: si llega una respuesta de una búsqueda
+    // anterior, se descarta en vez de pintar resultados que ya no corresponden.
+    const miNumero = ++peticionSocioAsis;
     const lista = await api.getMemberships({ q, limit: 8 });
+    if (miNumero !== peticionSocioAsis) return;
     if (hayProblema(lista) || !Array.isArray(lista.items)) { cont.innerHTML = ''; return; }
     if (lista.items.length === 0) {
       cont.innerHTML = '<p style="color:var(--gray-mid);font-size:0.88rem;margin:0;">Ningún socio con ese nombre o DNI.</p>';

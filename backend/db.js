@@ -367,9 +367,13 @@ async function aplicarEsquema(ejecutar) {
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_payments_fecha_pago ON payments (fecha_pago)`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_payments_membership ON payments (membership_id)`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_extra_sales_fecha ON extra_sales (fecha)`);
-  // Búsqueda de socios por nombre sin distinguir mayúsculas: con miles de
-  // fichas el buscador sigue respondiendo al instante.
-  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_nombre_lower ON memberships (LOWER(nombre))`);
+  // Nombre normalizado (minúsculas y sin tildes). Es la MISMA expresión que
+  // usa la comprobación de socio duplicado, así que Postgres puede aprovechar
+  // el índice. El índice anterior era sobre LOWER(nombre) a secas: ninguna
+  // consulta usaba esa forma, así que solo costaba tiempo en cada alta.
+  await ejecutar(`DROP INDEX IF EXISTS idx_memberships_nombre_lower`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_nombre_normalizado
+                  ON memberships (TRANSLATE(LOWER(nombre), 'áàäâãéèëêíìïîóòöôõúùüûñç', 'aaaaaeeeeiiiiooooouuuunc'))`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_dni ON memberships (dni)`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_expenses_fecha ON expenses (fecha)`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_attendance_fecha ON attendance (fecha)`);
