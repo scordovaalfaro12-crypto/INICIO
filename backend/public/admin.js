@@ -10,12 +10,62 @@
 
 function initAdmin() {
   setupAdminNav();
+  enlazarAcciones();
   cargarCatalogo();
   renderDashboard();
   renderClases();
   renderMatriculas();
   renderFinanzas();
   renderExtras();
+  renderPorVencer();
+}
+
+// El HTML ya no lleva onclick="..." escritos dentro (así el navegador puede
+// bloquear cualquier script ajeno). Aquí se conectan esos botones por su
+// atributo data-*, una sola vez al arrancar.
+function enlazarAcciones() {
+  document.querySelectorAll('[data-abrir]').forEach(b =>
+    b.addEventListener('click', () => abrirModal(b.dataset.abrir)));
+  document.querySelectorAll('[data-cerrar]').forEach(b =>
+    b.addEventListener('click', () => closeModal(b.dataset.cerrar)));
+  document.querySelectorAll('[data-ir-a]').forEach(b =>
+    b.addEventListener('click', () => switchTab(b.dataset.irA)));
+
+  const autos = {
+    'monto-matricula': (v) => autocompletarMonto(v),
+    'precio-extra': (v) => autocompletarPrecioExtra(v),
+    'plan-renovacion': (v) => aplicarPlanRenovacion(v),
+  };
+  document.querySelectorAll('[data-auto]').forEach(sel =>
+    sel.addEventListener('change', () => {
+      const fn = autos[sel.dataset.auto];
+      if (fn) fn(sel.value);
+    }));
+
+  // Cerrar el modal con la tecla Escape o pulsando fuera de la tarjeta.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.modal:not([hidden])').forEach(m => closeModal(m.id));
+  });
+  document.querySelectorAll('.modal').forEach(m =>
+    m.addEventListener('click', (e) => { if (e.target === m) closeModal(m.id); }));
+
+  // Buscador y filtros de la lista de socios.
+  const buscador = document.getElementById('search-matriculas');
+  if (buscador) buscador.addEventListener('input', buscarConEspera);
+  const filtro = document.getElementById('filter-estado');
+  if (filtro) filtro.addEventListener('change', buscarConEspera);
+  const diasVencer = document.getElementById('select-dias-vencer');
+  if (diasVencer) diasVencer.addEventListener('change', renderPorVencer);
+}
+
+// Prepara y muestra el modal indicado (antes cada botón llamaba a su función).
+function abrirModal(id) {
+  if (id === 'modal-matricula') return openModalNuevaMatricula();
+  if (id === 'modal-extra') return openModalExtra();
+  if (id === 'modal-clase-new') return openModalNuevaClase();
+  const m = document.getElementById(id);
+  if (m) m.hidden = false;
 }
 
 // ============ CATÁLOGO (precios, promos y categorías) ============
@@ -24,13 +74,16 @@ function initAdmin() {
 const CATALOGO = { matricula: [], extra: [] };
 
 async function cargarCatalogo() {
-  try {
-    const rows = await api.getCatalogo();
-    if (Array.isArray(rows)) {
-      CATALOGO.matricula = rows.filter(r => r.tipo === 'matricula');
-      CATALOGO.extra = rows.filter(r => r.tipo === 'extra');
-    }
-  } catch (e) {}
+  const rows = await api.getCatalogo();
+  if (Array.isArray(rows)) {
+    CATALOGO.matricula = rows.filter(r => r.tipo === 'matricula');
+    CATALOGO.extra = rows.filter(r => r.tipo === 'extra');
+    ocultarAvisoConexion();
+  } else if (rows && rows.error) {
+    // Sin catálogo los formularios quedan sin opciones: hay que avisar, no
+    // dejar a la dueña mirando un desplegable vacío sin explicación.
+    showToast('No se pudieron cargar los precios: ' + rows.error, 'error');
+  }
   poblarSelectsCatalogo();
   renderPrecios();
 }
@@ -49,10 +102,12 @@ function poblarSelectsCatalogo() {
 
   const selPlan = document.getElementById('select-plan-renovar');
   if (selPlan) {
+    const actual = selPlan.value;
     selPlan.innerHTML = '<option value="">Personalizado</option>' +
       CATALOGO.matricula.map(o =>
-        `<option value="${o.id}">${esc(o.nombre)} — S/ ${formatPrice(o.precio)} (${o.dias}d)</option>`
+        `<option value="${o.id}" data-nombre="${esc(o.nombre)}">${esc(o.nombre)} — S/ ${formatPrice(o.precio)} (${o.dias}d)</option>`
       ).join('');
+    if (actual) selPlan.value = actual;
   }
 
   const selCat = document.getElementById('select-categoria-extra');
@@ -164,32 +219,44 @@ function switchTab(name) {
 async function conBotonBloqueado(form, fn) {
   const btn = form.querySelector('button[type=submit]');
   if (btn) btn.disabled = true;
-  try { await fn(); } finally { if (btn) btn.disabled = false; }
+  try {
+    await fn();
+  } catch (e) {
+    // Sin este catch un fallo inesperado no mostraba NADA: el modal quedaba
+    // abierto y la dueña volvía a pulsar, cobrando dos veces al mismo socio.
+    showToast('No se pudo confirmar el guardado. Revisa la lista antes de reintentar para no cobrar dos veces.', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ============ DASHBOARD ============
 async function renderDashboard() {
-  let clases = [], matriculas = [], extras = [], finanzas = null;
-  try {
-    [clases, matriculas, extras, finanzas] = await Promise.all([
-      api.getClasses(), api.getMemberships(), api.getExtras(), api.getFinanzas()
-    ]);
-  } catch (e) {}
-  if (!Array.isArray(clases)) clases = [];
-  if (!Array.isArray(matriculas)) matriculas = [];
-  if (!Array.isArray(extras)) extras = [];
-
-  const activos = matriculas.filter(m => m.estado === 'activa').length;
-  const vencidos = matriculas.filter(m => m.estado === 'vencida').length;
+  // Antes los errores se tragaban con `catch (e) {}` y la pantalla mostraba
+  // "0 socios · S/ 0", como si el gimnasio estuviera vacío. Ahora un fallo se
+  // ve como fallo y los datos guardados no se ponen en duda.
+  const [clases, resumen, finanzas, listaSocios] = await Promise.all([
+    api.getClasses(), api.getResumenSocios(), api.getFinanzas(), api.getMemberships({ limit: 6 }),
+  ]);
 
   const el = (id) => document.getElementById(id);
-  if (el('kpi-usuarios')) el('kpi-usuarios').textContent = activos;
-  if (el('kpi-clases')) el('kpi-clases').textContent = clases.length;
+  const falla = hayProblema(resumen) || hayProblema(finanzas);
+  if (falla) {
+    const msg = (resumen && resumen.error) || (finanzas && finanzas.error) || 'Sin conexión con el sistema';
+    const cuerpo = el('dash-reservas-body');
+    if (cuerpo) {
+      cuerpo.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:2rem;">
+        ${esc(msg)}<br><small style="color:var(--gray-mid);">Tus datos siguen guardados. Reintenta en unos segundos.</small></td></tr>`;
+    }
+    return;
+  }
 
-  // KPI de "Reservas hoy" lo reemplazamos por "Vencidos"
+  if (el('kpi-usuarios')) el('kpi-usuarios').textContent = resumen.activos;
+  if (el('kpi-clases')) el('kpi-clases').textContent = Array.isArray(clases) ? clases.length : 0;
+
   const reservasKpi = el('kpi-reservas');
   if (reservasKpi) {
-    reservasKpi.textContent = vencidos;
+    reservasKpi.textContent = resumen.vencidos;
     const parent = reservasKpi.closest('.stat-card');
     if (parent) {
       const lbl = parent.querySelector('.stat-card__label');
@@ -197,15 +264,13 @@ async function renderDashboard() {
     }
   }
 
-  // Ingresos del mes desde el reporte oficial (incluye renovaciones
-  // en su fecha real, no el cálculo aproximado de antes).
-  const totalMes = (finanzas && finanzas.mes && typeof finanzas.mes.total === 'number') ? finanzas.mes.total : 0;
-  if (el('kpi-ingresos')) el('kpi-ingresos').textContent = 'S/ ' + Math.round(totalMes).toLocaleString('es-PE');
+  const totalMes = (finanzas.mes && typeof finanzas.mes.total === 'number') ? finanzas.mes.total : 0;
+  if (el('kpi-ingresos')) el('kpi-ingresos').textContent = formatMoney(totalMes);
 
-  // Dashboard mini-tabla: últimas matrículas (en lugar de reservas)
+  // Últimas matrículas registradas (la tabla del dashboard).
   const dashBody = el('dash-reservas-body');
   if (dashBody) {
-    const recent = [...matriculas].sort((a, b) => b.id - a.id).slice(0, 6);
+    const recent = (listaSocios && Array.isArray(listaSocios.items)) ? listaSocios.items.slice(0, 6) : [];
     if (recent.length === 0) {
       dashBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin matrículas registradas todavía</td></tr>';
     } else {
@@ -216,7 +281,7 @@ async function renderDashboard() {
           <td>${esc(m.concepto)}</td>
           <td>${esc(m.metodo)}</td>
           <td>${formatDate(m.fecha_pago)}</td>
-          <td>—</td>
+          <td>${formatDate(m.fecha_vence)}</td>
           <td><strong>S/ ${formatPrice(m.monto)}</strong></td>
           <td><span class="tag ${tagClass(m.estado)}">${esc(m.estado)}</span></td>
         </tr>
@@ -224,48 +289,46 @@ async function renderDashboard() {
     }
   }
 
-  // Conceptos más comunes
-  const conceptoCount = {};
-  matriculas.forEach(m => { conceptoCount[m.concepto] = (conceptoCount[m.concepto] || 0) + 1; });
-  const sortedConceptos = Object.entries(conceptoCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const max = sortedConceptos[0]?.[1] || 1;
+  // Reparto de socios por estado (con los contadores reales de la base).
   const planesEl = el('planes-chart');
   if (planesEl) {
-    planesEl.innerHTML = sortedConceptos.length === 0
-      ? '<p style="color:var(--gray-mid);padding:1rem;">Sin datos aún</p>'
-      : sortedConceptos.map(([c, cnt]) => `
+    const filas = [
+      ['Socios activos', resumen.activos, 'var(--green)'],
+      ['Vencen en 7 días', resumen.pronto, 'var(--orange)'],
+      ['Vencidos', resumen.vencidos, 'var(--red)'],
+    ];
+    const max = Math.max(1, ...filas.map(f => f[1]));
+    planesEl.innerHTML = resumen.total === 0
+      ? '<p style="color:var(--gray-mid);padding:1rem;">Sin socios todavía</p>'
+      : filas.map(([etiqueta, valor, color]) => `
           <div style="margin-bottom:1rem;">
             <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;">
-              <strong>${esc(c)}</strong>
-              <span style="color:var(--gray-mid);">${cnt} socio(s)</span>
+              <strong>${etiqueta}</strong>
+              <span style="color:var(--gray-mid);">${valor} socio(s)</span>
             </div>
             <div style="height:10px;background:var(--gray-soft);border-radius:6px;overflow:hidden;">
-              <div style="width:${(cnt/max)*100}%;height:100%;background:var(--orange);"></div>
+              <div style="width:${(valor / max) * 100}%;height:100%;background:${color};"></div>
             </div>
           </div>
         `).join('');
   }
 
-  // Categorías de extras más vendidas este mes
-  const inicioMes = hoyISO().slice(0, 8) + '01';
-  const extrasCats = {};
-  extras.filter(e => e.fecha >= inicioMes).forEach(e => {
-    extrasCats[e.categoria] = (extrasCats[e.categoria] || 0) + e.monto;
-  });
-  const sortedExtras = Object.entries(extrasCats).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const maxE = sortedExtras[0]?.[1] || 1;
+  // Productos más vendidos del mes: lo suma la base de datos, no el navegador.
   const clasesEl = el('clases-chart');
   if (clasesEl) {
-    clasesEl.innerHTML = sortedExtras.length === 0
+    const resExtras = await api.getExtrasResumen(hoyISO().slice(0, 8) + '01');
+    const cats = (resExtras && Array.isArray(resExtras.categorias)) ? resExtras.categorias.slice(0, 5) : [];
+    const maxE = Math.max(1, ...cats.map(c => c.total));
+    clasesEl.innerHTML = cats.length === 0
       ? '<p style="color:var(--gray-mid);padding:1rem;">Sin ventas extras este mes</p>'
-      : sortedExtras.map(([cat, total]) => `
+      : cats.map(c => `
           <div style="margin-bottom:1rem;">
             <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;">
-              <strong>${esc(cat)}</strong>
-              <span style="color:var(--gray-mid);">S/ ${Math.round(total).toLocaleString('es-PE')}</span>
+              <strong>${esc(c.categoria)}</strong>
+              <span style="color:var(--gray-mid);">${formatMoney(c.total)}</span>
             </div>
             <div style="height:10px;background:var(--gray-soft);border-radius:6px;overflow:hidden;">
-              <div style="width:${(total/maxE)*100}%;height:100%;background:var(--gray-dark);"></div>
+              <div style="width:${(c.total / maxE) * 100}%;height:100%;background:var(--gray-dark);"></div>
             </div>
           </div>
         `).join('');
@@ -274,11 +337,14 @@ async function renderDashboard() {
 
 // ============ CLASES ============
 async function renderClases() {
-  let clases = [];
-  try { clases = await api.getClasses(); } catch (e) {}
-  if (!Array.isArray(clases)) clases = [];
+  const clases = await api.getClasses();
   const body = document.getElementById('clases-body');
   if (!body) return;
+  if (!Array.isArray(clases)) {
+    body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:2rem;">
+      ${esc((clases && clases.error) || 'No se pudieron cargar las clases')}</td></tr>`;
+    return;
+  }
   body.innerHTML = clases.length === 0
     ? '<tr><td colspan="8" style="text-align:center;color:var(--gray-mid);padding:2rem;">No hay clases. Crea la primera.</td></tr>'
     : clases.map(c => `
@@ -306,39 +372,60 @@ async function renderClases() {
 }
 
 // ============ MATRÍCULAS ============
-async function renderMatriculas(filtroTexto = '', filtroEstado = 'todos') {
-  let matriculas = [];
-  try { matriculas = await api.getMemberships(); } catch (e) {}
-  if (!Array.isArray(matriculas)) matriculas = [];
+// La búsqueda y el filtro los resuelve el servidor. Antes cada tecla del
+// buscador se descargaba la ficha de TODOS los socios (medido: 379 KB y 13
+// segundos con 1.500 socios) y las respuestas llegaban desordenadas, así que
+// la tabla podía terminar mostrando el resultado de una búsqueda anterior.
+const ESTADO_LISTA = { texto: '', estado: 'todos', peticion: 0 };
+let temporizadorBusqueda = null;
 
+async function renderMatriculas(filtroTexto, filtroEstado) {
+  if (filtroTexto !== undefined) ESTADO_LISTA.texto = filtroTexto;
+  if (filtroEstado !== undefined) ESTADO_LISTA.estado = filtroEstado;
+
+  const body = document.getElementById('matriculas-body');
+  const conteo = document.getElementById('matriculas-conteo');
+  if (!body) return;
+
+  // Cada petición lleva número: si llega una respuesta vieja, se descarta.
+  const miNumero = ++ESTADO_LISTA.peticion;
+
+  const [resumen, lista] = await Promise.all([
+    api.getResumenSocios(),
+    api.getMemberships({ q: ESTADO_LISTA.texto, estado: ESTADO_LISTA.estado }),
+  ]);
+  if (miNumero !== ESTADO_LISTA.peticion) return; // llegó tarde: ya hay otra búsqueda
+
+  const setVal = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  if (!hayProblema(resumen)) {
+    setVal('mat-activos', resumen.activos);
+    setVal('mat-vencidos', resumen.vencidos);
+    setVal('mat-pronto', resumen.pronto);
+  }
+
+  if (hayProblema(lista)) {
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--red);padding:2rem;">
+      ${esc(lista && lista.error ? lista.error : 'No se pudo cargar la lista de socios.')}<br>
+      <small style="color:var(--gray-mid);">Los datos siguen guardados. Vuelve a intentar en unos segundos.</small></td></tr>`;
+    if (conteo) conteo.textContent = '';
+    return;
+  }
+
+  const filtered = Array.isArray(lista.items) ? lista.items : [];
   const hoy = hoyISO();
   const en7Str = addDiasISO(hoy, 7);
 
-  const activos = matriculas.filter(m => m.estado === 'activa');
-  const vencidos = matriculas.filter(m => m.estado === 'vencida');
-  const prontos = activos.filter(m => m.fecha_vence <= en7Str);
-  const setVal = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-  setVal('mat-activos', activos.length);
-  setVal('mat-vencidos', vencidos.length);
-  setVal('mat-pronto', prontos.length);
-
-  let filtered = matriculas;
-  if (filtroTexto) {
-    const q = filtroTexto.toLowerCase();
-    filtered = filtered.filter(m =>
-      m.nombre.toLowerCase().includes(q) ||
-      (m.dni || '').includes(q) ||
-      (m.telefono || '').includes(q)
-    );
+  if (conteo) {
+    conteo.textContent = filtered.length < lista.total
+      ? `Mostrando ${filtered.length} de ${lista.total} socios. Afina la búsqueda para ver los demás.`
+      : (lista.total === 0 ? '' : `${lista.total} socio${lista.total === 1 ? '' : 's'}`);
   }
-  if (filtroEstado === 'activa') filtered = filtered.filter(m => m.estado === 'activa');
-  else if (filtroEstado === 'vencida') filtered = filtered.filter(m => m.estado === 'vencida');
-  else if (filtroEstado === 'pronto') filtered = filtered.filter(m => m.estado === 'activa' && m.fecha_vence <= en7Str);
 
-  const body = document.getElementById('matriculas-body');
-  if (!body) return;
   if (filtered.length === 0) {
-    body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin matrículas. Registra el primer pago.</td></tr>';
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--gray-mid);padding:2rem;">${
+      ESTADO_LISTA.texto || ESTADO_LISTA.estado !== 'todos'
+        ? 'Ningún socio coincide con la búsqueda.'
+        : 'Sin matrículas. Registra el primer pago.'}</td></tr>`;
     return;
   }
 
@@ -346,7 +433,7 @@ async function renderMatriculas(filtroTexto = '', filtroEstado = 'todos') {
     const proximo = m.estado === 'activa' && m.fecha_vence <= en7Str;
     const estadoColor = m.estado === 'activa' ? (proximo ? 'tag-orange' : 'tag-green') : 'tag-red';
     const estadoTxt = m.estado === 'activa' ? (proximo ? 'Vence pronto' : 'Activa') : 'Vencida';
-    const diasRestantes = Math.round((new Date(m.fecha_vence + 'T00:00:00Z') - new Date(hoy + 'T00:00:00Z')) / 86400000);
+    const diasRestantes = diasEntre(m.fecha_vence, hoy);
     const diasTxt = m.estado === 'activa'
       ? (diasRestantes <= 0 ? '<small style="color:var(--red);">hoy</small>' : `<small style="color:var(--gray-mid);">en ${diasRestantes}d</small>`)
       : `<small style="color:var(--red);">hace ${Math.abs(diasRestantes)}d</small>`;
@@ -360,28 +447,82 @@ async function renderMatriculas(filtroTexto = '', filtroEstado = 'todos') {
         <td>${formatDate(m.fecha_pago)}</td>
         <td>${formatDate(m.fecha_vence)} ${diasTxt}</td>
         <td><span class="tag ${estadoColor}">${estadoTxt}</span></td>
-        <td>
-          <button class="link-orange" data-action="renovar" data-id="${m.id}" data-nombre="${esc(m.nombre)}">Renovar</button> ·
+        <td class="acciones-socio">
+          <button class="link-orange" data-action="renovar" data-id="${m.id}">Renovar</button>
+          <button class="link-orange" data-action="editar" data-id="${m.id}">Corregir</button>
           <button class="link-orange" style="color:var(--red);" data-action="eliminar-matricula" data-id="${m.id}">Borrar</button>
         </td>
       </tr>
     `;
   }).join('');
 
+  // Los datos del socio se guardan aquí, no en atributos del HTML.
+  const porId = new Map(filtered.map(m => [String(m.id), m]));
   body.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const action = this.dataset.action;
-      const id = parseInt(this.dataset.id);
-      if (action === 'renovar') abrirRenovar(id, this.dataset.nombre);
-      else if (action === 'eliminar-matricula') eliminarMatricula(id);
+    btn.addEventListener('click', function () {
+      const socio = porId.get(this.dataset.id);
+      const id = parseInt(this.dataset.id, 10);
+      if (this.dataset.action === 'renovar') abrirRenovar(id, socio);
+      else if (this.dataset.action === 'editar') abrirEditarSocio(socio);
+      else if (this.dataset.action === 'eliminar-matricula') eliminarMatricula(id);
     });
   });
 }
 
-const searchMat = document.getElementById('search-matriculas');
-const filterEst = document.getElementById('filter-estado');
-if (searchMat) searchMat.addEventListener('input', e => renderMatriculas(e.target.value, filterEst.value));
-if (filterEst) filterEst.addEventListener('change', e => renderMatriculas(searchMat.value, e.target.value));
+// Espera a que deje de escribir: una búsqueda por palabra, no una por letra.
+function buscarConEspera() {
+  clearTimeout(temporizadorBusqueda);
+  temporizadorBusqueda = setTimeout(() => {
+    const s = document.getElementById('search-matriculas');
+    const f = document.getElementById('filter-estado');
+    renderMatriculas(s ? s.value : '', f ? f.value : 'todos');
+  }, 300);
+}
+
+// ============ AVISOS A LOS QUE VENCEN PRONTO ============
+// El enlace de WhatsApp se arma en el navegador: no hay servicios externos
+// contratados que puedan caerse o caducar.
+async function renderPorVencer() {
+  const panel = document.getElementById('panel-por-vencer');
+  const lista = document.getElementById('lista-por-vencer');
+  const sel = document.getElementById('select-dias-vencer');
+  if (!panel || !lista) return;
+
+  const dias = sel ? parseInt(sel.value, 10) || 7 : 7;
+  const rows = await api.getPorVencer(dias);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const hoy = hoyISO();
+  lista.innerHTML = rows.map(m => {
+    const faltan = diasEntre(m.fecha_vence, hoy);
+    const cuando = faltan <= 0 ? 'vence HOY' : `vence en ${faltan} día${faltan === 1 ? '' : 's'}`;
+    const tel = telefonoWhatsApp(m.telefono);
+    const mensaje = `Hola ${m.nombre}, te saluda ZONA VIP GYM 💪 Tu ${m.concepto} ${faltan <= 0 ? 'vence hoy' : `vence el ${m.fecha_vence}`}. ¿Te esperamos para renovar?`;
+    return `
+      <div class="aviso-socio">
+        <div>
+          <strong>${esc(m.nombre)}</strong>
+          <small style="color:${faltan <= 1 ? 'var(--red)' : 'var(--gray-mid)'};"> · ${cuando}</small>
+          ${tel ? '' : '<small style="color:var(--gray-mid);"> · sin teléfono guardado</small>'}
+        </div>
+        ${tel ? `<a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+             href="https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}">Avisar por WhatsApp</a>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// Celular peruano listo para el enlace de WhatsApp (o null si no sirve).
+function telefonoWhatsApp(v) {
+  const solo = String(v || '').replace(/\D/g, '');
+  if (!solo) return null;
+  if (solo.length === 9 && solo.startsWith('9')) return '51' + solo;
+  if (solo.length === 11 && solo.startsWith('51')) return solo;
+  if (solo.length >= 8 && solo.length <= 15) return solo;
+  return null;
+}
 
 function openModalNuevaMatricula() {
   const m = document.getElementById('modal-matricula');
@@ -414,26 +555,78 @@ if (formMat) {
     conBotonBloqueado(e.target, async () => {
       const fd = new FormData(e.target);
       const data = Object.fromEntries(fd);
-      const res = await api.createMembership(data);
+      let res = await api.createMembership(data);
+      if (res.duplicado) {
+        // El servidor detectó un pago idéntico hace segundos: se pregunta
+        // antes de duplicarlo, en vez de cobrar dos veces en silencio.
+        if (!confirm(res.error + '\n\n¿Registrarlo igualmente?')) return;
+        res = await api.createMembership({ ...data, confirmar_duplicado: true });
+      }
       if (res.error) { showToast(res.error, 'error'); return; }
       showToast(`Pago de ${data.nombre} registrado · S/ ${data.monto}`);
       closeModal('modal-matricula');
       e.target.reset();
-      renderMatriculas(); renderFinanzas(); renderDashboard();
+      renderMatriculas(); renderFinanzas(); renderDashboard(); renderPorVencer();
     });
   });
 }
 
-function abrirRenovar(id, nombre) {
-  if (!id || !nombre) { showToast('Faltan datos del socio', 'error'); return; }
-  document.getElementById('renovar-nombre').textContent = nombre;
+function abrirRenovar(id, socio) {
+  if (!id || !socio) { showToast('Faltan datos del socio', 'error'); return; }
+  document.getElementById('renovar-nombre').textContent = socio.nombre;
   const form = document.getElementById('form-renovar');
   form.querySelector('[name=id]').value = id;
-  form.querySelector('[name=dias]').value = '30';
-  form.querySelector('[name=monto]').value = '80';
+  form.querySelector('[name=fecha_pago]').value = hoyISO();
+
+  // Se propone el MISMO plan que ya tenía el socio, con su precio y duración
+  // del catálogo actual. Antes siempre proponía 30 días y S/ 80 a fuego, así
+  // que renovar a un socio de aeróbicos cobraba de más si nadie lo corregía.
   const sel = document.getElementById('select-plan-renovar');
-  if (sel) sel.value = '';
+  const suPlan = CATALOGO.matricula.find(o => o.nombre === socio.concepto);
+  if (suPlan) {
+    if (sel) sel.value = String(suPlan.id);
+    form.querySelector('[name=dias]').value = suPlan.dias;
+    form.querySelector('[name=monto]').value = suPlan.precio;
+  } else {
+    if (sel) sel.value = '';
+    form.querySelector('[name=dias]').value = '30';
+    form.querySelector('[name=monto]').value = socio.monto != null ? socio.monto : '';
+  }
+  if (socio.metodo) {
+    const selMet = form.querySelector('[name=metodo]');
+    if (selMet) selMet.value = socio.metodo;
+  }
   document.getElementById('modal-renovar').hidden = false;
+}
+
+// ============ CORREGIR DATOS DEL SOCIO ============
+function abrirEditarSocio(socio) {
+  if (!socio) { showToast('Faltan datos del socio', 'error'); return; }
+  const form = document.getElementById('form-editar-socio');
+  if (!form) return;
+  form.querySelector('[name=id]').value = socio.id;
+  form.querySelector('[name=nombre]').value = socio.nombre || '';
+  form.querySelector('[name=telefono]').value = socio.telefono || '';
+  form.querySelector('[name=dni]').value = socio.dni || '';
+  form.querySelector('[name=concepto]').value = socio.concepto || '';
+  form.querySelector('[name=fecha_vence]').value = socio.fecha_vence || '';
+  form.querySelector('[name=notas]').value = socio.notas || '';
+  document.getElementById('modal-editar-socio').hidden = false;
+}
+
+const formEditarSocio = document.getElementById('form-editar-socio');
+if (formEditarSocio) {
+  formEditarSocio.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const res = await api.updateMembership(fd.get('id'), Object.fromEntries(fd));
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast('Datos corregidos ✓');
+      closeModal('modal-editar-socio');
+      renderMatriculas(); renderPorVencer(); renderDashboard();
+    });
+  });
 }
 
 // Al elegir un plan del catálogo se llenan días y monto (siempre editables).
@@ -464,14 +657,18 @@ if (formRen) {
       const fd = new FormData(e.target);
       const id = fd.get('id');
       const res = await api.renewMembership(id, {
-        dias: parseInt(fd.get('dias')),
-        monto: parseFloat(fd.get('monto')),
-        metodo: fd.get('metodo')
+        dias: fd.get('dias'),
+        monto: fd.get('monto'),
+        metodo: fd.get('metodo'),
+        fecha_pago: fd.get('fecha_pago') || hoyISO(),
+        concepto: document.getElementById('select-plan-renovar') && document.getElementById('select-plan-renovar').selectedOptions[0]
+          ? document.getElementById('select-plan-renovar').selectedOptions[0].dataset.nombre || ''
+          : ''
       });
       if (res.error) { showToast(res.error, 'error'); return; }
       showToast('Membresía renovada hasta ' + res.nuevoVence);
       closeModal('modal-renovar');
-      renderMatriculas(); renderFinanzas(); renderDashboard();
+      renderMatriculas(); renderFinanzas(); renderDashboard(); renderPorVencer();
     });
   });
 }
@@ -481,18 +678,22 @@ async function eliminarMatricula(id) {
   const res = await api.deleteMembership(id);
   if (res.error) { showToast(res.error, 'error'); return; }
   showToast('Ficha eliminada (los pagos quedan en el historial)');
-  renderMatriculas(); renderFinanzas(); renderDashboard();
+  renderMatriculas(); renderFinanzas(); renderDashboard(); renderPorVencer();
 }
 
 // ============ FINANZAS ============
 async function renderFinanzas() {
-  let f = null;
-  try { f = await api.getFinanzas(); } catch (e) {}
-  if (!f || !f.mes) return;
+  const f = await api.getFinanzas();
+  if (hayProblema(f) || !f.mes) {
+    if (f && f.error) showToast(f.error, 'error');
+    return;
+  }
 
+  // Los importes se muestran CON céntimos: antes se redondeaban con Math.round
+  // y el desglose no cuadraba con el total (faltaban soles sueltos).
   const setVal = (id, valor, cnt) => {
     const el = document.getElementById(id);
-    if (el) el.textContent = 'S/ ' + Math.round(valor).toLocaleString('es-PE');
+    if (el) el.textContent = formatMoney(valor);
     if (cnt !== undefined) {
       const c = document.getElementById(id + '-cnt');
       if (c) c.textContent = `${cnt} venta${cnt === 1 ? '' : 's'}`;
@@ -510,18 +711,22 @@ async function renderFinanzas() {
 
   const setText = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   const setStyle = (id, prop, val) => { const e = document.getElementById(id); if (e) e.style[prop] = val; };
-  setText('desg-matriculas', 'S/ ' + Math.round(mat).toLocaleString('es-PE'));
-  setText('desg-online', 'S/ ' + Math.round(extras).toLocaleString('es-PE'));
+  setText('desg-matriculas', formatMoney(mat));
+  setText('desg-online', formatMoney(extras));
   setStyle('desg-mat-bar', 'width', ((mat / total) * 100) + '%');
   setStyle('desg-on-bar', 'width', ((extras / total) * 100) + '%');
   setText('desg-mat-cnt', `${f.mes.matriculas.cantidad} pago(s) registrados`);
   setText('desg-on-cnt', `${(f.mes.extras && f.mes.extras.cantidad) || 0} venta(s) extras`);
-  setText('desg-total', 'S/ ' + Math.round(mat + extras).toLocaleString('es-PE'));
+  setText('desg-total', formatMoney(mat + extras));
 
   // Renombro etiquetas (era "Reservas online")
   document.querySelectorAll('#tab-finanzas strong').forEach(s => {
     if (s.textContent === 'Reservas online (Yape web)') s.textContent = 'Ventas extras (productos)';
   });
+
+  // Aviso de dinero registrado con fecha futura (casi siempre un dedazo en el
+  // año). No se pierde, pero deja de descuadrar los totales y aquí se ve.
+  mostrarAvisoFuturos(f.futuros);
 
   // Métodos
   const metEl = document.getElementById('metodos-pago');
@@ -536,7 +741,7 @@ async function renderFinanzas() {
           <div style="margin-bottom:1rem;">
             <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;">
               <strong>${esc(m.metodo)}</strong>
-              <span class="text-orange">S/ ${Math.round(m.total).toLocaleString('es-PE')} <small style="color:var(--gray-mid);">(${pct.toFixed(0)}%)</small></span>
+              <span class="text-orange">${formatMoney(m.total)} <small style="color:var(--gray-mid);">(${pct.toFixed(0)}%)</small></span>
             </div>
             <div style="height:8px;background:var(--gray-soft);border-radius:4px;overflow:hidden;">
               <div style="width:${pct}%;height:100%;background:var(--orange);"></div>
@@ -547,54 +752,124 @@ async function renderFinanzas() {
     }
   }
 
-  // Proyecciones
+  // Proyecciones con el precio REAL del plan mensual del catálogo. Antes se
+  // multiplicaba por 80 a fuego: subir los precios del gym no cambiaba nada.
+  const precio = f.precio_referencia || 0;
   const sociosAct = (f.socios && f.socios.activos) || 0;
-  const proyBuena = (sociosAct + ((f.socios && f.socios.vencidos) || 0)) * 80;
-  const proyActual = sociosAct * 80;
+  const sociosVenc = (f.socios && f.socios.vencidos) || 0;
+  setText('proj-buena', formatMoney((sociosAct + sociosVenc) * precio));
+  setText('proj-actual', formatMoney(sociosAct * precio));
   const diaActual = new Date().getDate();
-  const promedioDiario = f.mes.total / Math.max(diaActual, 1);
-  setText('proj-buena', 'S/ ' + Math.round(proyBuena).toLocaleString('es-PE'));
-  setText('proj-actual', 'S/ ' + Math.round(proyActual).toLocaleString('es-PE'));
-  setText('proj-diario', 'S/ ' + Math.round(promedioDiario).toLocaleString('es-PE'));
+  setText('proj-diario', formatMoney(f.mes.total / Math.max(diaActual, 1)));
+
+  renderPagosRecientes();
+  renderEstadoRespaldo();
+}
+
+function mostrarAvisoFuturos(futuros) {
+  const cont = document.getElementById('fin-hoy');
+  const panel = cont ? cont.closest('.cards-row') : null;
+  let aviso = document.getElementById('aviso-futuros');
+  if (!futuros || !futuros.cantidad) { if (aviso) aviso.remove(); return; }
+  if (!aviso && panel && panel.parentNode) {
+    aviso = document.createElement('div');
+    aviso.id = 'aviso-futuros';
+    aviso.className = 'aviso-inline';
+    panel.parentNode.insertBefore(aviso, panel.nextSibling);
+  }
+  if (aviso) {
+    aviso.textContent = `⚠ Hay ${futuros.cantidad} pago(s) por ${formatMoney(futuros.total)} con fecha futura. ` +
+      'Suelen ser un error de tecleo en el año: búscalos abajo y anúlalos para que las cuentas cuadren.';
+  }
+}
+
+// Últimos pagos, con la opción de anular el que se registró mal.
+async function renderPagosRecientes() {
+  const body = document.getElementById('pagos-recientes-body');
+  if (!body) return;
+  const pagos = await api.getPagos(25);
+  if (!Array.isArray(pagos)) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-mid);padding:1.5rem;">No se pudieron cargar los pagos.</td></tr>';
+    return;
+  }
+  const recientes = pagos;
+  if (recientes.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-mid);padding:1.5rem;">Todavía no hay pagos registrados.</td></tr>';
+    return;
+  }
+  const hoy = hoyISO();
+  body.innerHTML = recientes.map(p => `
+    <tr${p.fecha_pago > hoy ? ' style="background:rgba(255,107,26,0.07);"' : ''}>
+      <td>${formatDate(p.fecha_pago)}${p.fecha_pago > hoy ? ' <small style="color:var(--orange);">(futura)</small>' : ''}</td>
+      <td>${p.tipo === 'renovacion' ? 'Renovación' : 'Matrícula'}</td>
+      <td><strong>${esc(p.nombre)}</strong><br><small style="color:var(--gray-mid);">${esc(p.concepto)}</small></td>
+      <td><span class="tag">${esc(p.metodo)}</span></td>
+      <td><strong>S/ ${formatPrice(p.monto)}</strong></td>
+      <td><button class="link-orange" style="color:var(--red);" data-anular="${p.id}">Anular</button></td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('[data-anular]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const motivo = prompt('¿Por qué se anula este pago?\n(Queda guardado como nota, el registro no se borra)', 'Monto equivocado');
+      if (motivo === null) return;
+      btn.disabled = true;
+      const r = await api.anularPago(parseInt(btn.dataset.anular, 10), motivo);
+      if (r.error) { showToast(r.error, 'error'); btn.disabled = false; return; }
+      showToast('Pago anulado ✓ Ya no cuenta en las finanzas');
+      renderFinanzas(); renderDashboard();
+    });
+  });
+}
+
+// ============ RESPALDO Y RESTAURACIÓN ============
+async function renderEstadoRespaldo() {
+  const el = document.getElementById('backup-estado');
+  if (!el) return;
+  const e = await api.getBackupEstado();
+  if (!e || e.error) { el.textContent = ''; return; }
+  el.textContent = `Ahora mismo hay ${e.socios} socio(s), ${e.pagos} pago(s), ${e.ventas} venta(s) extra y ${e.opciones} precio(s) guardados.`;
 }
 
 // ============ EXTRAS ============
 async function renderExtras() {
-  let extras = [];
-  try { extras = await api.getExtras(); } catch (e) {}
-  if (!Array.isArray(extras)) extras = [];
-
   const inicioMes = hoyISO().slice(0, 8) + '01';
-  const extrasMes = extras.filter(e => e.fecha >= inicioMes);
+  const [resumen, extras] = await Promise.all([
+    api.getExtrasResumen(inicioMes),
+    api.getExtras(300),
+  ]);
 
   const setVal = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-  const totalMes = extrasMes.reduce((s, e) => s + e.monto, 0);
-  setVal('extras-total-mes', 'S/ ' + Math.round(totalMes).toLocaleString('es-PE'));
-  setVal('extras-count-mes', `${extrasMes.length} ventas`);
+  if (!hayProblema(resumen)) {
+    setVal('extras-total-mes', formatMoney(resumen.total));
+    setVal('extras-count-mes', `${resumen.cantidad} venta${resumen.cantidad === 1 ? '' : 's'}`);
+  }
 
-  // Tarjetas dinámicas: las 3 categorías que más vendieron este mes,
-  // sean cuales sean las que el admin haya creado.
-  const porCat = {};
-  extrasMes.forEach(e => { porCat[e.categoria] = (porCat[e.categoria] || 0) + e.monto; });
+  // Las 3 categorías que más vendieron este mes, sumadas por la base de datos.
   const topEl = document.getElementById('extras-top-cats');
-  if (topEl) {
-    const top = Object.entries(porCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (topEl && !hayProblema(resumen)) {
+    const top = (resumen.categorias || []).slice(0, 3);
     topEl.innerHTML = top.length === 0
       ? `<div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
            <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">Sin ventas este mes</div>
-           <div style="font-family:var(--font-display);font-size:1.5rem;">S/ 0</div>
+           <div style="font-family:var(--font-display);font-size:1.5rem;">S/ 0.00</div>
          </div>`
-      : top.map(([cat, total]) => `
+      : top.map(c => `
           <div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
-            <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">${esc(cat)}</div>
-            <div style="font-family:var(--font-display);font-size:1.5rem;">S/ ${Math.round(total).toLocaleString('es-PE')}</div>
+            <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">${esc(c.categoria)}</div>
+            <div style="font-family:var(--font-display);font-size:1.5rem;">${formatMoney(c.total)}</div>
           </div>
         `).join('');
   }
 
-  const recent = extras.slice(0, 20);
   const body = document.getElementById('extras-body');
   if (!body) return;
+  if (!Array.isArray(extras)) {
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:2rem;">
+      ${esc((extras && extras.error) || 'No se pudieron cargar las ventas')}</td></tr>`;
+    return;
+  }
+  const recent = extras.slice(0, 50);
   if (recent.length === 0) {
     body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin ventas extras todavía.</td></tr>';
     return;
@@ -606,16 +881,17 @@ async function renderExtras() {
       <td>${esc(e.descripcion) || '—'}</td>
       <td><strong>S/ ${formatPrice(e.monto)}</strong></td>
       <td><span class="tag">${esc(e.metodo)}</span></td>
-      <td><button class="link-orange" style="color:var(--red);" data-extra-del="${e.id}">Borrar</button></td>
+      <td><button class="link-orange" style="color:var(--red);" data-extra-del="${e.id}">Anular</button></td>
     </tr>
   `).join('');
 
   body.querySelectorAll('[data-extra-del]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm('¿Borrar este ingreso? Esta venta dejará de contar en las finanzas.')) return;
-      const r = await api.deleteExtra(parseInt(btn.dataset.extraDel));
-      if (r.error) { showToast(r.error, 'error'); return; }
-      showToast('Borrado');
+      if (!confirm('¿Anular esta venta?\n\nDejará de contar en las finanzas, pero el registro queda guardado en el historial.')) return;
+      btn.disabled = true;
+      const r = await api.deleteExtra(parseInt(btn.dataset.extraDel, 10));
+      if (r.error) { showToast(r.error, 'error'); btn.disabled = false; return; }
+      showToast('Venta anulada');
       renderExtras(); renderFinanzas(); renderDashboard();
     });
   });
@@ -645,6 +921,29 @@ if (formExtra) {
   });
 }
 
+
+// ============ MI CUENTA (cambiar contraseña) ============
+// La API para cambiar la contraseña existía desde siempre, pero no había
+// ningún botón que la usara: la dueña no podía cambiarla desde el panel.
+const formPass = document.getElementById('form-cambiar-password');
+if (formPass) {
+  formPass.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const nueva = fd.get('nueva');
+      if (nueva !== fd.get('repetir')) {
+        showToast('La contraseña nueva no coincide en los dos campos', 'error');
+        return;
+      }
+      const res = await api.changePassword(fd.get('actual'), nueva);
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast('Contraseña actualizada ✓ Anótala en un lugar seguro');
+      e.target.reset();
+      closeModal('modal-cuenta');
+    });
+  });
+}
 
 // ============ MODALES ============
 function openModalNuevaClase() {
@@ -716,7 +1015,8 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         // El CSV sale del libro de pagos: cada matrícula Y cada renovación
         // con su fecha real, más las ventas extras.
-        const [pagos, extras] = await Promise.all([api.getPagos(), api.getExtras()]);
+        // El CSV lleva el historial completo, no solo lo que se ve en pantalla.
+        const [pagos, extras] = await Promise.all([api.getPagos(), api.getExtras(5000)]);
         const filas = [['Tipo', 'Fecha', 'Cliente/Concepto', 'Detalle', 'Método', 'Monto'].map(csvCell).join(',')];
         if (Array.isArray(pagos)) {
           pagos.forEach(p => {
@@ -740,6 +1040,48 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (e) {
         showToast('Error al exportar', 'error');
       }
+    });
+  }
+
+  const btnElegir = document.getElementById('btn-elegir-respaldo');
+  const inputRest = document.getElementById('input-restaurar');
+  if (btnElegir && inputRest) {
+    btnElegir.addEventListener('click', () => inputRest.click());
+    inputRest.addEventListener('change', async () => {
+      const archivo = inputRest.files && inputRest.files[0];
+      if (!archivo) return;
+      const etiqueta = document.getElementById('archivo-elegido');
+      if (etiqueta) etiqueta.textContent = archivo.name;
+
+      let texto;
+      try {
+        texto = await archivo.text();
+        const prueba = JSON.parse(texto);
+        if (!prueba || !prueba.tablas) throw new Error('sin tablas');
+      } catch (e) {
+        showToast('Ese archivo no es un respaldo válido de ZONA VIP GYM', 'error');
+        inputRest.value = '';
+        return;
+      }
+
+      const ok = confirm(
+        'RESTAURAR RESPALDO\n\n' +
+        'Los socios, pagos, ventas y precios actuales se REEMPLAZAN por los del archivo.\n' +
+        'Tu contraseña no cambia.\n\n' +
+        'Consejo: descarga primero un respaldo de lo que hay ahora.\n\n¿Continuar?'
+      );
+      if (!ok) { inputRest.value = ''; return; }
+
+      btnElegir.disabled = true;
+      const antes = btnElegir.textContent;
+      btnElegir.textContent = 'Restaurando...';
+      const r = await api.restaurarBackup(texto);
+      btnElegir.disabled = false;
+      btnElegir.textContent = antes;
+      inputRest.value = '';
+      if (r.error) { showToast(r.error, 'error'); return; }
+      showToast('Respaldo restaurado ✓');
+      cargarCatalogo(); renderMatriculas(); renderFinanzas(); renderDashboard(); renderExtras(); renderPorVencer();
     });
   }
 

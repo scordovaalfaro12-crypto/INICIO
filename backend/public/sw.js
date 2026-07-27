@@ -1,31 +1,81 @@
-// Service Worker básico para ZONA VIP GYM
-// Permite instalar la PWA en el celular sin caché agresivo
-// (para que siempre tenga la versión más nueva)
+// ==========================================================
+//  Service Worker — ZONA VIP GYM
+//
+//  Estrategia: PRIMERO LA RED, la caché solo como red de seguridad.
+//  Así el panel siempre muestra la versión más nueva; nunca se queda
+//  atrapado en una versión vieja como pasa con otras PWA.
+//
+//  Antes este archivo nunca guardaba NADA en caché, así que la promesa
+//  de "funciona sin internet" no existía: al perder señal, la app
+//  mostraba un texto plano de error. Ahora la pantalla al menos abre y
+//  explica lo que pasa.
+// ==========================================================
 
-const VERSION = 'zvg-v2';
+const VERSION = 'zvg-v3';
+const CACHE = `zvg-cache-${VERSION}`;
+
+// Lo mínimo para que la aplicación abra sin internet.
+const BASE = [
+  '/login.html',
+  '/admin.html',
+  '/styles.css',
+  '/app.js',
+  '/admin.js',
+  '/login.js',
+  '/manifest.json',
+  '/assets/logo.png',
+];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE)
+      // Si un archivo falla, la instalación NO debe abortar: es preferible una
+      // caché parcial a un service worker que nunca llega a instalarse.
+      .then((c) => Promise.allSettled(BASE.map((u) => c.add(u))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((claves) => Promise.all(
+        claves.filter((k) => k !== CACHE).map((k) => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
 });
 
-// Estrategia: network-first (siempre buscar lo nuevo, usar caché solo si no hay red)
 self.addEventListener('fetch', (event) => {
-  // No interceptar API calls (siempre datos frescos) ni descargas
-  if (event.request.url.includes('/api/')) return;
-  if (event.request.method !== 'GET') return;
+  const req = event.request;
+  // La API nunca se cachea: el dinero y los socios se leen siempre frescos.
+  if (req.url.includes('/api/')) return;
+  if (req.method !== 'GET') return;
+  if (!req.url.startsWith(self.location.origin)) return; // recursos externos (fuentes)
 
   event.respondWith(
-    fetch(event.request).catch(async () => {
-      const cached = await caches.match(event.request);
-      // Nunca responder undefined: eso rompe la página en vez de mostrar un aviso
-      return cached || new Response('Sin conexión a internet', {
-        status: 503,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
-    })
+    fetch(req)
+      .then((res) => {
+        // Copia al vuelo de lo que se descargó bien, para la próxima vez que
+        // falte internet. Solo respuestas correctas y del propio sitio.
+        if (res && res.ok && res.type === 'basic') {
+          const copia = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(async () => {
+        const guardado = await caches.match(req);
+        if (guardado) return guardado;
+        // Navegación sin caché previa: se devuelve la pantalla de acceso.
+        if (req.mode === 'navigate') {
+          const shell = await caches.match('/login.html');
+          if (shell) return shell;
+        }
+        return new Response(
+          'Sin conexión a internet. Vuelve a intentar cuando tengas señal.',
+          { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+        );
+      })
   );
 });

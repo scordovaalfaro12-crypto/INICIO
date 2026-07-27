@@ -10,9 +10,8 @@
   <meta name="apple-mobile-web-app-title" content="ZONA VIP">
   <link rel="apple-touch-icon" href="/assets/logo.png">
   <title>Acceso — ZONA VIP GYM</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=13" />
+  <link rel="stylesheet" href="styles.css?v=13" />
   <style>
     body { background: linear-gradient(135deg, #2B2B2B 0%, #1a1a1a 100%); min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
     .login-card-internal {
@@ -41,7 +40,7 @@
     </a>
     <div style="text-align:center;">
       <div class="internal-badge">SISTEMA INTERNO</div>
-      <h1 style="font-family:'Bebas Neue';font-size:1.8rem;letter-spacing:0.04em;color:#2B2B2B;margin-bottom:0.3rem;">Panel de gestión</h1>
+      <h1 style="font-family:var(--font-display);font-size:1.8rem;letter-spacing:0.04em;color:#2B2B2B;margin-bottom:0.3rem;">Panel de gestión</h1>
       <p style="color:#888;font-size:0.85rem;margin-bottom:1.5rem;">Acceso exclusivo del personal autorizado</p>
     </div>
 
@@ -64,31 +63,7 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=7"></script>
-  <script>
-    // Registrar Service Worker para instalar como app
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(()=>{});
-    }
-  </script>
-  <script>
-    document.getElementById('form-login').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      try {
-        const res = await api.login(fd.get('email').trim().toLowerCase(), fd.get('password'));
-        if (res.error) { showToast(res.error, 'error'); return; }
-        if (res.user.role !== 'admin') {
-          showToast('Solo personal autorizado puede ingresar', 'error');
-          return;
-        }
-        setToken(res.token);
-        showToast('Bienvenido ' + res.user.firstname);
-        setTimeout(() => window.location.href = 'admin.html', 600);
-      } catch (err) {
-        showToast('No se pudo conectar. ¿Está corriendo el sistema?', 'error');
-      }
-    });
-  </script>
+  <script src="app.js?v=13"></script>
+  <script src="login.js?v=13"></script>
 </body>
 </html>

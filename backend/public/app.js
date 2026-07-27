@@ -10,38 +10,55 @@ function getToken() { return localStorage.getItem(TOKEN_KEY); }
 function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
 function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
-// Todas las llamadas autenticadas pasan por aquí: si la sesión expiró
-// (401), se limpia el token y se vuelve al login en vez de quedar
-// la pantalla "muerta" mostrando errores.
+// Todas las llamadas autenticadas pasan por aquí.
+//  - 401: la sesión expiró -> se limpia el token y se vuelve al login, en vez
+//    de dejar la pantalla "muerta" mostrando errores.
+//  - 503: la base de datos está reconectando -> se avisa que es temporal.
+//  - Sin internet: se devuelve un error claro en vez de reventar la promesa,
+//    para que la pantalla nunca se quede a medias sin explicación.
 async function authFetch(url, options = {}) {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      'Authorization': `Bearer ${getToken()}`,
-    },
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        'Authorization': `Bearer ${getToken()}`,
+      },
+    });
+  } catch (e) {
+    return { error: 'Sin conexión a internet. Revisa la señal y vuelve a intentar.', sinRed: true };
+  }
+
   if (res.status === 401) {
     clearToken();
     window.location.href = 'login.html';
     return { error: 'Sesión expirada' };
   }
+
+  let datos;
   try {
-    return await res.json();
+    datos = await res.json();
   } catch (e) {
     return { error: 'Respuesta inválida del servidor' };
   }
+  if (!res.ok && datos && !datos.error) datos.error = 'Error del servidor';
+  return datos;
 }
 
 const api = {
   // === AUTH ===
   login: async (email, password) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      return await res.json();
+    } catch (e) {
+      return { error: 'No se pudo conectar con el sistema. Revisa tu internet.' };
+    }
   },
 
   me: () => authFetch(`${API_BASE}/auth/me`),
@@ -64,15 +81,39 @@ const api = {
   deleteClass: (id) => authFetch(`${API_BASE}/classes/${id}`, { method: 'DELETE' }),
 
   // === MATRÍCULAS / SOCIOS ===
-  getMemberships: () => authFetch(`${API_BASE}/memberships`),
+  // La búsqueda y el filtro los resuelve la base de datos: el navegador ya no
+  // se descarga la ficha de todos los socios para buscar un nombre.
+  getMemberships: ({ q = '', estado = 'todos', limit = 300 } = {}) => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (estado && estado !== 'todos') p.set('estado', estado);
+    p.set('limit', String(limit));
+    return authFetch(`${API_BASE}/memberships?${p.toString()}`);
+  },
+
+  getResumenSocios: () => authFetch(`${API_BASE}/memberships/resumen`),
+
+  getPorVencer: (dias = 7) => authFetch(`${API_BASE}/memberships/por-vencer?dias=${dias}`),
 
   getFinanzas: () => authFetch(`${API_BASE}/memberships/finanzas`),
 
   // Libro de pagos individual (cada matrícula y renovación con su fecha real)
-  getPagos: () => authFetch(`${API_BASE}/memberships/pagos`),
+  getPagos: (limit) => authFetch(`${API_BASE}/memberships/pagos${limit ? '?limit=' + limit : ''}`),
+
+  anularPago: (id, motivo) => authFetch(`${API_BASE}/memberships/pagos/${id}/anular`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ motivo })
+  }),
 
   createMembership: (data) => authFetch(`${API_BASE}/memberships`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }),
+
+  updateMembership: (id, data) => authFetch(`${API_BASE}/memberships/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   }),
@@ -86,7 +127,9 @@ const api = {
   deleteMembership: (id) => authFetch(`${API_BASE}/memberships/${id}`, { method: 'DELETE' }),
 
   // === EXTRAS ===
-  getExtras: () => authFetch(`${API_BASE}/extras`),
+  getExtras: (limit = 300) => authFetch(`${API_BASE}/extras?limit=${limit}`),
+
+  getExtrasResumen: (desde) => authFetch(`${API_BASE}/extras/resumen?desde=${desde}`),
 
   createExtra: (data) => authFetch(`${API_BASE}/extras`, {
     method: 'POST',
@@ -112,9 +155,22 @@ const api = {
     const res = await fetch(`${API_BASE}/backup`, {
       headers: { 'Authorization': `Bearer ${getToken()}` }
     });
+    if (res.status === 401) {
+      clearToken();
+      window.location.href = 'login.html';
+      throw new Error('Sesión expirada');
+    }
     if (!res.ok) throw new Error('No se pudo generar el respaldo');
     return res.blob();
-  }
+  },
+
+  getBackupEstado: () => authFetch(`${API_BASE}/backup/estado`),
+
+  restaurarBackup: (contenido) => authFetch(`${API_BASE}/backup/restaurar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: contenido // ya es el texto JSON del archivo
+  }),
 };
 
 // ===== Helpers compartidos =====
@@ -123,6 +179,12 @@ async function requireSession() {
   if (!token) { window.location.href = 'login.html'; return null; }
   try {
     const user = await api.me();
+    // Un fallo de red NO debe cerrar la sesión: si se borrara el token cada
+    // vez que el wifi parpadea, habría que volver a escribir la contraseña.
+    if (user && user.sinRed) {
+      mostrarAvisoConexion('Sin conexión a internet. Reintentando...');
+      return null;
+    }
     if (!user || user.error || user.role !== 'admin') {
       clearToken();
       window.location.href = 'login.html';
@@ -149,6 +211,36 @@ function setupLogout() {
   }
 }
 
+// Franja fija arriba para avisos que NO deben desaparecer solos (sin internet,
+// base de datos reconectando). Antes estos fallos se tragaban en silencio y la
+// pantalla mostraba "0 socios", como si el gimnasio estuviera vacío.
+function mostrarAvisoConexion(mensaje) {
+  let barra = document.getElementById('aviso-conexion');
+  if (!barra) {
+    barra = document.createElement('div');
+    barra.id = 'aviso-conexion';
+    barra.className = 'aviso-conexion';
+    document.body.appendChild(barra);
+  }
+  barra.textContent = mensaje;
+  barra.hidden = false;
+}
+
+function ocultarAvisoConexion() {
+  const barra = document.getElementById('aviso-conexion');
+  if (barra) barra.hidden = true;
+}
+
+// Devuelve true si la respuesta trae un error; además pinta el aviso adecuado.
+function hayProblema(res) {
+  if (!res) return true;
+  if (res.sinRed) { mostrarAvisoConexion('Sin conexión a internet. Los datos mostrados pueden estar desactualizados.'); return true; }
+  if (res.reintentable) { mostrarAvisoConexion('La base de datos está reconectando. Espera unos segundos...'); return true; }
+  if (res.error) return true;
+  ocultarAvisoConexion();
+  return false;
+}
+
 // "Hoy" según el reloj LOCAL del navegador (el del gym), no UTC.
 // new Date().toISOString() devolvía la fecha de mañana después de las 7pm en Perú.
 function hoyISO() {
@@ -164,6 +256,12 @@ function addDiasISO(iso, n) {
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + n);
   return dt.toISOString().slice(0, 10);
+}
+
+// Diferencia en días entre dos fechas 'YYYY-MM-DD'.
+function diasEntre(a, b) {
+  const p = (s) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((p(a) - p(b)) / 86400000);
 }
 
 // Escapa texto antes de insertarlo en HTML: un nombre o nota con símbolos
@@ -188,6 +286,15 @@ function formatPrice(n) {
   return Number(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+// Importes de los reportes CON céntimos. Antes se mostraban redondeados con
+// Math.round: el desglose no cuadraba con el total y faltaban soles sueltos.
+function formatMoney(n) {
+  return 'S/ ' + Number(n || 0).toLocaleString('es-PE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -202,14 +309,17 @@ function tagClass(estado) {
   }[estado] || 'tag-gray';
 }
 
+// El mensaje se inserta como TEXTO, nunca como HTML: si un nombre de socio
+// llevara símbolos raros, se muestran tal cual en vez de alterar la página.
 function showToast(msg, type = 'success') {
   const t = document.getElementById('toast');
   if (!t) return;
   t.className = 'toast toast--' + type;
-  t.innerHTML = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : '') + msg;
+  t.textContent = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : '') + msg;
   t.hidden = false;
   requestAnimationFrame(() => t.classList.add('is-visible'));
-  setTimeout(() => {
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => {
     t.classList.remove('is-visible');
     setTimeout(() => t.hidden = true, 300);
   }, 3500);

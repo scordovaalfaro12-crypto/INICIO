@@ -14,6 +14,7 @@ const path = require('path');
 const config = require('./config');
 const db = require('./db');
 const { securityHeaders } = require('./middleware/security');
+const { esErrorDeConexion } = require('./lib/errores');
 
 const authRoutes = require('./routes/auth');
 const classRoutes = require('./routes/classes');
@@ -30,22 +31,49 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
 app.use(securityHeaders);
-app.use(cors());
+
+// CORS cerrado por defecto: el panel se sirve desde este mismo servidor, así
+// que no hace falta permitir que otras webs llamen a la API. Antes cualquier
+// página de internet podía hacerlo. Si algún día se necesita, se listan los
+// dominios en la variable ALLOWED_ORIGINS.
+app.use(cors({
+  origin: config.ALLOWED_ORIGINS.length ? config.ALLOWED_ORIGINS : false,
+  credentials: false,
+}));
+
+// Restaurar un respaldo sube un archivo grande (años de historial); el resto
+// de la API sigue con un límite pequeño para no aceptar envíos abusivos.
+app.use('/api/backup/restaurar', express.json({ limit: '25mb' }));
 app.use(express.json({ limit: '200kb' }));
 
-// Salud del sistema: Railway puede usar /api/health como healthcheck.
+// Salud del sistema: Railway usa /api/health como healthcheck del despliegue.
+//
+// Periodo de gracia al arrancar: si la base de datos tarda en despertar (a
+// Supabase le pasa tras días sin uso), el sistema SÍ está bien y se conectará
+// solo en segundos. Antes eso hacía fallar el despliegue entero y dejaba el
+// sitio caído esperando una intervención manual. Pasado el periodo de gracia,
+// una base que sigue sin responder sí es un fallo real y se reporta como tal.
+const ARRANQUE = Date.now();
+const GRACIA_MS = 5 * 60 * 1000;
+
 app.get('/api/health', async (req, res) => {
+  const enGracia = Date.now() - ARRANQUE < GRACIA_MS;
   if (!db.isDBReady()) {
-    return res.status(503).json({ status: 'INICIANDO', db: 'conectando', timestamp: new Date().toISOString() });
+    const estado = { status: 'INICIANDO', db: 'conectando', timestamp: new Date().toISOString() };
+    return enGracia ? res.status(200).json(estado) : res.status(503).json(estado);
   }
+  let temporizador;
   try {
     await Promise.race([
       db.query('SELECT 1'),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500)),
+      new Promise((_, rej) => { temporizador = setTimeout(() => rej(new Error('timeout')), 2500); }),
     ]);
     res.json({ status: 'OK', db: 'ok', timestamp: new Date().toISOString() });
   } catch (e) {
-    res.status(503).json({ status: 'ERROR', db: 'sin conexión', timestamp: new Date().toISOString() });
+    const estado = { status: 'ERROR', db: 'sin conexión', timestamp: new Date().toISOString() };
+    res.status(enGracia ? 200 : 503).json(estado);
+  } finally {
+    clearTimeout(temporizador); // sin esto quedaba un temporizador vivo por cada consulta
   }
 });
 
@@ -94,8 +122,15 @@ app.use((err, req, res, next) => {
   if (err && err.type === 'entity.too.large') {
     return res.status(413).json({ error: 'Petición demasiado grande' });
   }
-  console.error('[HTTP] Error no controlado:', err);
   if (res.headersSent) return next(err);
+  if (esErrorDeConexion(err)) {
+    console.error('[HTTP] Base de datos no disponible:', err.message);
+    return res.status(503).json({
+      error: 'Sin conexión con la base de datos. El sistema lo reintenta solo; espera unos segundos.',
+      reintentable: true,
+    });
+  }
+  console.error('[HTTP] Error no controlado:', err);
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
@@ -109,13 +144,24 @@ const server = app.listen(config.PORT, '0.0.0.0', () => {
   console.log('');
 });
 
+// Railway pone un proxy delante. Si el servidor cierra las conexiones antes
+// que el proxy (5 s por defecto en Node), el proxy reutiliza una conexión que
+// se está cerrando y el navegador recibe un 502 justo al guardar un pago.
+// Con 65 s el que cierra siempre es el proxy, y eso no falla nunca.
+server.keepAliveTimeout = 65 * 1000;
+server.headersTimeout = 66 * 1000;
+
 // La base de datos se conecta en paralelo y reintenta sola si hace falta.
 db.initDBConReintentos().then(() => {
+  // Si el proceso se está apagando, initDBConReintentos vuelve sin haber
+  // conectado: antes se imprimía igualmente "conectada y lista ✓" y se
+  // instalaba un intervalo nuevo sobre un pool ya cerrado.
+  if (!db.isDBReady()) return;
   console.log('[DB] Base de datos conectada y lista ✓');
   // Refresco de estados cada hora: las membresías pasan a "vencida" a tiempo
   // aunque nadie abra el panel ese día.
   setInterval(() => {
-    db.actualizarEstadoMemberships().catch((e) => console.error('[CRON] Estados:', e.message));
+    db.actualizarEstadoMemberships(true).catch((e) => console.error('[CRON] Estados:', e.message));
   }, 60 * 60 * 1000).unref();
 });
 

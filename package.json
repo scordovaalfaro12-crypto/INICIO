@@ -9,6 +9,6 @@
     "test": "cd backend && npm test"
   },
   "engines": {
-    "node": ">=18.17"
+    "node": ">=20 <25"
   }
 }

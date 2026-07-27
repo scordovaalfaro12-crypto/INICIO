@@ -1,10 +1,45 @@
-# 🏋️ ZONA VIP GYM — Sistema de gestión (v2)
+# 🏋️ ZONA VIP GYM — Sistema de gestión (v3)
 
 Sistema interno para administrar **ingresos** (matrículas, renovaciones y ventas extras) y controlar **cuánto tiempo le queda a cada socio** de membresía. Corre en la nube (Railway + Supabase) y se instala como app en el celular.
 
 > **El código del servidor vive en la carpeta [`backend/`](backend/).**
 
 ---
+
+## 🆕 Qué cambió en la v3 (endurecimiento)
+
+Auditoría completa + pruebas contra una base de datos real con **1.500 socios y
+15.000 pagos** (tres años simulados de uso). Lo medido y corregido:
+
+- **El panel abría en 12,8 segundos** porque esperaba una hoja de fuentes de
+  Google que bloqueaba toda la página. Ahora las fuentes viven en el propio
+  servidor: **abre en 0,3 segundos** y funciona aunque Google esté inaccesible.
+- **El buscador de socios descargaba las 1.500 fichas con cada tecla** (3 MB al
+  escribir un nombre). Ahora busca la base de datos y espera a que termines de
+  escribir: **13 KB y dos consultas**. Además encuentra "José" escribiendo "jose".
+- **Un pago con el año mal tecleado se sumaba a la vez en hoy, semana, mes y
+  año, para siempre.** Ahora los reportes tienen tope en la fecha de hoy y
+  Finanzas avisa si hay dinero registrado con fecha futura.
+- **Diez errores de tipeo bloqueaban el acceso 15 minutos.** Ahora la espera
+  empieza en 5 segundos y solo crece ante intentos masivos.
+- **Un botón del inicio dejaba la pantalla en blanco** (llevaba a una sección
+  que no existe).
+- **Los fallos de red se ocultaban** y la pantalla mostraba "0 socios", como si
+  el gimnasio estuviera vacío. Ahora avisan con una franja roja.
+- **Si el celular perdía señal al guardar, se cobraba dos veces** sin aviso.
+  Ahora el sistema detecta el pago repetido y pregunta.
+- **La clave de sesión tenía un valor por defecto escrito en el código** (que
+  está publicado en GitHub). Ahora, si falta la variable, se genera aleatoria.
+- **La contraseña inicial era "admin123"** y no había forma de cambiarla desde
+  el panel. Ahora se genera al azar y existe la pantalla *Mi cuenta*.
+- **El respaldo no se podía volver a cargar.** Ahora se restaura desde el panel.
+- **No se podía corregir nada**: ni un nombre mal escrito ni un monto errado.
+  Ahora sí (ver *Corregir errores*).
+- Dos instancias arrancando a la vez podían duplicar el historial: las
+  migraciones toman un candado en la base de datos.
+- Consultas con tope de tiempo, reconexión automática, cierre ordenado y
+  healthcheck con periodo de gracia para que un arranque lento de la base no
+  tumbe el despliegue.
 
 ## ✅ Qué cambió en la v2 (resumen para la dueña)
 
@@ -37,7 +72,8 @@ El sistema ya está preparado para que Railway lo despliegue directo desde este 
    |---|---|
    | `DATABASE_URL` | La URI de Supabase (Transaction pooler, puerto 6543) |
    | `JWT_SECRET` | 64 caracteres aleatorios (https://generate-secret.vercel.app/64) |
-   | `ADMIN_PASSWORD` | Solo se usa la PRIMERA vez, con la base vacía |
+   | `ADMIN_PASSWORD` | Solo se usa la PRIMERA vez, con la base vacía. Si no la pones, el sistema genera una y la muestra en los logs |
+   | `ADMIN_RESET_PASSWORD` | *(opcional)* Solo para recuperar una contraseña olvidada. Bórrala después de usarla |
    | `NODE_ENV` | `production` |
 
 5. (Recomendado) En **Settings → Deploy → Healthcheck Path** pon `/api/health` — Railway no cambiará a una versión nueva hasta que esté sana.
@@ -93,13 +129,51 @@ npm test                   # pruebas (no necesitan base de datos)
 npm start                  # http://localhost:3000
 ```
 
+## 🛠️ Corregir errores (nuevo en la v3)
+
+Nadie teclea perfecto todos los días. Todo esto se arregla desde el panel, sin ayuda técnica:
+
+| Si te equivocaste en… | Cómo se arregla |
+|---|---|
+| El nombre, teléfono, DNI, plan o fecha de vencimiento de un socio | Pestaña **Socios** → botón **Corregir** en su fila |
+| El monto de un pago (tecleaste 800 en vez de 80) | Pestaña **Finanzas** → tabla **Últimos pagos** → **Anular**. El pago deja de contar, pero el registro queda guardado con el motivo |
+| Una venta de producto mal registrada | Pestaña **Socios/Extras** → **Anular** en su fila |
+| Un pago con el año mal (2027 en vez de 2026) | Finanzas te avisa arriba en naranja y te dice cuántos hay; anúlalo y regístralo bien |
+| Registraste dos veces el mismo pago | El sistema lo detecta y pregunta antes de duplicarlo |
+| Tu contraseña | Botón del **candado** abajo a la izquierda → *Cambiar mi contraseña* |
+
+## 📲 Avisar a los socios que vencen
+
+En **Socios** aparece el panel *"Avisar a los que vencen pronto"* con los que
+vencen en 3, 7 o 15 días y un botón que abre **WhatsApp** con el mensaje ya
+escrito. No hay ningún servicio contratado detrás: es un enlace normal, así que
+no puede caducar ni cobrarte nada.
+
+## 🛟 Respaldo y restauración
+
+- **Descargar:** Finanzas → **RESPALDO**. Hazlo una vez al mes y guarda el archivo en tu correo o celular.
+- **Restaurar:** Finanzas → *Copia de seguridad* → **Restaurar desde un archivo…**
+  Reemplaza socios, pagos, ventas y precios por los del archivo. **Tu contraseña no cambia.**
+  Consejo: antes de restaurar, descarga un respaldo de lo que hay ahora.
+
+## 🔑 Si olvidaste la contraseña
+
+No hace falta tocar nada del código:
+
+1. Railway → tu servicio **web** → pestaña **Variables**.
+2. Crea la variable `ADMIN_RESET_PASSWORD` con la contraseña nueva que quieras (mínimo 6 caracteres).
+3. Aplica los cambios y espera el redespliegue (1–2 minutos).
+4. Entra con esa contraseña y **borra la variable** `ADMIN_RESET_PASSWORD` de Railway.
+
 ## 🆘 Si algo falla
 
 | Problema | Qué revisar |
 |---|---|
 | "Application failed to respond" | Logs de Railway. El sistema reintenta la conexión a la base solo; si los logs dicen `[DB] Sin conexión`, revisa `DATABASE_URL` |
 | `/api/health` responde 503 | La base de datos no responde: revisa el estado de Supabase. El server se recupera solo cuando vuelva |
-| "Demasiados intentos fallidos" | Protección anti fuerza bruta: espera 15 minutos |
+| "Demasiados intentos seguidos" | Protección contra ataques. La espera es corta al principio (5 s) y solo crece si se falla muchas veces seguidas. Al entrar bien, el contador se borra |
+| Olvidaste la contraseña | Ver *"Si olvidaste la contraseña"* más arriba |
+| Franja roja arriba: "sin conexión" | Tu internet o la base de datos. Los datos están a salvo; el sistema se reconecta solo |
 | "Sesión expirada" | Normal después de 24 h: vuelve a entrar |
 | Build failed en Railway | Verifica que el Root Directory sea `backend` o esté vacío |
 
@@ -114,8 +188,10 @@ npm start                  # http://localhost:3000
     ├── db.js             ← pool blindado + esquema + migraciones idempotentes
     ├── lib/dates.js      ← fechas en hora de Perú, a prueba de zona horaria
     ├── lib/validate.js   ← validación de toda entrada de datos
-    ├── middleware/       ← sesiones JWT + cabeceras de seguridad + rate limit
+    ├── lib/errores.js    ← distingue "la base está caída" de "error de verdad"
+    ├── middleware/       ← sesiones JWT + cabeceras de seguridad + freno de login
     ├── routes/           ← auth, matrículas/finanzas, extras, clases, respaldo
     ├── tests/            ← pruebas automáticas (npm test)
     └── public/           ← la pantalla del sistema (HTML/CSS/JS + PWA)
+        └── assets/fonts/ ← tipografías propias: cero dependencias externas
 ```

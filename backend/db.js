@@ -36,10 +36,18 @@ function crearPool() {
   const p = new Pool({
     connectionString: config.DATABASE_URL,
     ssl: usarSSL ? { rejectUnauthorized: false } : false,
-    max: 5,                       // Supabase free limita conexiones: pocas y estables
+    max: 8,                       // Supabase free limita conexiones: pocas y estables
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     keepAlive: true,
+    keepAliveInitialDelayMillis: 10000, // el default del sistema son 2 HORAS:
+                                        // demasiado tarde para detectar que un
+                                        // intermediario cortó la conexión.
+    // Una consulta jamás debe quedarse colgada para siempre: si lo hiciera,
+    // retendría una conexión del pool y, tras unas pocas, el sistema entero
+    // dejaría de responder aunque la base estuviera sana.
+    statement_timeout: 20000,     // lo corta el servidor de base de datos
+    query_timeout: 25000,         // lo corta el cliente, por si el otro falla
   });
   // CRÍTICO: sin este handler, un corte de red en una conexión inactiva
   // emite 'error' sin listener y TUMBA el proceso completo. Es la causa
@@ -89,25 +97,52 @@ function isDBReady() { return dbReady; }
 let detenido = false;
 function detenerReintentos() { detenido = true; }
 
-async function runMigration(id, fn) {
-  const aplicada = await queryOne('SELECT id FROM schema_migrations WHERE id = $1', [id]);
-  if (aplicada) return;
+// `ejecutar` es SIEMPRE la conexión que tiene tomado el candado de migraciones:
+// así todo el esquema se aplica en una sola sesión, con su tope de tiempo
+// ampliado y sin que otra instancia pueda entrar a la mitad.
+async function runMigration(ejecutar, id, fn) {
+  const r = await ejecutar('SELECT id FROM schema_migrations WHERE id = $1', [id]);
+  if (r.rows.length > 0) return;
   await fn();
-  await query('INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT (id) DO NOTHING', [id]);
+  await ejecutar('INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT (id) DO NOTHING', [id]);
   console.log(`[DB] Migración aplicada: ${id}`);
 }
+
+// Número arbitrario pero fijo que identifica "el candado de migraciones de
+// ZONA VIP GYM" dentro de Postgres.
+const LOCK_MIGRACIONES = 728411;
 
 async function initDB() {
   console.log('[DB] Verificando esquema...');
 
-  await query(`
+  // Candado a nivel de base de datos mientras se crea/migra el esquema.
+  // Durante un redeploy, Railway puede tener la instancia vieja y la nueva
+  // arrancando a la vez: sin este candado, las dos podrían ejecutar la misma
+  // migración simultáneamente y duplicar TODO el historial de pagos.
+  // El candado se toma con una conexión propia y se suelta pase lo que pase.
+  const cliente = await pool.connect();
+  try {
+    // Las migraciones pueden tardar más que una consulta normal (y hay que
+    // poder esperar a que la otra instancia suelte el candado), así que en
+    // ESTA conexión el tope sube a 2 minutos en vez de los 20 segundos.
+    await cliente.query('SET statement_timeout = 120000');
+    await cliente.query('SELECT pg_advisory_lock($1)', [LOCK_MIGRACIONES]);
+    await aplicarEsquema((texto, params) => cliente.query(texto, params));
+  } finally {
+    try { await cliente.query('SELECT pg_advisory_unlock($1)', [LOCK_MIGRACIONES]); } catch (e) { /* conexión ya caída */ }
+    cliente.release();
+  }
+}
+
+async function aplicarEsquema(ejecutar) {
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id TEXT PRIMARY KEY,
       aplicada TIMESTAMPTZ DEFAULT NOW()
     );
   `);
 
-  await query(`
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       firstname TEXT NOT NULL,
@@ -118,7 +153,7 @@ async function initDB() {
     );
   `);
 
-  await query(`
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS classes (
       id SERIAL PRIMARY KEY,
       titulo TEXT NOT NULL,
@@ -133,7 +168,7 @@ async function initDB() {
     );
   `);
 
-  await query(`
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS memberships (
       id SERIAL PRIMARY KEY,
       nombre TEXT NOT NULL,
@@ -150,7 +185,7 @@ async function initDB() {
     );
   `);
 
-  await query(`
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS extra_sales (
       id SERIAL PRIMARY KEY,
       categoria TEXT NOT NULL,
@@ -164,7 +199,7 @@ async function initDB() {
   `);
 
   // Tabla heredada de la versión anterior: se conserva por compatibilidad.
-  await query(`
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS reservations (
       id SERIAL PRIMARY KEY,
       "userId" INTEGER,
@@ -184,7 +219,7 @@ async function initDB() {
   // Libro de ingresos: una fila por cada pago real (matrícula, renovación).
   // Sin clave foránea a memberships a propósito: si el admin borra la ficha
   // de un socio, su dinero ya cobrado sigue contando en los reportes.
-  await query(`
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS payments (
       id SERIAL PRIMARY KEY,
       tipo TEXT NOT NULL DEFAULT 'matricula',
@@ -202,7 +237,7 @@ async function initDB() {
   // Catálogo editable por el admin: opciones de matrícula/promos (con precio
   // y duración) y categorías de ventas extras. Quitar una opción NO toca el
   // historial: memberships y payments guardan el concepto como texto.
-  await query(`
+  await ejecutar(`
     CREATE TABLE IF NOT EXISTS catalog_options (
       id SERIAL PRIMARY KEY,
       tipo TEXT NOT NULL CHECK (tipo IN ('matricula', 'extra')),
@@ -216,16 +251,16 @@ async function initDB() {
 
   // REAL (float binario) acumula errores de centavos con los años.
   // NUMERIC(12,2) es exacto. ROUND limpia cualquier artefacto previo.
-  await runMigration('001_montos_a_numeric', async () => {
-    await query(`ALTER TABLE memberships ALTER COLUMN monto TYPE NUMERIC(12,2) USING ROUND(monto::numeric, 2)`);
-    await query(`ALTER TABLE extra_sales ALTER COLUMN monto TYPE NUMERIC(12,2) USING ROUND(monto::numeric, 2)`);
-    await query(`ALTER TABLE classes ALTER COLUMN precio TYPE NUMERIC(12,2) USING ROUND(precio::numeric, 2)`);
+  await runMigration(ejecutar, '001_montos_a_numeric', async () => {
+    await ejecutar(`ALTER TABLE memberships ALTER COLUMN monto TYPE NUMERIC(12,2) USING ROUND(monto::numeric, 2)`);
+    await ejecutar(`ALTER TABLE extra_sales ALTER COLUMN monto TYPE NUMERIC(12,2) USING ROUND(monto::numeric, 2)`);
+    await ejecutar(`ALTER TABLE classes ALTER COLUMN precio TYPE NUMERIC(12,2) USING ROUND(precio::numeric, 2)`);
   });
 
   // Las membresías que ya existían pasan al libro de ingresos como un pago
   // en su fecha de pago original (igual que las contaban los reportes viejos).
-  await runMigration('002_backfill_payments', async () => {
-    await query(`
+  await runMigration(ejecutar, '002_backfill_payments', async () => {
+    await ejecutar(`
       INSERT INTO payments (tipo, membership_id, nombre, concepto, monto, metodo, fecha_pago, creado)
       SELECT 'matricula', m.id, m.nombre, m.concepto, ROUND(m.monto::numeric, 2), m.metodo, m.fecha_pago,
              COALESCE(m.creado, NOW())
@@ -234,10 +269,20 @@ async function initDB() {
     `);
   });
 
+  // Anular un pago mal registrado sin borrar el historial: queda la fila con
+  // su motivo y deja de sumar en los reportes. Antes, un pago tecleado con el
+  // monto equivocado quedaba en las finanzas para siempre.
+  await runMigration(ejecutar, '004_pagos_anulables', async () => {
+    await ejecutar(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS anulado BOOLEAN NOT NULL DEFAULT FALSE`);
+    await ejecutar(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT DEFAULT ''`);
+    await ejecutar(`ALTER TABLE extra_sales ADD COLUMN IF NOT EXISTS anulado BOOLEAN NOT NULL DEFAULT FALSE`);
+    await ejecutar(`ALTER TABLE extra_sales ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT DEFAULT ''`);
+  });
+
   // Precios iniciales del catálogo: los 4 conceptos históricos del sistema
   // más la lista real del flyer del gym. El admin puede quitar o agregar
   // los que quiera desde la pestaña "Precios y promos".
-  await runMigration('003_seed_catalogo', async () => {
+  await runMigration(ejecutar, '003_seed_catalogo', async () => {
     const matriculas = [
       ['Matrícula mensual', 80, 30],
       ['Matrícula quincenal', 50, 15],
@@ -250,7 +295,7 @@ async function initDB() {
       ['Aeróbicos 2 personas (promo)', 120, 30],
     ];
     for (const [nombre, precio, dias] of matriculas) {
-      await query(
+      await ejecutar(
         `INSERT INTO catalog_options (tipo, nombre, precio, dias) VALUES ('matricula', $1, $2, $3)
          ON CONFLICT (tipo, nombre) DO NOTHING`,
         [nombre, precio, dias]
@@ -258,7 +303,7 @@ async function initDB() {
     }
     const extras = ['Aguas/Bebidas', 'Energizantes', 'Suplementos', 'Proteína', 'Creatina', 'Ropa', 'Toallas', 'Otros'];
     for (const nombre of extras) {
-      await query(
+      await ejecutar(
         `INSERT INTO catalog_options (tipo, nombre) VALUES ('extra', $1)
          ON CONFLICT (tipo, nombre) DO NOTHING`,
         [nombre]
@@ -267,13 +312,18 @@ async function initDB() {
   });
 
   // Índices: con años de datos las consultas de reportes siguen siendo instantáneas.
-  await query(`CREATE INDEX IF NOT EXISTS idx_memberships_fecha_vence ON memberships (fecha_vence)`);
-  await query(`CREATE INDEX IF NOT EXISTS idx_memberships_estado ON memberships (estado)`);
-  await query(`CREATE INDEX IF NOT EXISTS idx_payments_fecha_pago ON payments (fecha_pago)`);
-  await query(`CREATE INDEX IF NOT EXISTS idx_payments_membership ON payments (membership_id)`);
-  await query(`CREATE INDEX IF NOT EXISTS idx_extra_sales_fecha ON extra_sales (fecha)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_fecha_vence ON memberships (fecha_vence)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_estado ON memberships (estado)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_payments_fecha_pago ON payments (fecha_pago)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_payments_membership ON payments (membership_id)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_extra_sales_fecha ON extra_sales (fecha)`);
+  // Búsqueda de socios por nombre sin distinguir mayúsculas: con miles de
+  // fichas el buscador sigue respondiendo al instante.
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_nombre_lower ON memberships (LOWER(nombre))`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_dni ON memberships (dni)`);
 
-  await insertarAdminSiNoExiste();
+  await insertarAdminSiNoExiste(ejecutar);
+  await restablecerAdminSiSePidio(ejecutar);
   console.log('[DB] Esquema listo ✓');
 }
 
@@ -315,29 +365,81 @@ async function initDBConReintentos() {
   }
 }
 
-async function insertarAdminSiNoExiste() {
-  const res = await queryOne('SELECT COUNT(*)::int AS count FROM users');
+async function insertarAdminSiNoExiste(ejecutar) {
+  const r = await ejecutar('SELECT COUNT(*)::int AS count FROM users');
+  const res = r.rows[0];
   if (res && res.count === 0) {
-    const passwordInicial = config.ADMIN_PASSWORD || 'admin123';
+    // Sin ADMIN_PASSWORD se genera una contraseña ALEATORIA y se muestra en
+    // los logs del arranque. Antes se usaba "admin123", que está escrita en
+    // el código publicado: cualquiera que encontrara la web podía entrar.
+    const generada = !config.ADMIN_PASSWORD;
+    const passwordInicial = config.ADMIN_PASSWORD ||
+      ('ZonaVip-' + require('crypto').randomBytes(6).toString('base64url'));
     const hash = await bcrypt.hash(passwordInicial, 10);
-    await query(
+    await ejecutar(
       `INSERT INTO users (firstname, lastname, email, password, role) VALUES ($1, $2, $3, $4, $5)`,
       ['Administradora', 'ZONA VIP GYM', config.ADMIN_EMAIL, hash, 'admin']
     );
     console.log(`[DB] Admin creado: ${config.ADMIN_EMAIL}`);
-    if (!config.ADMIN_PASSWORD) {
-      console.warn('[DB] ⚠ Se usó la contraseña por defecto "admin123". CÁMBIALA apenas entres al sistema.');
+    if (generada) {
+      console.warn('╔══════════════════════════════════════════════════════════╗');
+      console.warn('║ No definiste ADMIN_PASSWORD, así que se generó una clave  ');
+      console.warn('║ aleatoria para el primer acceso. ANÓTALA AHORA:           ');
+      console.warn(`║     Usuario:    ${config.ADMIN_EMAIL}`);
+      console.warn(`║     Contraseña: ${passwordInicial}`);
+      console.warn('║ Entra al panel y cámbiala desde "Mi cuenta".              ');
+      console.warn('╚══════════════════════════════════════════════════════════╝');
     }
+  }
+}
+
+// Salida de emergencia: si la dueña olvida su contraseña, define
+// ADMIN_RESET_PASSWORD en Railway → Variables y reinicia. Al arrancar, la
+// contraseña queda restablecida y el log le recuerda borrar la variable.
+// Sin esto, olvidar la contraseña dejaba el sistema cerrado para siempre.
+async function restablecerAdminSiSePidio(ejecutar) {
+  if (!config.ADMIN_RESET_PASSWORD) return;
+  const hash = await bcrypt.hash(config.ADMIN_RESET_PASSWORD, 10);
+  const r = await ejecutar(
+    `UPDATE users SET password = $1 WHERE email = $2 RETURNING id`,
+    [hash, config.ADMIN_EMAIL]
+  );
+  if (r.rowCount > 0) {
+    console.warn('╔══════════════════════════════════════════════════════════╗');
+    console.warn(`║ CONTRASEÑA RESTABLECIDA para ${config.ADMIN_EMAIL}`);
+    console.warn('║ Entra al sistema y luego BORRA la variable                ');
+    console.warn('║ ADMIN_RESET_PASSWORD en Railway → Variables.              ');
+    console.warn('╚══════════════════════════════════════════════════════════╝');
+  } else {
+    console.warn(`[DB] ADMIN_RESET_PASSWORD definida pero no existe el usuario ${config.ADMIN_EMAIL}.`);
   }
 }
 
 // Mantiene el campo `estado` coherente con la fecha de vencimiento, en ambos
 // sentidos (también re-activa si quedó mal marcada). YA NO BORRA NADA:
 // el borrado automático de la versión anterior destruía el historial.
-async function actualizarEstadoMemberships() {
+//
+// Se ejecuta como mucho una vez por minuto: antes se lanzaban dos UPDATE en
+// CADA lectura de la lista de socios, y el buscador dispara una lectura por
+// cada tecla. Con miles de fichas eso era escribir en la base decenas de
+// veces por segundo sin ninguna necesidad (el estado solo cambia de día a día).
+let ultimoRefresco = 0;
+const REFRESCO_MS = 60 * 1000;
+
+async function actualizarEstadoMemberships(forzar = false) {
+  const ahora = Date.now();
+  if (!forzar && ahora - ultimoRefresco < REFRESCO_MS) return;
+  ultimoRefresco = ahora;
   const hoy = todayISO(config.TZ);
-  await query(`UPDATE memberships SET estado = 'vencida' WHERE fecha_vence < $1 AND estado = 'activa'`, [hoy]);
-  await query(`UPDATE memberships SET estado = 'activa' WHERE fecha_vence >= $1 AND estado = 'vencida'`, [hoy]);
+  try {
+    await query(`UPDATE memberships SET estado = 'vencida' WHERE fecha_vence < $1 AND estado = 'activa'`, [hoy]);
+    await query(`UPDATE memberships SET estado = 'activa' WHERE fecha_vence >= $1 AND estado = 'vencida'`, [hoy]);
+  } catch (err) {
+    // Si falla (base caída), se reintenta en la próxima llamada: no se
+    // "quema" la ventana de un minuto con un intento fallido.
+    ultimoRefresco = 0;
+    throw err;
+  }
 }
 
 // El pool puede recrearse (ajuste de SSL), así que el apagado pasa por aquí

@@ -10,7 +10,7 @@
     "check": "node --check server.js && node --check db.js && node --check config.js"
   },
   "engines": {
-    "node": ">=18.17"
+    "node": ">=20 <25"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

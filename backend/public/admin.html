@@ -10,9 +10,8 @@
   <meta name="apple-mobile-web-app-title" content="ZONA VIP">
   <link rel="apple-touch-icon" href="/assets/logo.png">
   <title>Admin — ZONA VIP GYM</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=13" />
+  <link rel="stylesheet" href="styles.css?v=13" />
   <style>
     .admin-badge { background: var(--orange); color: var(--white); padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-left: 0.5rem; }
   </style>
@@ -52,6 +51,9 @@
           <div class="sidebar__user-name">Admin</div>
           <div class="sidebar__user-plan">Administrador</div>
         </div>
+        <button class="sidebar__logout" data-abrir="modal-cuenta" title="Mi cuenta y contraseña" style="margin-right:0.2rem;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
         <button class="sidebar__logout" id="btn-logout" title="Cerrar sesión">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
         </button>
@@ -92,14 +94,14 @@
 
         <div class="panel">
           <div class="panel__head">
-            <h3>Reservas recientes</h3>
-            <button class="btn btn-outline btn-sm" onclick="switchTab('reservas')">Ver todas</button>
+            <h3>Últimos pagos registrados</h3>
+            <button class="btn btn-outline btn-sm" data-ir-a="matriculas">Ver todos los socios</button>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>ID</th><th>Usuario</th><th>Clase</th><th>Instructor</th><th>Fecha/Hora</th><th>Lugares</th><th>Monto</th><th>Estado</th>
+                  <th>ID</th><th>Socio</th><th>Concepto</th><th>Método</th><th>Fecha de pago</th><th>Vence</th><th>Monto</th><th>Estado</th>
                 </tr>
               </thead>
               <tbody id="dash-reservas-body"></tbody>
@@ -113,7 +115,7 @@
             <div id="planes-chart"></div>
           </div>
           <div class="panel">
-            <div class="panel__head"><h3>Clases más solicitadas</h3></div>
+            <div class="panel__head"><h3>Productos más vendidos este mes</h3></div>
             <div id="clases-chart"></div>
           </div>
         </div>
@@ -123,7 +125,7 @@
       <section class="admin-section" id="tab-clases" hidden>
         <div class="page-head">
           <div><h1>Clases EX LOCAL <span class="admin-badge">Admin</span></h1><p>Gestiona la cartelera de clases.</p></div>
-          <button class="btn btn-primary" onclick="openModalNuevaClase()">
+          <button class="btn btn-primary" data-abrir="modal-clase-new">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
             Nueva clase
           </button>
@@ -144,7 +146,7 @@
       <section class="admin-section" id="tab-matriculas" hidden>
         <div class="page-head">
           <div><h1>Matrículas y socios <span class="admin-badge">Admin</span></h1><p>Registro de socios. Pueden ser pagos en persona o por Yape. Verde = activa · Rojo = vencida. Cada pago queda guardado para siempre en el historial de ingresos.</p></div>
-          <button class="btn btn-primary" onclick="openModalNuevaMatricula()">
+          <button class="btn btn-primary" data-abrir="modal-matricula">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
             Registrar pago
           </button>
@@ -166,6 +168,18 @@
             <div class="stat-card__trend" style="color:var(--orange);">Avisar al socio</div>
           </div>
         </div>
+        <div class="panel" id="panel-por-vencer" hidden>
+          <div class="panel__head">
+            <h3>📲 Avisar a los que vencen pronto</h3>
+            <select id="select-dias-vencer" class="search-input" style="padding:0.4rem 0.9rem;border-radius:999px;">
+              <option value="3">Próximos 3 días</option>
+              <option value="7" selected>Próximos 7 días</option>
+              <option value="15">Próximos 15 días</option>
+            </select>
+          </div>
+          <div id="lista-por-vencer" style="padding:0.5rem 1rem 1rem;display:grid;gap:0.5rem;"></div>
+        </div>
+
         <div class="admin-toolbar">
           <div class="search-input">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -179,6 +193,7 @@
           </select>
         </div>
         <div class="panel">
+          <p id="matriculas-conteo" class="conteo-lista"></p>
           <div class="table-wrap">
             <table>
               <thead>
@@ -265,7 +280,7 @@
         <div class="panel">
           <div class="panel__head">
             <h3>🧮 Calculadora de ingresos extras</h3>
-            <button class="btn btn-primary btn-sm" onclick="openModalExtra()">
+            <button class="btn btn-primary btn-sm" data-abrir="modal-extra">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
               Agregar ingreso
             </button>
@@ -305,6 +320,39 @@
             <div style="padding:1rem;background:var(--gray-soft);border-radius:var(--r-sm);">
               <div style="font-size:0.78rem;color:var(--gray-mid);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.4rem;">Promedio diario</div>
               <div style="font-family:var(--font-display);font-size:1.6rem;color:var(--gray-dark);" id="proj-diario">S/ 0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head">
+            <h3>Últimos pagos registrados</h3>
+            <span style="font-size:0.8rem;color:var(--gray-mid);">¿Registraste un monto equivocado? Anúlalo aquí.</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Fecha</th><th>Tipo</th><th>Socio / Concepto</th><th>Método</th><th>Monto</th><th></th></tr>
+              </thead>
+              <tbody id="pagos-recientes-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head">
+            <h3>🛟 Copia de seguridad</h3>
+          </div>
+          <div style="padding:1rem;display:grid;gap:0.9rem;">
+            <p style="color:var(--gray-mid);font-size:0.88rem;margin:0;">
+              Descarga el respaldo una vez al mes y guárdalo en tu celular o correo.
+              Si algún día se pierden los datos, con ese archivo vuelve todo.
+            </p>
+            <div id="backup-estado" style="font-size:0.85rem;color:var(--gray-mid);"></div>
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;">
+              <input type="file" id="input-restaurar" accept="application/json,.json" hidden />
+              <button class="btn btn-outline btn-sm" id="btn-elegir-respaldo">Restaurar desde un archivo…</button>
+              <span id="archivo-elegido" style="font-size:0.85rem;color:var(--gray-mid);"></span>
             </div>
           </div>
         </div>
@@ -361,7 +409,7 @@
   <!-- MODAL NUEVA CLASE -->
   <div class="modal" id="modal-clase-new" hidden>
     <div class="modal__card">
-      <button class="modal__close" onclick="closeModal('modal-clase-new')">
+      <button class="modal__close" data-cerrar="modal-clase-new">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
       <h2>Nueva clase EX LOCAL</h2>
@@ -390,7 +438,7 @@
   <!-- MODAL NUEVA VENTA EXTRA -->
   <div class="modal" id="modal-extra" hidden>
     <div class="modal__card">
-      <button class="modal__close" onclick="closeModal('modal-extra')">
+      <button class="modal__close" data-cerrar="modal-extra">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
       <h2>Agregar ingreso extra</h2>
@@ -398,7 +446,7 @@
       <form id="form-nuevo-extra" style="display:flex;flex-direction:column;gap:1rem;">
         <div class="field">
           <label>Categoría *</label>
-          <select name="categoria" id="select-categoria-extra" required onchange="autocompletarPrecioExtra(this.value)">
+          <select name="categoria" id="select-categoria-extra" required data-auto="precio-extra">
             <option value="">Selecciona...</option>
             <option value="Otros">Otros</option>
           </select>
@@ -429,7 +477,7 @@
   <!-- MODAL NUEVA MATRÍCULA -->
   <div class="modal" id="modal-matricula" hidden>
     <div class="modal__card">
-      <button class="modal__close" onclick="closeModal('modal-matricula')">
+      <button class="modal__close" data-cerrar="modal-matricula">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
       <h2>Registrar pago de socio</h2>
@@ -442,7 +490,7 @@
         </div>
         <div class="field">
           <label>Concepto *</label>
-          <select name="concepto" id="select-concepto-matricula" required onchange="autocompletarMonto(this.value)">
+          <select name="concepto" id="select-concepto-matricula" required data-auto="monto-matricula">
             <option value="">Selecciona...</option>
             <option value="Otro">Otro</option>
           </select>
@@ -476,7 +524,7 @@
   <!-- MODAL RENOVAR -->
   <div class="modal" id="modal-renovar" hidden>
     <div class="modal__card">
-      <button class="modal__close" onclick="closeModal('modal-renovar')">
+      <button class="modal__close" data-cerrar="modal-renovar">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
       <h2>Renovar membresía</h2>
@@ -485,14 +533,19 @@
         <input type="hidden" name="id" />
         <div class="field">
           <label>Plan o promoción</label>
-          <select id="select-plan-renovar" onchange="aplicarPlanRenovacion(this.value)">
+          <select id="select-plan-renovar" data-auto="plan-renovacion">
             <option value="">Personalizado</option>
           </select>
           <span class="help-text">Al elegir un plan se llenan los días y el monto. Puedes ajustarlos a mano.</span>
         </div>
         <div class="field-row">
           <div class="field"><label>Días *</label><input type="number" name="dias" min="1" max="366" step="1" value="30" required /></div>
-          <div class="field"><label>Monto cobrado *</label><input type="number" name="monto" min="0" step="0.10" value="80" required /></div>
+          <div class="field"><label>Monto cobrado *</label><input type="number" name="monto" min="0" step="0.10" required /></div>
+        </div>
+        <div class="field">
+          <label>Fecha en que pagó</label>
+          <input type="date" name="fecha_pago" />
+          <span class="help-text">Déjala en hoy salvo que registres un cobro de días atrás: el dinero cuenta en la fecha real.</span>
         </div>
         <div class="field"><label>Método</label>
           <select name="metodo">
@@ -508,8 +561,69 @@
     </div>
   </div>
 
+
+  <!-- CORREGIR DATOS DEL SOCIO -->
+  <div class="modal" id="modal-editar-socio" hidden>
+    <div class="modal__card">
+      <button class="modal__close" data-cerrar="modal-editar-socio">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2>Corregir datos del socio</h2>
+      <p style="color:var(--gray-mid);font-size:0.85rem;margin-bottom:1rem;">
+        Arregla un nombre mal escrito o actualiza el teléfono. <strong>Los pagos ya registrados no se tocan.</strong>
+      </p>
+      <form id="form-editar-socio" style="display:flex;flex-direction:column;gap:1rem;">
+        <input type="hidden" name="id" />
+        <div class="field"><label>Nombre completo *</label><input type="text" name="nombre" maxlength="120" required /></div>
+        <div class="field-row">
+          <div class="field"><label>Teléfono</label><input type="tel" name="telefono" maxlength="30" /></div>
+          <div class="field"><label>DNI</label><input type="text" name="dni" maxlength="20" /></div>
+        </div>
+        <div class="field"><label>Concepto / plan *</label><input type="text" name="concepto" maxlength="80" required /></div>
+        <div class="field">
+          <label>Vence el *</label>
+          <input type="date" name="fecha_vence" required />
+          <span class="help-text">Cambiar esta fecha corrige el vencimiento sin registrar un pago nuevo.</span>
+        </div>
+        <div class="field"><label>Notas</label><textarea name="notas" rows="2" maxlength="500"></textarea></div>
+        <button type="submit" class="btn btn-primary btn-block">Guardar cambios</button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- MI CUENTA -->
+  <div class="modal" id="modal-cuenta" hidden>
+    <div class="modal__card">
+      <button class="modal__close" data-cerrar="modal-cuenta">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2>Cambiar mi contraseña</h2>
+      <p style="color:var(--gray-mid);font-size:0.85rem;margin-bottom:1rem;">
+        Usa una que recuerdes y anótala en un lugar seguro.
+        Si algún día la olvidas, en el README está el paso para recuperarla desde Railway.
+      </p>
+      <form id="form-cambiar-password" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="field">
+          <label>Contraseña actual *</label>
+          <input type="password" name="actual" required autocomplete="current-password" />
+        </div>
+        <div class="field">
+          <label>Contraseña nueva *</label>
+          <input type="password" name="nueva" minlength="6" required autocomplete="new-password" />
+          <span class="help-text">Mínimo 6 caracteres.</span>
+        </div>
+        <div class="field">
+          <label>Repite la contraseña nueva *</label>
+          <input type="password" name="repetir" minlength="6" required autocomplete="new-password" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Guardar contraseña</button>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=7"></script>
-  <script src="admin.js?v=7"></script>
+  <script src="app.js?v=13"></script>
+  <script src="admin.js?v=13"></script>
 </body>
 </html>

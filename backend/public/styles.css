@@ -2078,3 +2078,72 @@ table tbody tr:hover { background: var(--gray-soft); }
 /* Cartelera-card: hacer que el botón sea bien clickeable */
 .cartelera-card .btn { padding: 0.7rem 1rem; font-size: 0.85rem; }
 
+
+/* ==========================================================
+   Ajustes v3 — correcciones y elementos nuevos
+   ========================================================== */
+
+/* El menú lateral mostraba las DOS etiquetas a la vez en pantallas grandes
+   ("Dashboard Inicio", "Socios Socios"): la etiqueta corta para móvil solo
+   estaba definida dentro de las media queries, sin regla base que la ocultara. */
+.sidebar__nav a .mobile-label { display: none; }
+
+/* Franja de aviso para fallos que NO deben desaparecer solos
+   (sin internet, base de datos reconectando). */
+.aviso-conexion {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 3000;
+  background: var(--red, #d33);
+  color: #fff;
+  text-align: center;
+  padding: 0.6rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+
+/* Aviso dentro del contenido (por ejemplo, pagos con fecha futura). */
+.aviso-inline {
+  background: #fff4ec;
+  border: 1px solid var(--orange, #FF6B1A);
+  border-radius: var(--r-sm, 8px);
+  color: #8a3d00;
+  padding: 0.8rem 1rem;
+  font-size: 0.88rem;
+  margin-bottom: 1.2rem;
+}
+
+/* Cuántos socios se están mostrando de cuántos hay. */
+.conteo-lista {
+  margin: 0;
+  padding: 0.8rem 1.2rem 0;
+  font-size: 0.82rem;
+  color: var(--gray-mid, #888);
+}
+
+/* Fila de aviso de vencimiento con su botón de WhatsApp. */
+.aviso-socio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.8rem;
+  background: var(--gray-soft, #f5f5f5);
+  border-radius: var(--r-sm, 8px);
+}
+
+/* Las tres acciones de cada socio, sin que se peguen entre sí. */
+.acciones-socio {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  white-space: nowrap;
+}
+.acciones-socio button { padding: 0; }
+
+@media (max-width: 768px) {
+  .aviso-socio { flex-direction: column; align-items: stretch; }
+  .acciones-socio { gap: 0.5rem; }
+}

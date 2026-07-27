@@ -12,6 +12,7 @@ const router = express.Router();
 const { query, queryAll } = require('../db');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { parseMonto, parseId, parseDias, requireText } = require('../lib/validate');
+const { responderError } = require('../lib/errores');
 
 router.use(authenticateToken, requireAdmin);
 
@@ -23,8 +24,7 @@ router.get('/', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error('[CATALOGO] Error al listar:', err);
-    res.status(500).json({ error: 'Error al obtener el catálogo' });
+    responderError(res, err, 'CATALOGO', 'Error al obtener el catálogo');
   }
 });
 
@@ -62,8 +62,7 @@ router.post('/', async (req, res) => {
     if (err.code === '23505') {
       return res.status(400).json({ error: 'Ya existe una opción con ese nombre' });
     }
-    console.error('[CATALOGO] Error al crear:', err);
-    res.status(500).json({ error: 'Error al guardar la opción' });
+    return responderError(res, err, 'CATALOGO', 'Error al guardar la opción');
   }
 });
 
@@ -74,8 +73,7 @@ router.delete('/:id', async (req, res) => {
     await query('DELETE FROM catalog_options WHERE id = $1', [id]);
     res.json({ message: 'Opción eliminada (el historial de pagos no cambia)' });
   } catch (err) {
-    console.error('[CATALOGO] Error al eliminar:', err);
-    res.status(500).json({ error: 'Error al eliminar' });
+    responderError(res, err, 'CATALOGO', 'Error al eliminar');
   }
 });
 

@@ -5,14 +5,14 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const config = require('../config');
 const { todayISO } = require('../lib/dates');
 const { parseMonto, parseId, parseDias, requireText, cleanText, parseFecha } = require('../lib/validate');
+const { responderError } = require('../lib/errores');
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const classes = await queryAll("SELECT * FROM classes WHERE estado = 'activa' ORDER BY fecha ASC, hora ASC");
     res.json(classes);
   } catch (err) {
-    console.error('[CLASSES] Error al listar:', err);
-    res.status(500).json({ error: 'Error al obtener clases' });
+    responderError(res, err, 'CLASSES', 'Error al obtener clases');
   }
 });
 
@@ -26,8 +26,7 @@ router.get('/next', async (req, res) => {
     );
     res.json(next || null);
   } catch (err) {
-    console.error('[CLASSES] Error en /next:', err);
-    res.status(500).json({ error: 'Error' });
+    responderError(res, err, 'CLASSES', 'Error al obtener la próxima clase');
   }
 });
 
@@ -39,8 +38,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     if (!cls) return res.status(404).json({ error: 'No encontrada' });
     res.json(cls);
   } catch (err) {
-    console.error('[CLASSES] Error al obtener:', err);
-    res.status(500).json({ error: 'Error' });
+    responderError(res, err, 'CLASSES', 'Error al obtener la clase');
   }
 });
 
@@ -67,8 +65,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     );
     res.status(201).json({ id: r.rows[0].id, message: 'Clase creada' });
   } catch (err) {
-    console.error('[CLASSES] Error al crear:', err);
-    res.status(500).json({ error: 'Error al crear clase' });
+    responderError(res, err, 'CLASSES', 'Error al crear clase');
   }
 });
 
@@ -79,8 +76,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
     await query('DELETE FROM classes WHERE id = $1', [id]);
     res.json({ message: 'Eliminada' });
   } catch (err) {
-    console.error('[CLASSES] Error al eliminar:', err);
-    res.status(500).json({ error: 'Error' });
+    responderError(res, err, 'CLASSES', 'Error al eliminar la clase');
   }
 });
 
