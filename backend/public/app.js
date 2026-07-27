@@ -139,6 +139,35 @@ const api = {
 
   deleteExtra: (id) => authFetch(`${API_BASE}/extras/${id}`, { method: 'DELETE' }),
 
+  // === GASTOS (egresos del negocio) ===
+  getGastos: (desde, hasta) => authFetch(`${API_BASE}/gastos?desde=${desde}&hasta=${hasta}`),
+
+  getGastosResumen: (desde, hasta) => authFetch(`${API_BASE}/gastos/resumen?desde=${desde}&hasta=${hasta}`),
+
+  createGasto: (data) => authFetch(`${API_BASE}/gastos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }),
+
+  deleteGasto: (id) => authFetch(`${API_BASE}/gastos/${id}`, { method: 'DELETE' }),
+
+  // === ASISTENCIA (control de entrada) ===
+  getAsistencia: (fecha) => authFetch(`${API_BASE}/asistencia${fecha ? '?fecha=' + fecha : ''}`),
+
+  getAsistenciaResumen: () => authFetch(`${API_BASE}/asistencia/resumen`),
+
+  marcarEntrada: (membership_id) => authFetch(`${API_BASE}/asistencia`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ membership_id })
+  }),
+
+  borrarEntrada: (id) => authFetch(`${API_BASE}/asistencia/${id}`, { method: 'DELETE' }),
+
+  // === HISTORIAL DE UN SOCIO ===
+  getHistorialSocio: (id) => authFetch(`${API_BASE}/memberships/${id}/historial`),
+
   // === CATÁLOGO (precios, promos y categorías) ===
   getCatalogo: () => authFetch(`${API_BASE}/catalogo`),
 
@@ -241,9 +270,22 @@ function hayProblema(res) {
   return false;
 }
 
-// "Hoy" según el reloj LOCAL del navegador (el del gym), no UTC.
-// new Date().toISOString() devolvía la fecha de mañana después de las 7pm en Perú.
+// "Hoy" para el negocio.
+//
+// El servidor decide cuál es el día del gimnasio (hora de Lima) y el frontend
+// lo usa en cuanto lo conoce. Si se usara solo el reloj del navegador, un
+// celular con la zona horaria mal puesta —o alguien mirando el panel desde
+// otro país— vería la asistencia y las finanzas de un día equivocado.
+// Mientras el servidor no haya respondido, se usa el reloj local, que en el
+// gym es el correcto.
+let FECHA_NEGOCIO = null;
+
+function fijarFechaNegocio(fecha) {
+  if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) FECHA_NEGOCIO = fecha;
+}
+
 function hoyISO() {
+  if (FECHA_NEGOCIO) return FECHA_NEGOCIO;
   const d = new Date();
   return d.getFullYear() + '-' +
     String(d.getMonth() + 1).padStart(2, '0') + '-' +

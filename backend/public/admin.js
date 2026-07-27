@@ -18,6 +18,8 @@ function initAdmin() {
   renderFinanzas();
   renderExtras();
   renderPorVencer();
+  renderAsistencia();
+  renderGastos();
 }
 
 // El HTML ya no lleva onclick="..." escritos dentro (así el navegador puede
@@ -57,10 +59,21 @@ function enlazarAcciones() {
   if (filtro) filtro.addEventListener('change', buscarConEspera);
   const diasVencer = document.getElementById('select-dias-vencer');
   if (diasVencer) diasVencer.addEventListener('change', renderPorVencer);
+
+  // Asistencia: buscador del mostrador y selector de día.
+  const buscarAsis = document.getElementById('buscar-socio-asistencia');
+  if (buscarAsis) buscarAsis.addEventListener('input', buscarSocioParaEntrada);
+  const fechaAsis = document.getElementById('fecha-asistencia');
+  if (fechaAsis) fechaAsis.addEventListener('change', () => renderAsistencia(fechaAsis.value));
 }
 
 // Prepara y muestra el modal indicado (antes cada botón llamaba a su función).
 function abrirModal(id) {
+  if (id === 'modal-gasto') {
+    const m = document.getElementById('modal-gasto');
+    if (m) { m.querySelector('[name=fecha]').value = hoyISO(); m.hidden = false; }
+    return;
+  }
   if (id === 'modal-matricula') return openModalNuevaMatricula();
   if (id === 'modal-extra') return openModalExtra();
   if (id === 'modal-clase-new') return openModalNuevaClase();
@@ -71,13 +84,14 @@ function abrirModal(id) {
 // ============ CATÁLOGO (precios, promos y categorías) ============
 // El admin define sus propias opciones en la pestaña "Precios y promos";
 // aquí se cargan y se inyectan en los formularios de pago/renovación/venta.
-const CATALOGO = { matricula: [], extra: [] };
+const CATALOGO = { matricula: [], extra: [], gasto: [] };
 
 async function cargarCatalogo() {
   const rows = await api.getCatalogo();
   if (Array.isArray(rows)) {
     CATALOGO.matricula = rows.filter(r => r.tipo === 'matricula');
     CATALOGO.extra = rows.filter(r => r.tipo === 'extra');
+    CATALOGO.gasto = rows.filter(r => r.tipo === 'gasto');
     ocultarAvisoConexion();
   } else if (rows && rows.error) {
     // Sin catálogo los formularios quedan sin opciones: hay que avisar, no
@@ -108,6 +122,15 @@ function poblarSelectsCatalogo() {
         `<option value="${o.id}" data-nombre="${esc(o.nombre)}">${esc(o.nombre)} — S/ ${formatPrice(o.precio)} (${o.dias}d)</option>`
       ).join('');
     if (actual) selPlan.value = actual;
+  }
+
+  const selGasto = document.getElementById('select-categoria-gasto');
+  if (selGasto) {
+    const actual = selGasto.value;
+    selGasto.innerHTML = '<option value="">Selecciona...</option>' +
+      CATALOGO.gasto.map(o => `<option value="${esc(o.nombre)}">${esc(o.nombre)}</option>`).join('') +
+      '<option value="Otros">Otros</option>';
+    if (actual) selGasto.value = actual;
   }
 
   const selCat = document.getElementById('select-categoria-extra');
@@ -449,6 +472,7 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
         <td><span class="tag ${estadoColor}">${estadoTxt}</span></td>
         <td class="acciones-socio">
           <button class="link-orange" data-action="renovar" data-id="${m.id}">Renovar</button>
+          <button class="link-orange" data-action="historial" data-id="${m.id}">Historial</button>
           <button class="link-orange" data-action="editar" data-id="${m.id}">Corregir</button>
           <button class="link-orange" style="color:var(--red);" data-action="eliminar-matricula" data-id="${m.id}">Borrar</button>
         </td>
@@ -463,6 +487,7 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
       const socio = porId.get(this.dataset.id);
       const id = parseInt(this.dataset.id, 10);
       if (this.dataset.action === 'renovar') abrirRenovar(id, socio);
+      else if (this.dataset.action === 'historial') abrirHistorial(id);
       else if (this.dataset.action === 'editar') abrirEditarSocio(socio);
       else if (this.dataset.action === 'eliminar-matricula') eliminarMatricula(id);
     });
@@ -892,7 +917,7 @@ async function renderExtras() {
       const r = await api.deleteExtra(parseInt(btn.dataset.extraDel, 10));
       if (r.error) { showToast(r.error, 'error'); btn.disabled = false; return; }
       showToast('Venta anulada');
-      renderExtras(); renderFinanzas(); renderDashboard();
+      renderExtras(); renderFinanzas(); renderDashboard(); renderGastos();
     });
   });
 }
@@ -921,6 +946,285 @@ if (formExtra) {
   });
 }
 
+
+
+// ============ ASISTENCIA (control de entrada) ============
+let temporizadorSocioAsis = null;
+
+async function renderAsistencia(fecha) {
+  const inputFecha = document.getElementById('fecha-asistencia');
+  // Sin fecha explícita se deja decidir al servidor: él sabe qué día es en el
+  // gimnasio (hora de Lima) aunque el celular tenga otra zona horaria.
+  const dia = fecha || (inputFecha && inputFecha.value) || '';
+
+  const [datos, resumen] = await Promise.all([
+    api.getAsistencia(dia),
+    api.getAsistenciaResumen(),
+  ]);
+
+  if (datos && datos.fecha) {
+    fijarFechaNegocio(datos.fecha);
+    if (inputFecha && !inputFecha.value) inputFecha.value = datos.fecha;
+  }
+
+  const setVal = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  if (!hayProblema(resumen)) {
+    setVal('asis-hoy', resumen.hoy);
+    setVal('asis-semana', resumen.semana);
+    setVal('asis-socios', resumen.socios_semana);
+    renderAusentes(resumen.ausentes || []);
+  }
+
+  const body = document.getElementById('asistencia-body');
+  if (!body) return;
+  if (hayProblema(datos) || !Array.isArray(datos.items)) {
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:2rem;">
+      ${esc((datos && datos.error) || 'No se pudo cargar la asistencia')}</td></tr>`;
+    return;
+  }
+  if (datos.items.length === 0) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-mid);padding:2rem;">Nadie ha marcado entrada este día.</td></tr>';
+    return;
+  }
+  body.innerHTML = datos.items.map(a => `
+    <tr>
+      <td><strong>${esc(a.hora)}</strong></td>
+      <td>${esc(a.nombre)}</td>
+      <td>${esc(a.concepto) || '—'}${a.fecha_vence ? `<br><small style="color:var(--gray-mid);">vence ${formatDate(a.fecha_vence)}</small>` : ''}</td>
+      <td><span class="tag ${a.estado_al_entrar === 'activa' ? 'tag-green' : 'tag-red'}">${a.estado_al_entrar === 'activa' ? 'Al día' : 'Vencida'}</span></td>
+      <td><button class="link-orange" style="color:var(--red);" data-borrar-entrada="${a.id}">Quitar</button></td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('[data-borrar-entrada]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Quitar esta entrada del registro?')) return;
+      btn.disabled = true;
+      const r = await api.borrarEntrada(parseInt(btn.dataset.borrarEntrada, 10));
+      if (r.error) { showToast(r.error, 'error'); btn.disabled = false; return; }
+      showToast('Entrada quitada');
+      renderAsistencia();
+    });
+  });
+}
+
+function renderAusentes(ausentes) {
+  const panel = document.getElementById('panel-ausentes');
+  const lista = document.getElementById('lista-ausentes');
+  if (!panel || !lista) return;
+  if (!ausentes.length) { panel.hidden = true; return; }
+  panel.hidden = false;
+  lista.innerHTML = ausentes.map(a => {
+    const tel = telefonoWhatsApp(a.telefono);
+    const cuando = a.ultima_visita ? `última vez el ${formatDate(a.ultima_visita)}` : 'nunca ha marcado entrada';
+    const mensaje = `Hola ${a.nombre}, te saluda ZONA VIP GYM 💪 Hace tiempo que no te vemos. Tu ${a.concepto} sigue activa hasta el ${a.fecha_vence}. ¡Te esperamos!`;
+    return `
+      <div class="aviso-socio">
+        <div><strong>${esc(a.nombre)}</strong> <small style="color:var(--gray-mid);">· ${cuando}</small></div>
+        ${tel ? `<a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+             href="https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}">Escribirle</a>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// Buscador del mostrador: se escribe el nombre y se marca la entrada de un clic.
+function buscarSocioParaEntrada() {
+  clearTimeout(temporizadorSocioAsis);
+  temporizadorSocioAsis = setTimeout(async () => {
+    const input = document.getElementById('buscar-socio-asistencia');
+    const cont = document.getElementById('resultados-asistencia');
+    if (!input || !cont) return;
+    const q = input.value.trim();
+    if (q.length < 2) { cont.innerHTML = ''; return; }
+
+    const lista = await api.getMemberships({ q, limit: 8 });
+    if (hayProblema(lista) || !Array.isArray(lista.items)) { cont.innerHTML = ''; return; }
+    if (lista.items.length === 0) {
+      cont.innerHTML = '<p style="color:var(--gray-mid);font-size:0.88rem;margin:0;">Ningún socio con ese nombre o DNI.</p>';
+      return;
+    }
+    cont.innerHTML = lista.items.map(m => `
+      <div class="aviso-socio">
+        <div>
+          <strong>${esc(m.nombre)}</strong>
+          <small style="color:${m.estado === 'activa' ? 'var(--gray-mid)' : 'var(--red)'};">
+            · ${esc(m.concepto)} · ${m.estado === 'activa' ? 'vence ' + formatDate(m.fecha_vence) : 'VENCIDA'}
+          </small>
+        </div>
+        <button class="btn btn-primary btn-sm" data-marcar="${m.id}">Marcar entrada</button>
+      </div>`).join('');
+
+    cont.querySelectorAll('[data-marcar]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const r = await api.marcarEntrada(parseInt(btn.dataset.marcar, 10));
+        if (r.error) { showToast(r.error, 'error'); btn.disabled = false; return; }
+        mostrarAvisoEntrada(r);
+        input.value = '';
+        cont.innerHTML = '';
+        renderAsistencia();
+      });
+    });
+  }, 300);
+}
+
+// Cartel grande con la situación del socio que acaba de entrar. Es lo que la
+// dueña mira en el mostrador para decidir si le cobra la renovación.
+function mostrarAvisoEntrada(r) {
+  const el = document.getElementById('aviso-entrada');
+  if (!el) return;
+  const vencida = r.socio.estado !== 'activa';
+  const porVencer = !vencida && r.dias_restantes <= 3;
+  el.innerHTML = `<div class="entrada-aviso ${vencida ? 'es-vencida' : porVencer ? 'es-pronto' : 'es-ok'}">
+      ${esc(r.mensaje)}${r.ya_marcado ? ' <small>(ya había marcado hoy)</small>' : ''}
+    </div>`;
+  clearTimeout(mostrarAvisoEntrada._t);
+  mostrarAvisoEntrada._t = setTimeout(() => { el.innerHTML = ''; }, 12000);
+}
+
+// ============ GASTOS (egresos) ============
+async function renderGastos() {
+  const inicioMes = hoyISO().slice(0, 8) + '01';
+  const hoy = hoyISO();
+  const [resumen, lista, finanzas] = await Promise.all([
+    api.getGastosResumen(inicioMes, hoy),
+    api.getGastos(inicioMes, hoy),
+    api.getFinanzas(),
+  ]);
+
+  const setVal = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  const ingresos = (!hayProblema(finanzas) && finanzas.mes) ? finanzas.mes.total : 0;
+  const totalGastos = hayProblema(resumen) ? 0 : resumen.total;
+  const utilidad = Math.round((ingresos - totalGastos) * 100) / 100;
+
+  setVal('gas-ingresos', formatMoney(ingresos));
+  setVal('gas-total', formatMoney(totalGastos));
+  setVal('gas-cantidad', hayProblema(resumen) ? '' : `${resumen.cantidad} gasto(s)`);
+  setVal('gas-utilidad', formatMoney(utilidad));
+  const nota = document.getElementById('gas-utilidad-nota');
+  if (nota) {
+    nota.textContent = utilidad >= 0 ? 'Ganancia del mes' : 'Pérdida: los gastos superan los ingresos';
+    nota.style.color = utilidad >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+  const valorUtilidad = document.getElementById('gas-utilidad');
+  if (valorUtilidad) valorUtilidad.style.color = utilidad >= 0 ? 'var(--green)' : 'var(--red)';
+
+  // En qué se va el dinero
+  const chart = document.getElementById('gastos-chart');
+  if (chart && !hayProblema(resumen)) {
+    const cats = resumen.categorias || [];
+    const max = Math.max(1, ...cats.map(c => c.total));
+    chart.innerHTML = cats.length === 0
+      ? '<p style="color:var(--gray-mid);">Sin gastos registrados este mes.</p>'
+      : cats.map(c => `
+          <div style="margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;">
+              <strong>${esc(c.categoria)}</strong>
+              <span style="color:var(--gray-mid);">${formatMoney(c.total)}</span>
+            </div>
+            <div style="height:10px;background:var(--gray-soft);border-radius:6px;overflow:hidden;">
+              <div style="width:${(c.total / max) * 100}%;height:100%;background:var(--red);"></div>
+            </div>
+          </div>`).join('');
+  }
+
+  const body = document.getElementById('gastos-body');
+  if (!body) return;
+  if (!Array.isArray(lista)) {
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:2rem;">
+      ${esc((lista && lista.error) || 'No se pudieron cargar los gastos')}</td></tr>`;
+    return;
+  }
+  if (lista.length === 0) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin gastos este mes.</td></tr>';
+    return;
+  }
+  body.innerHTML = lista.map(g => `
+    <tr>
+      <td>${formatDate(g.fecha)}</td>
+      <td><strong>${esc(g.categoria)}</strong></td>
+      <td>${esc(g.descripcion) || '—'}<br><small style="color:var(--gray-mid);">${esc(g.metodo)}</small></td>
+      <td><strong style="color:var(--red);">− S/ ${formatPrice(g.monto)}</strong></td>
+      <td><button class="link-orange" style="color:var(--red);" data-gasto-del="${g.id}">Anular</button></td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('[data-gasto-del]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Anular este gasto?\n\nDejará de descontarse de las finanzas, pero el registro queda guardado.')) return;
+      btn.disabled = true;
+      const r = await api.deleteGasto(parseInt(btn.dataset.gastoDel, 10));
+      if (r.error) { showToast(r.error, 'error'); btn.disabled = false; return; }
+      showToast('Gasto anulado');
+      renderGastos(); renderFinanzas(); renderDashboard();
+    });
+  });
+}
+
+const formGasto = document.getElementById('form-nuevo-gasto');
+if (formGasto) {
+  formGasto.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const res = await api.createGasto(Object.fromEntries(fd));
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast(`Gasto de S/ ${fd.get('monto')} registrado · ${fd.get('categoria')}`);
+      closeModal('modal-gasto');
+      e.target.reset();
+      renderGastos(); renderFinanzas(); renderDashboard();
+    });
+  });
+}
+
+// ============ HISTORIAL DE UN SOCIO ============
+async function abrirHistorial(id) {
+  const modal = document.getElementById('modal-historial');
+  const cont = document.getElementById('historial-contenido');
+  if (!modal || !cont) return;
+  cont.innerHTML = '<p style="color:var(--gray-mid);padding:1rem;">Cargando...</p>';
+  modal.hidden = false;
+
+  const h = await api.getHistorialSocio(id);
+  if (hayProblema(h) || !h.socio) {
+    cont.innerHTML = `<p style="color:var(--red);padding:1rem;">${esc((h && h.error) || 'No se pudo cargar el historial')}</p>`;
+    return;
+  }
+
+  const titulo = document.getElementById('historial-titulo');
+  if (titulo) titulo.textContent = h.socio.nombre;
+
+  cont.innerHTML = `
+    <div class="cards-row" style="grid-template-columns:repeat(3,1fr);gap:0.6rem;margin-bottom:1rem;">
+      <div class="stat-card"><div class="stat-card__label">Total pagado</div>
+        <div class="stat-card__value" style="font-size:1.4rem;">${formatMoney(h.resumen.total_pagado)}</div></div>
+      <div class="stat-card"><div class="stat-card__label">Veces que pagó</div>
+        <div class="stat-card__value" style="font-size:1.4rem;">${h.resumen.veces_pago}</div></div>
+      <div class="stat-card"><div class="stat-card__label">Visitas</div>
+        <div class="stat-card__value" style="font-size:1.4rem;">${h.resumen.total_visitas}</div>
+        <div class="stat-card__trend">${h.resumen.ultima_visita ? 'última: ' + formatDate(h.resumen.ultima_visita) : 'nunca marcó entrada'}</div></div>
+    </div>
+    <p style="font-size:0.9rem;color:var(--gray-mid);margin-bottom:0.6rem;">
+      ${esc(h.socio.concepto)} · vence ${formatDate(h.socio.fecha_vence)} ·
+      ${h.socio.telefono ? 'tel. ' + esc(h.socio.telefono) : 'sin teléfono'}
+    </p>
+    <h3 style="font-size:0.95rem;margin:1rem 0 0.5rem;">Pagos</h3>
+    <div class="table-wrap"><table><thead>
+      <tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th></tr></thead><tbody>
+      ${h.pagos.length === 0
+        ? '<tr><td colspan="4" style="color:var(--gray-mid);padding:1rem;">Sin pagos registrados.</td></tr>'
+        : h.pagos.map(p => `<tr${p.anulado ? ' style="opacity:0.5;text-decoration:line-through;"' : ''}>
+            <td>${formatDate(p.fecha_pago)}</td>
+            <td>${p.tipo === 'renovacion' ? 'Renovación' : 'Matrícula'}</td>
+            <td>${esc(p.concepto)}${p.anulado ? ` <small>(anulado: ${esc(p.motivo_anulacion)})</small>` : ''}</td>
+            <td><strong>S/ ${formatPrice(p.monto)}</strong></td></tr>`).join('')}
+    </tbody></table></div>
+    <h3 style="font-size:0.95rem;margin:1.2rem 0 0.5rem;">Últimas visitas</h3>
+    <p style="font-size:0.88rem;color:var(--gray-mid);">
+      ${h.visitas.length === 0 ? 'Todavía no ha marcado ninguna entrada.'
+        : h.visitas.map(v => `${formatDate(v.fecha)}${v.hora ? ' ' + esc(v.hora) : ''}`).join(' · ')}
+    </p>`;
+}
 
 // ============ MI CUENTA (cambiar contraseña) ============
 // La API para cambiar la contraseña existía desde siempre, pero no había

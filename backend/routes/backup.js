@@ -22,7 +22,7 @@ router.use(authenticateToken, requireAdmin);
 
 router.get('/', async (req, res) => {
   try {
-    const [memberships, payments, extraSales, classes, users, catalogo] = await Promise.all([
+    const [memberships, payments, extraSales, classes, users, catalogo, gastos, asistencia] = await Promise.all([
       queryAll('SELECT * FROM memberships ORDER BY id'),
       queryAll('SELECT * FROM payments ORDER BY id'),
       queryAll('SELECT * FROM extra_sales ORDER BY id'),
@@ -30,11 +30,13 @@ router.get('/', async (req, res) => {
       // Nunca exportar contraseñas, ni siquiera hasheadas.
       queryAll('SELECT id, firstname, lastname, email, role FROM users ORDER BY id'),
       queryAll('SELECT * FROM catalog_options ORDER BY id'),
+      queryAll('SELECT * FROM expenses ORDER BY id'),
+      queryAll('SELECT * FROM attendance ORDER BY id'),
     ]);
 
     const respaldo = {
       sistema: 'ZONA VIP GYM',
-      version: 3,
+      version: 4,
       generado: new Date().toISOString(),
       fecha_negocio: todayISO(config.TZ),
       tablas: {
@@ -44,6 +46,8 @@ router.get('/', async (req, res) => {
         classes,
         users,
         catalog_options: catalogo,
+        expenses: gastos,
+        attendance: asistencia,
       },
     };
 
@@ -62,7 +66,9 @@ router.get('/estado', async (req, res) => {
       `SELECT (SELECT COUNT(*) FROM memberships)::int AS socios,
               (SELECT COUNT(*) FROM payments)::int AS pagos,
               (SELECT COUNT(*) FROM extra_sales)::int AS ventas,
-              (SELECT COUNT(*) FROM catalog_options)::int AS opciones`
+              (SELECT COUNT(*) FROM catalog_options)::int AS opciones,
+              (SELECT COUNT(*) FROM expenses)::int AS gastos,
+              (SELECT COUNT(*) FROM attendance)::int AS visitas`
     );
     res.json(r);
   } catch (err) {
@@ -79,6 +85,8 @@ const RESTAURABLES = [
   { tabla: 'extra_sales', columnas: ['id', 'categoria', 'descripcion', 'monto', 'metodo', 'fecha', 'notas', 'anulado', 'motivo_anulacion'] },
   { tabla: 'classes', columnas: ['id', 'titulo', 'instructor', 'fecha', 'hora', 'descripcion', 'imagen', 'capacidad', 'precio', 'estado'] },
   { tabla: 'catalog_options', columnas: ['id', 'tipo', 'nombre', 'precio', 'dias'] },
+  { tabla: 'expenses', columnas: ['id', 'categoria', 'descripcion', 'monto', 'metodo', 'fecha', 'notas', 'anulado', 'motivo_anulacion'] },
+  { tabla: 'attendance', columnas: ['id', 'membership_id', 'nombre', 'fecha', 'hora', 'estado_al_entrar'] },
 ];
 
 const MAX_FILAS = 200000; // techo de seguridad para no agotar la memoria

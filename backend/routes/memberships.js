@@ -136,6 +136,54 @@ router.get('/por-vencer', async (req, res) => {
   }
 });
 
+// Ficha completa de un socio: todo lo que pagó y todas las veces que vino.
+// Antes, para saber si alguien estaba al día había que buscarlo a ojo en la
+// lista general y no existía forma de ver su historial.
+router.get('/:id/historial', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'ID inválido' });
+  try {
+    const socio = await queryOne('SELECT * FROM memberships WHERE id = $1', [id]);
+    if (!socio) return res.status(404).json({ error: 'Socio no encontrado' });
+
+    const [pagos, visitas, totales] = await Promise.all([
+      queryAll(
+        `SELECT id, tipo, concepto, monto, metodo, fecha_pago, anulado, motivo_anulacion
+         FROM payments WHERE membership_id = $1
+         ORDER BY fecha_pago DESC, id DESC LIMIT 200`,
+        [id]
+      ),
+      queryAll(
+        `SELECT fecha, hora FROM attendance WHERE membership_id = $1
+         ORDER BY fecha DESC LIMIT 60`,
+        [id]
+      ),
+      queryOne(
+        `SELECT COALESCE(SUM(monto),0)::numeric(14,2) AS total_pagado,
+                COUNT(*)::int AS veces_pago,
+                (SELECT COUNT(*)::int FROM attendance WHERE membership_id = $1) AS total_visitas,
+                (SELECT MAX(fecha) FROM attendance WHERE membership_id = $1) AS ultima_visita
+         FROM payments WHERE membership_id = $1 AND anulado = FALSE`,
+        [id]
+      ),
+    ]);
+
+    res.json({
+      socio,
+      pagos,
+      visitas,
+      resumen: {
+        total_pagado: Number(totales.total_pagado),
+        veces_pago: totales.veces_pago,
+        total_visitas: totales.total_visitas,
+        ultima_visita: totales.ultima_visita,
+      },
+    });
+  } catch (err) {
+    responderError(res, err, 'MEMBERSHIPS', 'Error al obtener el historial del socio');
+  }
+});
+
 // Libro de pagos individual (para el CSV y auditoría).
 router.get('/pagos', async (req, res) => {
   try {
@@ -212,20 +260,28 @@ router.get('/finanzas', async (req, res) => {
       [...periodos.map((p) => rangos[p]), hoy]
     );
 
-    const [pagos, extras] = await Promise.all([
+    const [pagos, extras, gastos] = await Promise.all([
       sumas('payments', 'fecha_pago'),
       sumas('extra_sales', 'fecha'),
+      sumas('expenses', 'fecha'),
     ]);
 
     const finanzas = {};
     periodos.forEach((p) => {
       const mat = { total: Number(pagos[`total_${p}`]), cantidad: pagos[`cant_${p}`] };
       const ext = { total: Number(extras[`total_${p}`]), cantidad: extras[`cant_${p}`] };
+      const gas = { total: Number(gastos[`total_${p}`]), cantidad: gastos[`cant_${p}`] };
+      const ingresos = Math.round((mat.total + ext.total) * 100) / 100;
       finanzas[p] = {
         matriculas: mat,
         extras: ext,
+        gastos: gas,
         online: { total: 0, cantidad: 0 }, // compatibilidad con el frontend
-        total: Math.round((mat.total + ext.total) * 100) / 100,
+        total: ingresos,
+        // Lo que de verdad queda después de pagar alquiler, luz, sueldos...
+        // Antes el sistema solo mostraba el dinero que entra, así que el
+        // "S/ 8.000 este mes" no decía nada sobre si el gimnasio gana o pierde.
+        utilidad: Math.round((ingresos - gas.total) * 100) / 100,
         cantidad: mat.cantidad + ext.cantidad,
       };
     });

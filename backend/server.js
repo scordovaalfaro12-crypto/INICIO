@@ -22,6 +22,8 @@ const membershipRoutes = require('./routes/memberships');
 const extraRoutes = require('./routes/extras');
 const catalogRoutes = require('./routes/catalog');
 const backupRoutes = require('./routes/backup');
+const gastoRoutes = require('./routes/gastos');
+const asistenciaRoutes = require('./routes/asistencia');
 
 const app = express();
 
@@ -91,6 +93,8 @@ app.use('/api/memberships', membershipRoutes);
 app.use('/api/extras', extraRoutes);
 app.use('/api/catalogo', catalogRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/gastos', gastoRoutes);
+app.use('/api/asistencia', asistenciaRoutes);
 
 // Frontend: SOLO la carpeta public (antes se servía todo el backend,
 // incluido el código fuente del servidor).

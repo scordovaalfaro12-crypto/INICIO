@@ -198,6 +198,39 @@ async function aplicarEsquema(ejecutar) {
     );
   `);
 
+  // Libro de EGRESOS: alquiler, luz, agua, mantenimiento, sueldos, compra de
+  // productos para revender... Sin esto el sistema solo contaba el dinero que
+  // ENTRA, así que era imposible saber si el gimnasio gana o pierde en el mes.
+  await ejecutar(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      categoria TEXT NOT NULL,
+      descripcion TEXT DEFAULT '',
+      monto NUMERIC(12,2) NOT NULL CHECK (monto >= 0),
+      metodo TEXT DEFAULT 'Efectivo',
+      fecha TEXT NOT NULL,
+      notas TEXT DEFAULT '',
+      anulado BOOLEAN NOT NULL DEFAULT FALSE,
+      motivo_anulacion TEXT DEFAULT '',
+      creado TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  // Registro de asistencia: quién entró y cuándo. Sirve para dos cosas que
+  // antes no se podían saber: si un socio paga pero nunca viene (se va a dar
+  // de baja pronto) y si alguien está entrando con la membresía vencida.
+  await ejecutar(`
+    CREATE TABLE IF NOT EXISTS attendance (
+      id SERIAL PRIMARY KEY,
+      membership_id INTEGER,
+      nombre TEXT NOT NULL DEFAULT '',
+      fecha TEXT NOT NULL,
+      hora TEXT NOT NULL DEFAULT '',
+      estado_al_entrar TEXT DEFAULT 'activa',
+      creado TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
   // Tabla heredada de la versión anterior: se conserva por compatibilidad.
   await ejecutar(`
     CREATE TABLE IF NOT EXISTS reservations (
@@ -279,6 +312,23 @@ async function aplicarEsquema(ejecutar) {
     await ejecutar(`ALTER TABLE extra_sales ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT DEFAULT ''`);
   });
 
+  // El catálogo pasa a admitir también categorías de GASTO, así la dueña
+  // gestiona sus rubros de egreso desde la misma pestaña "Precios y promos".
+  await runMigration(ejecutar, '005_catalogo_admite_gastos', async () => {
+    await ejecutar(`ALTER TABLE catalog_options DROP CONSTRAINT IF EXISTS catalog_options_tipo_check`);
+    await ejecutar(`ALTER TABLE catalog_options ADD CONSTRAINT catalog_options_tipo_check
+                    CHECK (tipo IN ('matricula', 'extra', 'gasto'))`);
+    const gastos = ['Alquiler', 'Luz', 'Agua', 'Internet', 'Sueldos', 'Mantenimiento',
+                    'Compra de productos', 'Equipos y pesas', 'Limpieza', 'Publicidad', 'Otros'];
+    for (const nombre of gastos) {
+      await ejecutar(
+        `INSERT INTO catalog_options (tipo, nombre) VALUES ('gasto', $1)
+         ON CONFLICT (tipo, nombre) DO NOTHING`,
+        [nombre]
+      );
+    }
+  });
+
   // Precios iniciales del catálogo: los 4 conceptos históricos del sistema
   // más la lista real del flyer del gym. El admin puede quitar o agregar
   // los que quiera desde la pestaña "Precios y promos".
@@ -321,6 +371,13 @@ async function aplicarEsquema(ejecutar) {
   // fichas el buscador sigue respondiendo al instante.
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_nombre_lower ON memberships (LOWER(nombre))`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_dni ON memberships (dni)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_expenses_fecha ON expenses (fecha)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_attendance_fecha ON attendance (fecha)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_attendance_socio ON attendance (membership_id)`);
+  // Un socio solo se registra UNA vez por día: si marca dos veces al entrar y
+  // salir, no se cuentan dos visitas ni se duplica su historial.
+  await ejecutar(`CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_socio_dia
+                  ON attendance (membership_id, fecha) WHERE membership_id IS NOT NULL`);
 
   await insertarAdminSiNoExiste(ejecutar);
   await restablecerAdminSiSePidio(ejecutar);

@@ -129,6 +129,38 @@ npm test                   # pruebas (no necesitan base de datos)
 npm start                  # http://localhost:3000
 ```
 
+## 🧾 Gastos y utilidad real (nuevo)
+
+El sistema solo contaba el dinero que ENTRA. Con eso era imposible saber si el
+gimnasio gana o pierde: veías "S/ 8.000 este mes" sin descontar alquiler, luz
+ni sueldos.
+
+- Pestaña **Gastos** → *Registrar gasto*. Los rubros (Alquiler, Luz, Agua,
+  Sueldos, Compra de productos…) ya vienen cargados y puedes crear los tuyos
+  desde *Precios y promos*.
+- Arriba ves las tres cifras que importan: **ingresos, gastos y lo que te
+  queda**. Si los gastos superan a los ingresos, la cifra sale en rojo.
+- El gráfico *"En qué se va el dinero"* muestra tus mayores rubros del mes.
+- Un gasto mal registrado se **anula** (no se borra): deja de descontarse pero
+  el registro queda guardado.
+
+## 🚪 Asistencia (nuevo)
+
+Pestaña **Asistencia**. Escribes el nombre del socio y pulsas *Marcar entrada*:
+
+- Aparece un cartel grande diciendo si está **al día**, si le **vence en pocos
+  días** (el momento de cobrarle la renovación) o si está **VENCIDA**.
+- Un socio solo cuenta una visita por día, aunque marque al entrar y al salir.
+- Panel **"Pagan pero no vienen"**: socios al día que llevan más de 30 días sin
+  aparecer. Son los que se dan de baja sin avisar; cada uno trae su botón de
+  WhatsApp para llamarlos antes de perderlos.
+
+## 👤 Historial de cada socio (nuevo)
+
+En **Socios** → botón **Historial**: todo lo que esa persona ha pagado (con los
+anulados tachados), cuánto suma en total, cuántas veces ha venido y cuándo fue
+la última. Sirve para responder al instante "¿este ya pagó?".
+
 ## 🛠️ Corregir errores (nuevo en la v3)
 
 Nadie teclea perfecto todos los días. Todo esto se arregla desde el panel, sin ayuda técnica:
@@ -190,7 +222,8 @@ No hace falta tocar nada del código:
     ├── lib/validate.js   ← validación de toda entrada de datos
     ├── lib/errores.js    ← distingue "la base está caída" de "error de verdad"
     ├── middleware/       ← sesiones JWT + cabeceras de seguridad + freno de login
-    ├── routes/           ← auth, matrículas/finanzas, extras, clases, respaldo
+    ├── routes/           ← auth, matrículas/finanzas, extras, gastos,
+    │                       asistencia, clases, catálogo y respaldo
     ├── tests/            ← pruebas automáticas (npm test)
     └── public/           ← la pantalla del sistema (HTML/CSS/JS + PWA)
         └── assets/fonts/ ← tipografías propias: cero dependencias externas
