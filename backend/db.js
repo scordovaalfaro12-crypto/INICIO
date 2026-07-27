@@ -142,6 +142,17 @@ async function aplicarEsquema(ejecutar) {
     );
   `);
 
+  // Ajustes y marcas del sistema (clave/valor). Hoy guarda cuándo se descargó
+  // el último respaldo; sirve para cualquier dato suelto que haya que recordar
+  // entre reinicios sin inventar una tabla nueva cada vez.
+  await ejecutar(`
+    CREATE TABLE IF NOT EXISTS ajustes (
+      clave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL DEFAULT '',
+      actualizado TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
   await ejecutar(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -212,6 +223,37 @@ async function aplicarEsquema(ejecutar) {
       notas TEXT DEFAULT '',
       anulado BOOLEAN NOT NULL DEFAULT FALSE,
       motivo_anulacion TEXT DEFAULT '',
+      creado TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  // Productos que se venden en el mostrador, con su stock.
+  await ejecutar(`
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      nombre TEXT NOT NULL,
+      categoria TEXT NOT NULL DEFAULT 'Otros',
+      precio NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (precio >= 0),
+      stock INTEGER NOT NULL DEFAULT 0,
+      stock_minimo INTEGER NOT NULL DEFAULT 3 CHECK (stock_minimo >= 0),
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      creado TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (nombre)
+    );
+  `);
+
+  // Cada cambio de stock queda anotado con su motivo. Así, si un día el número
+  // no cuadra, se puede reconstruir qué pasó en vez de tener que adivinar.
+  await ejecutar(`
+    CREATE TABLE IF NOT EXISTS stock_movements (
+      id SERIAL PRIMARY KEY,
+      producto_id INTEGER NOT NULL,
+      tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'salida', 'ajuste', 'devolucion')),
+      cantidad INTEGER NOT NULL,
+      stock_resultante INTEGER NOT NULL,
+      motivo TEXT DEFAULT '',
+      venta_id INTEGER,
+      fecha TEXT NOT NULL,
       creado TIMESTAMPTZ DEFAULT NOW()
     );
   `);
@@ -299,6 +341,37 @@ async function aplicarEsquema(ejecutar) {
     await ejecutar(`ALTER TABLE extra_sales ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT DEFAULT ''`);
   });
 
+  // Congelar una membresía: el socio se va de viaje o se lesiona y pausa su
+  // plan. Los días que estuvo congelado se le DEVUELVEN al reactivarlo, así no
+  // pierde lo que ya pagó. Antes había que editar la fecha a mano y no quedaba
+  // constancia de por qué.
+  await runMigration(ejecutar, '006_congelar_membresias', async () => {
+    await ejecutar(`ALTER TABLE memberships ADD COLUMN IF NOT EXISTS congelada_desde TEXT`);
+    await ejecutar(`ALTER TABLE memberships ADD COLUMN IF NOT EXISTS motivo_congelacion TEXT DEFAULT ''`);
+    await ejecutar(`ALTER TABLE memberships ADD COLUMN IF NOT EXISTS dias_congelados_total INTEGER NOT NULL DEFAULT 0`);
+  });
+
+  // Las ventas de productos quedan enlazadas a su artículo, para poder
+  // devolver el stock si la venta se anula.
+  await runMigration(ejecutar, '007_ventas_con_producto', async () => {
+    await ejecutar(`ALTER TABLE extra_sales ADD COLUMN IF NOT EXISTS producto_id INTEGER`);
+    await ejecutar(`ALTER TABLE extra_sales ADD COLUMN IF NOT EXISTS cantidad INTEGER NOT NULL DEFAULT 1`);
+  });
+
+  // Quién registró cada movimiento. Con una sola usuaria daba igual; en cuanto
+  // hay recepcionista, poder responder "¿quién cobró esto?" es lo que hace que
+  // el reparto de permisos sea confiable en vez de un acto de fe.
+  await runMigration(ejecutar, '008_quien_hizo_cada_cosa', async () => {
+    for (const tabla of ['payments', 'extra_sales', 'expenses', 'attendance', 'stock_movements']) {
+      await ejecutar(`ALTER TABLE ${tabla} ADD COLUMN IF NOT EXISTS usuario_id INTEGER`);
+    }
+    // Los usuarios pasan a tener rol explícito y se pueden desactivar sin
+    // borrarlos (si se borrara, sus registros quedarían sin autor).
+    await ejecutar(`ALTER TABLE users ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE`);
+    await ejecutar(`ALTER TABLE users ADD COLUMN IF NOT EXISTS creado TIMESTAMPTZ DEFAULT NOW()`);
+    await ejecutar(`UPDATE users SET role = 'admin' WHERE role IS NULL OR role = ''`);
+  });
+
   // El catálogo pasa a admitir también categorías de GASTO, así la dueña
   // gestiona sus rubros de egreso desde la misma pestaña "Precios y promos".
   await runMigration(ejecutar, '005_catalogo_admite_gastos', async () => {
@@ -363,6 +436,8 @@ async function aplicarEsquema(ejecutar) {
                   ON memberships (TRANSLATE(LOWER(nombre), 'áàäâãéèëêíìïîóòöôõúùüûñç', 'aaaaaeeeeiiiiooooouuuunc'))`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_memberships_dni ON memberships (dni)`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_expenses_fecha ON expenses (fecha)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_stock_mov_producto ON stock_movements (producto_id, id DESC)`);
+  await ejecutar(`CREATE INDEX IF NOT EXISTS idx_products_activo ON products (activo)`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_attendance_fecha ON attendance (fecha)`);
   await ejecutar(`CREATE INDEX IF NOT EXISTS idx_attendance_socio ON attendance (membership_id)`);
   // Un socio solo se registra UNA vez por día: si marca dos veces al entrar y
@@ -441,6 +516,21 @@ async function insertarAdminSiNoExiste(ejecutar) {
   }
 }
 
+// Lee un ajuste guardado (o null si no existe).
+async function leerAjuste(clave) {
+  const r = await queryOne('SELECT valor, actualizado FROM ajustes WHERE clave = $1', [clave]);
+  return r || null;
+}
+
+// Guarda (o pisa) un ajuste.
+async function guardarAjuste(clave, valor) {
+  await query(
+    `INSERT INTO ajustes (clave, valor, actualizado) VALUES ($1, $2, NOW())
+     ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, actualizado = NOW()`,
+    [clave, String(valor)]
+  );
+}
+
 // Salida de emergencia: si la dueña olvida su contraseña, define
 // ADMIN_RESET_PASSWORD en Railway → Variables y reinicia. Al arrancar, la
 // contraseña queda restablecida y el log le recuerda borrar la variable.
@@ -480,8 +570,15 @@ async function actualizarEstadoMemberships(forzar = false) {
   ultimoRefresco = ahora;
   const hoy = todayISO(config.TZ);
   try {
-    await query(`UPDATE memberships SET estado = 'vencida' WHERE fecha_vence < $1 AND estado = 'activa'`, [hoy]);
-    await query(`UPDATE memberships SET estado = 'activa' WHERE fecha_vence >= $1 AND estado = 'vencida'`, [hoy]);
+    // `congelada_desde IS NULL` protege a las pausadas: mientras un socio
+    // está congelado su fecha de vencimiento no corre, así que el refresco
+    // automático no debe marcarlo como vencido ni reactivarlo.
+    await query(
+      `UPDATE memberships SET estado = 'vencida'
+       WHERE fecha_vence < $1 AND estado = 'activa' AND congelada_desde IS NULL`, [hoy]);
+    await query(
+      `UPDATE memberships SET estado = 'activa'
+       WHERE fecha_vence >= $1 AND estado = 'vencida' AND congelada_desde IS NULL`, [hoy]);
   } catch (err) {
     // Si falla (base caída), se reintenta en la próxima llamada: no se
     // "quema" la ventana de un minuto con un intento fallido.
@@ -497,7 +594,7 @@ function cerrarPool() {
 }
 
 module.exports = {
-  query, queryOne, queryAll, withTransaction,
+  query, queryOne, queryAll, withTransaction, leerAjuste, guardarAjuste,
   initDB, initDBConReintentos, isDBReady, detenerReintentos,
   actualizarEstadoMemberships, cerrarPool,
 };

@@ -2173,11 +2173,24 @@ table tbody tr:hover { background: var(--gray-soft); }
     scrollbar-width: none;
   }
   .sidebar__nav::-webkit-scrollbar { display: none; }
-  .sidebar__nav li { flex: 1 1 0; min-width: 0; }
+  /* Con diez secciones, repartir el ancho entre todas dejaba etiquetas de
+     cuatro letras cortadas ("Entr…", "Equi…"). Ahora cada botón tiene un
+     ancho cómodo y la barra se desliza con el dedo; la pestaña activa se
+     trae a la vista sola al cambiar de sección. */
+  .sidebar__nav li { flex: 0 0 auto; min-width: 66px; }
   .sidebar__nav a {
-    padding: 0.45rem 0.15rem;
-    font-size: 0.6rem;
+    padding: 0.45rem 0.3rem;
+    font-size: 0.62rem;
     gap: 0.15rem;
+  }
+  /* Pista visual de que hay más secciones hacia los lados. */
+  .sidebar::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 24px;
+    pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--gray-dark, #2B2B2B));
   }
   .sidebar__nav a > .mobile-label {
     font-size: 0.6rem;
@@ -2287,4 +2300,43 @@ table tbody tr:hover { background: var(--gray-soft); }
 @media (max-width: 768px) {
   .entrada-aviso { align-items: stretch; flex-direction: column; }
   .entrada-aviso .btn { width: 100%; }
+}
+
+/* ==========================================================
+   Ajustes v6 — paginación, avisos y pausas
+   ========================================================== */
+.paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.9rem 1.2rem;
+  font-size: 0.85rem;
+  color: var(--gray-mid, #888);
+  flex-wrap: wrap;
+}
+.paginacion button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Aviso de respaldo pendiente: se queda arriba hasta que se descargue. */
+.aviso-respaldo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: #fff4ec;
+  border: 1px solid var(--orange, #FF6B1A);
+  border-radius: var(--r-sm, 8px);
+  color: #8a3d00;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .aviso-respaldo { flex-direction: column; align-items: stretch; text-align: center; }
+  .aviso-respaldo .btn { width: 100%; }
+  .paginacion { gap: 0.5rem; }
+  .paginacion button { flex: 1; }
 }

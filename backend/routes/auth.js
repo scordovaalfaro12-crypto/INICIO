@@ -20,7 +20,9 @@ router.post('/login', loginRateLimit, async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
 
   try {
-    const user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
+    // `activo = TRUE`: a quien se dio de baja se le cierra la puerta sin
+    // borrarlo, para que todo lo que registró conserve su autor.
+    const user = await queryOne('SELECT * FROM users WHERE email = $1 AND activo = TRUE', [email]);
     // Mismo mensaje y mismo tiempo exista o no el usuario: no se regala
     // información a un atacante.
     const passwordOk = await bcrypt.compare(password, user ? user.password : HASH_SENUELO);

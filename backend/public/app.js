@@ -83,11 +83,12 @@ const api = {
   // === MATRÍCULAS / SOCIOS ===
   // La búsqueda y el filtro los resuelve la base de datos: el navegador ya no
   // se descarga la ficha de todos los socios para buscar un nombre.
-  getMemberships: ({ q = '', estado = 'todos', limit = 300 } = {}) => {
+  getMemberships: ({ q = '', estado = 'todos', limit = 300, offset = 0 } = {}) => {
     const p = new URLSearchParams();
     if (q) p.set('q', q);
     if (estado && estado !== 'todos') p.set('estado', estado);
     p.set('limit', String(limit));
+    if (offset) p.set('offset', String(offset));
     return authFetch(`${API_BASE}/memberships?${p.toString()}`);
   },
 
@@ -123,6 +124,14 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   }),
+
+  congelarMembresia: (id, motivo) => authFetch(`${API_BASE}/memberships/${id}/congelar`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ motivo })
+  }),
+
+  reactivarMembresia: (id) => authFetch(`${API_BASE}/memberships/${id}/reactivar`, { method: 'PUT' }),
 
   deleteMembership: (id) => authFetch(`${API_BASE}/memberships/${id}`, { method: 'DELETE' }),
 
@@ -179,6 +188,50 @@ const api = {
 
   deleteCatalogoOption: (id) => authFetch(`${API_BASE}/catalogo/${id}`, { method: 'DELETE' }),
 
+  // === INVENTARIO ===
+  getProductos: (soloBajos) => authFetch(`${API_BASE}/inventario${soloBajos ? '?bajo_stock=1' : ''}`),
+
+  getInventarioResumen: () => authFetch(`${API_BASE}/inventario/resumen`),
+
+  getMovimientosProducto: (id) => authFetch(`${API_BASE}/inventario/${id}/movimientos`),
+
+  crearProducto: (data) => authFetch(`${API_BASE}/inventario`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+
+  actualizarProducto: (id, data) => authFetch(`${API_BASE}/inventario/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+
+  reponerStock: (id, cantidad, motivo) => authFetch(`${API_BASE}/inventario/${id}/entrada`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cantidad, motivo })
+  }),
+
+  ajustarStock: (id, stock_real, motivo) => authFetch(`${API_BASE}/inventario/${id}/ajuste`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock_real, motivo })
+  }),
+
+  retirarProducto: (id) => authFetch(`${API_BASE}/inventario/${id}`, { method: 'DELETE' }),
+
+  // === USUARIOS ===
+  getUsuarios: () => authFetch(`${API_BASE}/usuarios`),
+
+  crearUsuario: (data) => authFetch(`${API_BASE}/usuarios`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+
+  actualizarUsuario: (id, data) => authFetch(`${API_BASE}/usuarios/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+
+  cambiarPasswordUsuario: (id, password) => authFetch(`${API_BASE}/usuarios/${id}/password`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password })
+  }),
+
+  activarUsuario: (id, activo) => authFetch(`${API_BASE}/usuarios/${id}/activo`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo })
+  }),
+
   // === RESPALDO ===
   descargarBackup: async () => {
     const res = await fetch(`${API_BASE}/backup`, {
@@ -195,12 +248,21 @@ const api = {
 
   getBackupEstado: () => authFetch(`${API_BASE}/backup/estado`),
 
+  getRecordatorioRespaldo: () => authFetch(`${API_BASE}/backup/recordatorio`),
+
   restaurarBackup: (contenido) => authFetch(`${API_BASE}/backup/restaurar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: contenido // ya es el texto JSON del archivo
   }),
 };
+
+// Quién está usando el sistema ahora mismo. El panel esconde lo que su rol no
+// puede tocar; el servidor lo bloquea de todas formas, así que esconderlo es
+// para no ofrecer botones que darían error, no una medida de seguridad.
+let USUARIO = null;
+function usuarioActual() { return USUARIO; }
+function esAdministradora() { return !!(USUARIO && USUARIO.role === 'admin'); }
 
 // ===== Helpers compartidos =====
 async function requireSession() {
@@ -214,11 +276,12 @@ async function requireSession() {
       mostrarAvisoConexion('Sin conexión a internet. Reintentando...');
       return null;
     }
-    if (!user || user.error || user.role !== 'admin') {
+    if (!user || user.error || !['admin', 'recepcion'].includes(user.role)) {
       clearToken();
       window.location.href = 'login.html';
       return null;
     }
+    USUARIO = user;
     setupLogout();
     return user;
   } catch (err) {

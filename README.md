@@ -1,4 +1,4 @@
-# 🏋️ ZONA VIP GYM — Sistema de gestión (v3)
+# 🏋️ ZONA VIP GYM — Sistema de gestión (v4)
 
 Sistema interno para administrar **ingresos** (matrículas, renovaciones y ventas extras) y controlar **cuánto tiempo le queda a cada socio** de membresía. Corre en la nube (Railway + Supabase) y se instala como app en el celular.
 
@@ -144,6 +144,64 @@ Sin `TEST_DATABASE_URL` se saltan solas, así que `npm test` funciona en
 cualquier máquina. Están comprobadas de la única forma que sirve: volviendo a
 introducir a propósito los errores ya corregidos y verificando que fallan.
 
+## 👥 Dos tipos de usuario (nuevo en la v4)
+
+Pestaña **Usuarios** (solo tú la ves). Sirve para dar de alta a quien atiende
+el mostrador con su propia cuenta, sin compartirle tu contraseña:
+
+| | Administradora | Recepción |
+|---|---|---|
+| Cobrar, renovar, corregir datos | ✅ | ✅ |
+| Pausar y reactivar membresías | ✅ | ✅ |
+| Marcar entradas | ✅ | ✅ |
+| Vender productos | ✅ | ✅ |
+| **Ver finanzas y utilidad** | ✅ | ❌ |
+| **Gastos** | ✅ | ❌ |
+| **Anular cobros y ventas** | ✅ | ❌ |
+| **Precios, inventario y respaldos** | ✅ | ❌ |
+| **Crear usuarios** | ✅ | ❌ |
+
+Cada cobro, venta y entrada queda guardado **con el nombre de quien lo hizo**.
+Si le quitas el acceso a alguien, deja de entrar **al instante**, sin esperar a
+que caduque su sesión — y todo lo que registró se queda en el historial.
+
+El sistema no te deja quedarte sin ninguna administradora: si intentas bajarte
+el rol siendo la única, te lo impide.
+
+## ⏸️ Pausar una membresía (nuevo)
+
+Un socio se va de viaje o se lesiona. En **Socios** → botón **Pausar**:
+
+- Los días que le quedaban **se le guardan**.
+- Mientras está en pausa su vencimiento no corre, no aparece entre los que
+  vencen pronto y no se le cuenta como activo.
+- Al pulsar **Reactivar** se le suman exactamente los días que estuvo parado.
+- Si intenta entrar mientras está pausado, el mostrador te avisa.
+
+## 📦 Inventario (nuevo)
+
+Pestaña **Inventario**. Cada producto lleva su stock y su aviso de reposición:
+
+- Al registrar una venta eligiendo el producto, **el stock baja solo**.
+- Si anulas la venta, **el producto vuelve al almacén**.
+- Si vendes más de lo que hay, te avisa antes (por si el conteo está mal) y te
+  deja confirmar.
+- **Reponer** suma mercadería; **Contar** ajusta tras un conteo físico.
+- Todo cambio queda anotado con su motivo: en **Movimientos** ves de dónde
+  salió cada unidad. El stock siempre cuadra con ese historial.
+- El panel *"Se están acabando"* lista lo que hay que reponer.
+
+## 🛟 Aviso de respaldo (nuevo)
+
+Si pasan más de 30 días sin descargar una copia, aparece una franja naranja
+arriba con un botón para hacerlo en el momento. Es la única red de seguridad
+real del negocio y antes dependía de acordarse.
+
+## 📄 Listas largas (nuevo)
+
+Pasados los 300 socios en pantalla aparecen botones de **página**: ya no hace
+falta adivinar un nombre para llegar a los que están más abajo.
+
 ## 📱 Pensado para usarlo desde el celular
 
 El sistema se maneja en el mostrador, con el teléfono en la mano. Por eso:
@@ -270,8 +328,9 @@ No hace falta tocar nada del código:
     ├── lib/validate.js   ← validación de toda entrada de datos
     ├── lib/errores.js    ← distingue "la base está caída" de "error de verdad"
     ├── middleware/       ← sesiones JWT + cabeceras de seguridad + freno de login
-    ├── routes/           ← auth, matrículas/finanzas, extras, gastos,
-    │                       asistencia, clases, catálogo y respaldo
+    ├── routes/           ← auth, usuarios, matrículas/finanzas, ventas,
+    │                       gastos, asistencia, inventario, clases,
+    │                       catálogo y respaldo
     ├── tests/            ← pruebas automáticas (npm test)
     └── public/           ← la pantalla del sistema (HTML/CSS/JS + PWA)
         └── assets/fonts/ ← tipografías propias: cero dependencias externas

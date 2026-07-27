@@ -425,3 +425,266 @@ describe('Aguanta el volumen', { skip: SALTAR && 'sin TEST_DATABASE_URL' }, () =
     assert.ok(ms < 3000, `debería responder rápido y tardó ${ms} ms`);
   });
 });
+
+describe('Pausar y reactivar membresías', { skip: SALTAR && 'sin TEST_DATABASE_URL' }, () => {
+  test('los días pausados se devuelven exactos al reactivar', async () => {
+    await limpiarDatos();
+    const hoy = await hoyNegocio();
+    const nuevo = await pide('POST', '/api/memberships', {
+      nombre: 'Viajero', concepto: 'Matrícula mensual', monto: 80,
+      fecha_pago: hoy, fecha_vence: sumaDias(hoy, 25),
+    });
+    const id = nuevo.datos.id;
+
+    const congelar = await pide('PUT', `/api/memberships/${id}/congelar`, { motivo: 'Viaje' });
+    assert.equal(congelar.estado, 200);
+    assert.equal(congelar.datos.dias_guardados, 25);
+
+    // Se simula que estuvo 14 días parado.
+    await db.query(`UPDATE memberships SET congelada_desde = $1 WHERE id = $2`, [sumaDias(hoy, -14), id]);
+    const reactivar = await pide('PUT', `/api/memberships/${id}/reactivar`);
+    assert.equal(reactivar.datos.dias_devueltos, 14);
+    assert.equal(reactivar.datos.nuevoVence, sumaDias(hoy, 39), '25 que le quedaban + 14 parado');
+  });
+
+  test('una membresía pausada no cuenta como activa ni vence sola', async () => {
+    await limpiarDatos();
+    const hoy = await hoyNegocio();
+    const nuevo = await pide('POST', '/api/memberships', {
+      nombre: 'Pausado', concepto: 'Matrícula mensual', monto: 80,
+      fecha_pago: hoy, fecha_vence: sumaDias(hoy, 3),
+    });
+    await pide('PUT', `/api/memberships/${nuevo.datos.id}/congelar`, {});
+
+    const resumen = (await pide('GET', '/api/memberships/resumen')).datos;
+    assert.equal(resumen.congelados, 1);
+    assert.equal(resumen.activos, 0, 'un socio en pausa no se cuenta como activo');
+    assert.equal(resumen.pronto, 0, 'ni aparece entre los que vencen pronto');
+
+    const porVencer = (await pide('GET', '/api/memberships/por-vencer?dias=30')).datos;
+    assert.equal(porVencer.length, 0, 'no se le avisa: su tiempo está parado');
+
+    // Aunque pase la fecha, el refresco automático no debe marcarla vencida.
+    await db.query(`UPDATE memberships SET fecha_vence = $1 WHERE id = $2`, [sumaDias(hoy, -5), nuevo.datos.id]);
+    await db.actualizarEstadoMemberships(true);
+    const fila = await db.queryOne('SELECT estado FROM memberships WHERE id = $1', [nuevo.datos.id]);
+    assert.equal(fila.estado, 'congelada');
+  });
+
+  test('en el mostrador se avisa de que está pausada', async () => {
+    const socios = (await pide('GET', '/api/memberships')).datos.items;
+    const r = await pide('POST', '/api/asistencia', { membership_id: socios[0].id });
+    assert.match(r.datos.mensaje, /CONGELADA/);
+  });
+
+  test('no se puede pausar dos veces ni una ya vencida', async () => {
+    const socios = (await pide('GET', '/api/memberships')).datos.items;
+    const dos = await pide('PUT', `/api/memberships/${socios[0].id}/congelar`, {});
+    assert.equal(dos.estado, 400);
+
+    const hoy = await hoyNegocio();
+    const vencido = await pide('POST', '/api/memberships', {
+      nombre: 'Ya Vencido', concepto: 'Matrícula mensual', monto: 80,
+      fecha_pago: '2026-01-01', fecha_vence: sumaDias(hoy, -10),
+    });
+    const r = await pide('PUT', `/api/memberships/${vencido.datos.id}/congelar`, {});
+    assert.equal(r.estado, 400);
+  });
+});
+
+describe('Inventario', { skip: SALTAR && 'sin TEST_DATABASE_URL' }, () => {
+  test('vender descuenta el stock y anular lo devuelve', async () => {
+    await limpiarDatos();
+    await db.query('TRUNCATE products, stock_movements RESTART IDENTITY CASCADE');
+    const hoy = await hoyNegocio();
+    const p = await pide('POST', '/api/inventario', {
+      nombre: 'Proteína', categoria: 'Suplementos', precio: 90, stock: 10, stock_minimo: 3,
+    });
+    const id = p.datos.id;
+
+    const venta = await pide('POST', '/api/extras', {
+      categoria: 'Suplementos', monto: 180, fecha: hoy, producto_id: id, cantidad: 2,
+    });
+    assert.equal(venta.estado, 201);
+    assert.equal(venta.datos.stock_restante, 8);
+
+    const anular = await pide('DELETE', `/api/extras/${venta.datos.id}`);
+    assert.equal(anular.estado, 200);
+    const prod = await db.queryOne('SELECT stock FROM products WHERE id = $1', [id]);
+    assert.equal(prod.stock, 10, 'el producto vuelve al almacén');
+  });
+
+  test('el stock siempre cuadra con su historial de movimientos', async () => {
+    const productos = (await pide('GET', '/api/inventario')).datos;
+    const id = productos[0].id;
+    await pide('POST', `/api/inventario/${id}/entrada`, { cantidad: 5, motivo: 'Pedido' });
+    await pide('POST', '/api/extras', {
+      categoria: 'Suplementos', monto: 90, fecha: await hoyNegocio(), producto_id: id, cantidad: 1,
+    });
+    await pide('POST', `/api/inventario/${id}/ajuste`, { stock_real: 12, motivo: 'Conteo' });
+
+    const cuadre = await db.queryOne(
+      `SELECT p.stock, COALESCE(SUM(m.cantidad), 0)::int AS suma
+       FROM products p LEFT JOIN stock_movements m ON m.producto_id = p.id
+       WHERE p.id = $1 GROUP BY p.stock`,
+      [id]
+    );
+    assert.equal(cuadre.stock, cuadre.suma, 'stock y suma de movimientos coinciden');
+  });
+
+  test('vender más de lo que hay avisa antes de dejar el stock en negativo', async () => {
+    const productos = (await pide('GET', '/api/inventario')).datos;
+    const id = productos[0].id;
+    const stockActual = productos[0].stock;
+    const r = await pide('POST', '/api/extras', {
+      categoria: 'Suplementos', monto: 900, fecha: await hoyNegocio(),
+      producto_id: id, cantidad: stockActual + 5,
+    });
+    assert.equal(r.estado, 409);
+    assert.equal(r.datos.sin_stock, true);
+  });
+
+  test('avisa de los productos por debajo del mínimo', async () => {
+    await db.query('TRUNCATE products, stock_movements RESTART IDENTITY CASCADE');
+    await pide('POST', '/api/inventario', { nombre: 'Agua', precio: 2.5, stock: 2, stock_minimo: 6 });
+    const r = (await pide('GET', '/api/inventario/resumen')).datos;
+    assert.equal(r.por_reponer, 1);
+    assert.equal(r.faltantes[0].nombre, 'Agua');
+  });
+});
+
+describe('Recepción no puede tocar el dinero', { skip: SALTAR && 'sin TEST_DATABASE_URL' }, () => {
+  let tokenRecepcion;
+
+  before(async () => {
+    if (SALTAR) return;
+    await pide('POST', '/api/usuarios', {
+      firstname: 'Mostrador', lastname: 'Prueba', email: 'recepcion.test@zonavip.com',
+      role: 'recepcion', password: 'Mostrador2026',
+    });
+    const r = await fetch(BASE + '/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'recepcion.test@zonavip.com', password: 'Mostrador2026' }),
+    }).then((x) => x.json());
+    tokenRecepcion = r.token;
+    assert.ok(tokenRecepcion, 'recepción debe poder iniciar sesión');
+  });
+
+  async function comoRecepcion(metodo, ruta, cuerpo) {
+    const guardado = token;
+    token = tokenRecepcion;
+    const r = await pide(metodo, ruta, cuerpo);
+    token = guardado;
+    return r;
+  }
+
+  test('SÍ puede lo operativo del mostrador', async () => {
+    const hoy = await hoyNegocio();
+    for (const [metodo, ruta, cuerpo] of [
+      ['GET', '/api/memberships'],
+      ['GET', '/api/memberships/resumen'],
+      ['GET', '/api/asistencia'],
+      ['GET', '/api/inventario'],
+      ['GET', '/api/catalogo'],
+      ['POST', '/api/memberships', { nombre: 'Socio de Recepción', concepto: 'Matrícula mensual', monto: 80, fecha_pago: hoy, fecha_vence: sumaDias(hoy, 30) }],
+      ['POST', '/api/extras', { categoria: 'Bebidas', monto: 2.5, fecha: hoy }],
+    ]) {
+      const r = await comoRecepcion(metodo, ruta, cuerpo);
+      assert.notEqual(r.estado, 403, `recepción debería poder: ${metodo} ${ruta}`);
+    }
+  });
+
+  test('NO puede ver ni tocar el dinero', async () => {
+    for (const [metodo, ruta, cuerpo] of [
+      ['GET', '/api/memberships/finanzas'],
+      ['GET', '/api/memberships/pagos'],
+      ['PUT', '/api/memberships/pagos/1/anular', { motivo: 'x' }],
+      ['GET', '/api/gastos'],
+      ['POST', '/api/gastos', { categoria: 'Luz', monto: 100, fecha: '2026-07-01' }],
+      ['GET', '/api/extras/resumen?desde=2026-01-01'],
+      ['DELETE', '/api/extras/1'],
+      ['GET', '/api/inventario/resumen'],
+      ['POST', '/api/inventario/1/entrada', { cantidad: 5 }],
+      ['GET', '/api/backup'],
+      ['GET', '/api/usuarios'],
+      ['POST', '/api/catalogo', { tipo: 'matricula', nombre: 'X', precio: 1, dias: 30 }],
+    ]) {
+      const r = await comoRecepcion(metodo, ruta, cuerpo);
+      assert.equal(r.estado, 403, `recepción NO debería poder: ${metodo} ${ruta}`);
+    }
+  });
+
+  test('quitarle el acceso surte efecto AL INSTANTE, sin esperar a que caduque su sesión', async () => {
+    const usuarios = (await pide('GET', '/api/usuarios')).datos;
+    const recep = usuarios.find((u) => u.email === 'recepcion.test@zonavip.com');
+
+    assert.notEqual((await comoRecepcion('GET', '/api/memberships')).estado, 401);
+    await pide('PUT', `/api/usuarios/${recep.id}/activo`, { activo: false });
+    // Su token sigue siendo válido criptográficamente, pero ya no debe servir.
+    assert.equal((await comoRecepcion('GET', '/api/memberships')).estado, 401);
+
+    await pide('PUT', `/api/usuarios/${recep.id}/activo`, { activo: true });
+    assert.notEqual((await comoRecepcion('GET', '/api/memberships')).estado, 401);
+  });
+
+  test('subirle el rol también surte efecto al instante', async () => {
+    const usuarios = (await pide('GET', '/api/usuarios')).datos;
+    const recep = usuarios.find((u) => u.email === 'recepcion.test@zonavip.com');
+
+    assert.equal((await comoRecepcion('GET', '/api/memberships/finanzas')).estado, 403);
+    await pide('PUT', `/api/usuarios/${recep.id}`, { firstname: 'Mostrador', role: 'admin' });
+    assert.equal((await comoRecepcion('GET', '/api/memberships/finanzas')).estado, 200);
+    await pide('PUT', `/api/usuarios/${recep.id}`, { firstname: 'Mostrador', role: 'recepcion' });
+    assert.equal((await comoRecepcion('GET', '/api/memberships/finanzas')).estado, 403);
+  });
+
+  test('siempre debe quedar una administradora', async () => {
+    const usuarios = (await pide('GET', '/api/usuarios')).datos;
+    const admins = usuarios.filter((u) => u.role === 'admin' && u.activo);
+    if (admins.length === 1) {
+      const r = await pide('PUT', `/api/usuarios/${admins[0].id}`, { firstname: 'X', role: 'recepcion' });
+      assert.equal(r.estado, 400);
+    }
+  });
+});
+
+describe('Paginación y recordatorio de respaldo', { skip: SALTAR && 'sin TEST_DATABASE_URL' }, () => {
+  test('se puede pasar de página más allá del tope', async () => {
+    await limpiarDatos();
+    const hoy = await hoyNegocio();
+    await db.query(
+      `INSERT INTO memberships (nombre, concepto, monto, metodo, fecha_pago, fecha_vence, estado)
+       SELECT 'Socio '||g, 'Matrícula mensual', 80, 'Efectivo', $1, $2, 'activa'
+       FROM generate_series(1, 700) g`,
+      [hoy, sumaDias(hoy, 30)]
+    );
+    const p1 = (await pide('GET', '/api/memberships?limit=300')).datos;
+    assert.equal(p1.items.length, 300);
+    assert.equal(p1.total, 700);
+    assert.equal(p1.hay_mas, true);
+
+    const p3 = (await pide('GET', '/api/memberships?limit=300&offset=600')).datos;
+    assert.equal(p3.items.length, 100, 'la última página trae el resto');
+    assert.equal(p3.hay_mas, false);
+
+    const ids1 = new Set(p1.items.map((m) => m.id));
+    assert.ok(p3.items.every((m) => !ids1.has(m.id)), 'las páginas no repiten socios');
+  });
+
+  test('avisa cuando hace mucho que no se descarga un respaldo', async () => {
+    await db.query(`DELETE FROM ajustes WHERE clave = 'ultimo_respaldo'`);
+    const sinNada = (await pide('GET', '/api/backup/recordatorio')).datos;
+    assert.equal(sinNada.nunca, true);
+    assert.equal(sinNada.toca, true);
+
+    await pide('GET', '/api/backup');
+    const recien = (await pide('GET', '/api/backup/recordatorio')).datos;
+    assert.equal(recien.toca, false, 'recién descargado no molesta');
+
+    await db.query(`UPDATE ajustes SET valor = $1 WHERE clave = 'ultimo_respaldo'`,
+      [new Date(Date.now() - 45 * 86400000).toISOString()]);
+    const viejo = (await pide('GET', '/api/backup/recordatorio')).datos;
+    assert.equal(viejo.toca, true);
+    assert.equal(viejo.dias, 45);
+  });
+});

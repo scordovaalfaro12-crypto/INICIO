@@ -10,11 +10,11 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryAll } = require('../db');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStaff } = require('../middleware/auth');
 const { parseMonto, parseId, parseDias, requireText } = require('../lib/validate');
 const { responderError } = require('../lib/errores');
 
-router.use(authenticateToken, requireAdmin);
+router.use(authenticateToken, requireStaff);
 
 router.get('/', async (req, res) => {
   try {
@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   const b = req.body || {};
   // 'gasto' son los rubros de egreso (alquiler, luz, sueldos…). Sin él, la
   // pantalla de precios prometía poder crearlos pero el servidor los rechazaba.
@@ -69,7 +69,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'ID inválido' });
   try {

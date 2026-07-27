@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryAll, queryOne } = require('../db');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStaff } = require('../middleware/auth');
 const config = require('../config');
 const { todayISO } = require('../lib/dates');
 const { parseMonto, parseId, parseDias, requireText, cleanText, parseFecha } = require('../lib/validate');
 const { responderError } = require('../lib/errores');
 
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, requireStaff, async (req, res) => {
   try {
     const classes = await queryAll("SELECT * FROM classes WHERE estado = 'activa' ORDER BY fecha ASC, hora ASC");
     res.json(classes);
@@ -20,7 +20,7 @@ router.get('/', authenticateToken, async (req, res) => {
 //  pública que nunca se llegó a usar: ninguna pantalla lo consultaba. Era el
 //  único punto de la API accesible sin iniciar sesión, así que se retiró.)
 
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'ID inválido' });
   try {

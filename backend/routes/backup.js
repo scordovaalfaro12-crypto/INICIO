@@ -12,7 +12,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { queryAll, queryOne, withTransaction } = require('../db');
+const { queryAll, queryOne, withTransaction, leerAjuste, guardarAjuste } = require('../db');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const config = require('../config');
 const { todayISO, addDays } = require('../lib/dates');
@@ -34,7 +34,7 @@ const DIAS_ASISTENCIA_EN_RESPALDO = 365;
 router.get('/', async (req, res) => {
   try {
     const desdeAsistencia = addDays(todayISO(config.TZ), -DIAS_ASISTENCIA_EN_RESPALDO);
-    const [memberships, payments, extraSales, classes, users, catalogo, gastos, asistencia, totalAsistencia] = await Promise.all([
+    const [memberships, payments, extraSales, classes, users, catalogo, gastos, asistencia, productos, movimientos, totalAsistencia] = await Promise.all([
       queryAll('SELECT * FROM memberships ORDER BY id'),
       queryAll('SELECT * FROM payments ORDER BY id'),
       queryAll('SELECT * FROM extra_sales ORDER BY id'),
@@ -44,6 +44,8 @@ router.get('/', async (req, res) => {
       queryAll('SELECT * FROM catalog_options ORDER BY id'),
       queryAll('SELECT * FROM expenses ORDER BY id'),
       queryAll('SELECT * FROM attendance WHERE fecha >= $1 ORDER BY id', [desdeAsistencia]),
+      queryAll('SELECT * FROM products ORDER BY id'),
+      queryAll('SELECT * FROM stock_movements ORDER BY id'),
       queryOne('SELECT COUNT(*)::int AS n FROM attendance'),
     ]);
 
@@ -67,8 +69,15 @@ router.get('/', async (req, res) => {
         catalog_options: catalogo,
         expenses: gastos,
         attendance: asistencia,
+        products: productos,
+        stock_movements: movimientos,
       },
     };
+
+    // Queda anotado que HOY se descargó un respaldo. Con esa marca el panel
+    // puede avisar cuando pasan demasiadas semanas sin copia: el respaldo es
+    // la única red de seguridad real y depende de que alguien se acuerde.
+    await guardarAjuste('ultimo_respaldo', new Date().toISOString());
 
     res.setHeader('Content-Disposition', `attachment; filename="respaldo-zonavip-${todayISO(config.TZ)}.json"`);
     res.json(respaldo);
@@ -95,13 +104,44 @@ router.get('/estado', async (req, res) => {
   }
 });
 
+// Días recomendados entre respaldos. A partir de aquí el panel insiste.
+const DIAS_ENTRE_RESPALDOS = 30;
+
+// ¿Hace cuánto que no se descarga una copia? El panel lo consulta al abrir.
+router.get('/recordatorio', async (req, res) => {
+  try {
+    const marca = await leerAjuste('ultimo_respaldo');
+    if (!marca || !marca.valor) {
+      return res.json({
+        nunca: true, dias: null, toca: true,
+        mensaje: 'Todavía no has descargado ningún respaldo. Hazlo hoy: es la copia que te salva si algo le pasa a la nube.',
+      });
+    }
+    const dias = Math.floor((Date.now() - new Date(marca.valor).getTime()) / 86400000);
+    const toca = dias >= DIAS_ENTRE_RESPALDOS;
+    res.json({
+      nunca: false,
+      dias,
+      fecha: marca.valor,
+      toca,
+      mensaje: toca
+        ? `Hace ${dias} días que no descargas un respaldo. Descárgalo y guárdalo en tu correo o celular.`
+        : `Último respaldo hace ${dias} día${dias === 1 ? '' : 's'}.`,
+    });
+  } catch (err) {
+    responderError(res, err, 'BACKUP', 'Error al consultar el recordatorio');
+  }
+});
+
 // Tablas que se pueden restaurar, con sus columnas permitidas. La lista es
 // fija a propósito: el archivo subido NUNCA decide qué tablas o columnas se
 // tocan, así un JSON manipulado no puede escribir donde no debe.
 const RESTAURABLES = [
-  { tabla: 'memberships', columnas: ['id', 'nombre', 'telefono', 'dni', 'concepto', 'monto', 'metodo', 'fecha_pago', 'fecha_vence', 'notas', 'estado'] },
+  { tabla: 'memberships', columnas: ['id', 'nombre', 'telefono', 'dni', 'concepto', 'monto', 'metodo', 'fecha_pago', 'fecha_vence', 'notas', 'estado', 'congelada_desde', 'motivo_congelacion', 'dias_congelados_total'] },
   { tabla: 'payments', columnas: ['id', 'tipo', 'membership_id', 'nombre', 'concepto', 'monto', 'metodo', 'fecha_pago', 'notas', 'anulado', 'motivo_anulacion'] },
-  { tabla: 'extra_sales', columnas: ['id', 'categoria', 'descripcion', 'monto', 'metodo', 'fecha', 'notas', 'anulado', 'motivo_anulacion'] },
+  { tabla: 'extra_sales', columnas: ['id', 'categoria', 'descripcion', 'monto', 'metodo', 'fecha', 'notas', 'anulado', 'motivo_anulacion', 'producto_id', 'cantidad'] },
+  { tabla: 'products', columnas: ['id', 'nombre', 'categoria', 'precio', 'stock', 'stock_minimo', 'activo'] },
+  { tabla: 'stock_movements', columnas: ['id', 'producto_id', 'tipo', 'cantidad', 'stock_resultante', 'motivo', 'venta_id', 'fecha'] },
   { tabla: 'classes', columnas: ['id', 'titulo', 'instructor', 'fecha', 'hora', 'descripcion', 'imagen', 'capacidad', 'precio', 'estado'] },
   { tabla: 'catalog_options', columnas: ['id', 'tipo', 'nombre', 'precio', 'dias'] },
   { tabla: 'expenses', columnas: ['id', 'categoria', 'descripcion', 'monto', 'metodo', 'fecha', 'notas', 'anulado', 'motivo_anulacion'] },

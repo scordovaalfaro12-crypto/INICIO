@@ -16,14 +16,17 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne, queryAll, withTransaction, actualizarEstadoMemberships } = require('../db');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStaff } = require('../middleware/auth');
 const config = require('../config');
-const { todayISO, addDays, weekStart, monthStart, yearStart, quincenaStart } = require('../lib/dates');
+const { todayISO, addDays, diffDays, weekStart, monthStart, yearStart, quincenaStart } = require('../lib/dates');
 const { parseMonto, parseId, parseDias, requireText, cleanText, parseFecha, parseMetodo } = require('../lib/validate');
 const { responderError } = require('../lib/errores');
 
-// Todas las rutas de matrículas son solo para administradores.
-router.use(authenticateToken, requireAdmin);
+// Quien atiende el mostrador entra a todo lo operativo: ver socios, cobrar,
+// renovar, corregir datos y pausar membresías. Lo que toca el DINERO
+// —finanzas, libro de pagos, anulaciones y borrar fichas— lleva además
+// requireAdmin en su propia ruta, más abajo.
+router.use(authenticateToken, requireStaff);
 
 const LIMITE_POR_DEFECTO = 300;
 const LIMITE_MAXIMO = 5000;
@@ -54,7 +57,8 @@ router.get('/resumen', async (req, res) => {
       `SELECT
          COUNT(*) FILTER (WHERE estado = 'activa')::int AS activos,
          COUNT(*) FILTER (WHERE estado = 'vencida')::int AS vencidos,
-         COUNT(*) FILTER (WHERE estado = 'activa' AND fecha_vence <= $1)::int AS pronto,
+         COUNT(*) FILTER (WHERE congelada_desde IS NOT NULL)::int AS congelados,
+         COUNT(*) FILTER (WHERE estado = 'activa' AND fecha_vence <= $1 AND congelada_desde IS NULL)::int AS pronto,
          COUNT(*)::int AS total
        FROM memberships`,
       [en7]
@@ -75,10 +79,14 @@ router.get('/', async (req, res) => {
     const en7 = addDays(hoy, 7);
 
     const q = cleanText(req.query.q, 80).toLowerCase();
-    const estado = ['activa', 'vencida', 'pronto'].includes(req.query.estado) ? req.query.estado : null;
+    const estado = ['activa', 'vencida', 'pronto', 'congelada'].includes(req.query.estado) ? req.query.estado : null;
     let limite = parseInt(req.query.limit, 10);
     if (!Number.isInteger(limite) || limite < 1) limite = LIMITE_POR_DEFECTO;
     limite = Math.min(limite, LIMITE_MAXIMO);
+    // Desde qué fila empezar. Sin esto, pasados los 300 socios no había forma
+    // de seguir bajando: había que adivinar un nombre para poder verlos.
+    let desde = parseInt(req.query.offset, 10);
+    if (!Number.isInteger(desde) || desde < 0) desde = 0;
 
     const condiciones = [];
     const params = [];
@@ -95,19 +103,27 @@ router.get('/', async (req, res) => {
     }
     if (estado === 'activa') condiciones.push(`estado = 'activa'`);
     else if (estado === 'vencida') condiciones.push(`estado = 'vencida'`);
+    else if (estado === 'congelada') condiciones.push(`congelada_desde IS NOT NULL`);
     else if (estado === 'pronto') {
       params.push(en7);
-      condiciones.push(`estado = 'activa' AND fecha_vence <= $${params.length}`);
+      condiciones.push(`estado = 'activa' AND fecha_vence <= $${params.length} AND congelada_desde IS NULL`);
     }
     const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
 
     const totalRow = await queryOne(`SELECT COUNT(*)::int AS total FROM memberships ${where}`, params);
     const items = await queryAll(
-      `SELECT * FROM memberships ${where} ORDER BY fecha_vence DESC, id DESC LIMIT ${limite}`,
+      `SELECT * FROM memberships ${where} ORDER BY fecha_vence DESC, id DESC LIMIT ${limite} OFFSET ${desde}`,
       params
     );
 
-    res.json({ items, total: (totalRow && totalRow.total) || 0, limite });
+    const total = (totalRow && totalRow.total) || 0;
+    res.json({
+      items,
+      total,
+      limite,
+      desde,
+      hay_mas: desde + items.length < total,
+    });
   } catch (err) {
     responderError(res, err, 'MEMBERSHIPS', 'Error al obtener matrículas');
   }
@@ -125,7 +141,8 @@ router.get('/por-vencer', async (req, res) => {
     const rows = await queryAll(
       `SELECT id, nombre, telefono, concepto, fecha_vence, estado
        FROM memberships
-       WHERE estado = 'activa' AND fecha_vence >= $1 AND fecha_vence <= $2
+       WHERE estado = 'activa' AND congelada_desde IS NULL
+         AND fecha_vence >= $1 AND fecha_vence <= $2
        ORDER BY fecha_vence ASC, nombre ASC
        LIMIT 500`,
       [hoy, hasta]
@@ -185,7 +202,7 @@ router.get('/:id/historial', async (req, res) => {
 });
 
 // Libro de pagos individual (para el CSV y auditoría).
-router.get('/pagos', async (req, res) => {
+router.get('/pagos', requireAdmin, async (req, res) => {
   try {
     const desde = parseFecha(req.query.desde) || '2000-01-01';
     const hasta = parseFecha(req.query.hasta) || '2200-12-31';
@@ -213,7 +230,7 @@ router.get('/pagos', async (req, res) => {
 
 // Anula un pago mal registrado. NO se borra: queda con su motivo y deja de
 // sumar en los reportes, así el historial sigue siendo auditable.
-router.put('/pagos/:id/anular', async (req, res) => {
+router.put('/pagos/:id/anular', requireAdmin, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'ID inválido' });
   const motivo = cleanText((req.body || {}).motivo, 200) || 'Corrección del administrador';
@@ -231,7 +248,7 @@ router.put('/pagos/:id/anular', async (req, res) => {
 });
 
 // Reporte financiero: lee del libro de pagos (payments) + ventas extras.
-router.get('/finanzas', async (req, res) => {
+router.get('/finanzas', requireAdmin, async (req, res) => {
   try {
     await refreshStates();
     const hoy = todayISO(config.TZ);
@@ -402,9 +419,9 @@ router.post('/', async (req, res) => {
       );
       const newId = r.rows[0].id;
       await tx.query(
-        `INSERT INTO payments (tipo, membership_id, nombre, concepto, monto, metodo, fecha_pago)
-         VALUES ('matricula', $1, $2, $3, $4, $5, $6)`,
-        [newId, nombre, concepto, monto, metodo, fechaPago]
+        `INSERT INTO payments (tipo, membership_id, nombre, concepto, monto, metodo, fecha_pago, usuario_id)
+         VALUES ('matricula', $1, $2, $3, $4, $5, $6, $7)`,
+        [newId, nombre, concepto, monto, metodo, fechaPago, req.user.id]
       );
       return newId;
     });
@@ -435,9 +452,12 @@ router.put('/:id', async (req, res) => {
   const estado = fechaVence < todayISO(config.TZ) ? 'vencida' : 'activa';
 
   try {
+    // Si el socio está congelado se respeta ese estado: corregirle el teléfono
+    // no debe reactivarle la membresía sin querer.
     const r = await queryOne(
       `UPDATE memberships
-       SET nombre = $1, telefono = $2, dni = $3, concepto = $4, notas = $5, fecha_vence = $6, estado = $7
+       SET nombre = $1, telefono = $2, dni = $3, concepto = $4, notas = $5, fecha_vence = $6,
+           estado = CASE WHEN congelada_desde IS NOT NULL THEN 'congelada' ELSE $7 END
        WHERE id = $8 RETURNING id`,
       [nombre, telefono, dni, concepto, notas, fechaVence, estado, id]
     );
@@ -490,9 +510,9 @@ router.put('/:id/renew', async (req, res) => {
         [nuevoVence, monto, metodo, concepto, fechaCobro || hoy, id]
       );
       await tx.query(
-        `INSERT INTO payments (tipo, membership_id, nombre, concepto, monto, metodo, fecha_pago)
-         VALUES ('renovacion', $1, $2, $3, $4, $5, $6)`,
-        [id, m.nombre, concepto, monto, metodo, fechaCobro || hoy]
+        `INSERT INTO payments (tipo, membership_id, nombre, concepto, monto, metodo, fecha_pago, usuario_id)
+         VALUES ('renovacion', $1, $2, $3, $4, $5, $6, $7)`,
+        [id, m.nombre, concepto, monto, metodo, fechaCobro || hoy, req.user.id]
       );
       return nuevoVence;
     });
@@ -504,9 +524,86 @@ router.put('/:id/renew', async (req, res) => {
   }
 });
 
+
+// ============ CONGELAR Y REACTIVAR ============
+// Un socio se va de viaje o se lesiona: en vez de perder los días que ya pagó,
+// se pausa su membresía. Mientras está congelada su vencimiento NO corre, y al
+// reactivarla se le suman exactamente los días que estuvo parado.
+
+router.put('/:id/congelar', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'ID inválido' });
+  const motivo = cleanText((req.body || {}).motivo, 200) || 'Pausa solicitada por el socio';
+
+  try {
+    const hoy = todayISO(config.TZ);
+    const resultado = await withTransaction(async (tx) => {
+      // FOR UPDATE: dos clics simultáneos no pueden congelar dos veces.
+      const r = await tx.query('SELECT * FROM memberships WHERE id = $1 FOR UPDATE', [id]);
+      const m = r.rows[0];
+      if (!m) return { error: 'Socio no encontrado', estado: 404 };
+      if (m.congelada_desde) return { error: `${m.nombre} ya está congelado desde el ${m.congelada_desde}`, estado: 400 };
+      if (m.fecha_vence < hoy) {
+        return { error: `${m.nombre} ya tiene la membresía vencida: no hay días que pausar. Renuévala primero.`, estado: 400 };
+      }
+      await tx.query(
+        `UPDATE memberships SET congelada_desde = $1, motivo_congelacion = $2, estado = 'congelada' WHERE id = $3`,
+        [hoy, motivo, id]
+      );
+      return { ok: true, nombre: m.nombre, dias_guardados: diffDays(m.fecha_vence, hoy) };
+    });
+
+    if (resultado.error) return res.status(resultado.estado).json({ error: resultado.error });
+    res.json({
+      message: `Membresía de ${resultado.nombre} congelada. Se le guardan ${resultado.dias_guardados} día(s).`,
+      dias_guardados: resultado.dias_guardados,
+    });
+  } catch (err) {
+    responderError(res, err, 'MEMBERSHIPS', 'Error al congelar la membresía');
+  }
+});
+
+router.put('/:id/reactivar', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const hoy = todayISO(config.TZ);
+    const resultado = await withTransaction(async (tx) => {
+      const r = await tx.query('SELECT * FROM memberships WHERE id = $1 FOR UPDATE', [id]);
+      const m = r.rows[0];
+      if (!m) return { error: 'Socio no encontrado', estado: 404 };
+      if (!m.congelada_desde) return { error: `${m.nombre} no está congelado`, estado: 400 };
+
+      // Los días parados se devuelven empujando el vencimiento hacia adelante.
+      const diasParado = Math.max(0, diffDays(hoy, m.congelada_desde));
+      const nuevoVence = addDays(m.fecha_vence, diasParado);
+      await tx.query(
+        `UPDATE memberships
+         SET congelada_desde = NULL, motivo_congelacion = '',
+             dias_congelados_total = dias_congelados_total + $1,
+             fecha_vence = $2,
+             estado = CASE WHEN $2 < $3 THEN 'vencida' ELSE 'activa' END
+         WHERE id = $4`,
+        [diasParado, nuevoVence, hoy, id]
+      );
+      return { ok: true, nombre: m.nombre, dias: diasParado, nuevoVence };
+    });
+
+    if (resultado.error) return res.status(resultado.estado).json({ error: resultado.error });
+    res.json({
+      message: `${resultado.nombre} reactivado. Se le devolvieron ${resultado.dias} día(s): ahora vence el ${resultado.nuevoVence}.`,
+      dias_devueltos: resultado.dias,
+      nuevoVence: resultado.nuevoVence,
+    });
+  } catch (err) {
+    responderError(res, err, 'MEMBERSHIPS', 'Error al reactivar la membresía');
+  }
+});
+
 // Borra la ficha del socio. Sus pagos ya cobrados QUEDAN en el libro de
 // ingresos (payments), así que los reportes históricos no cambian.
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'ID inválido' });
   try {

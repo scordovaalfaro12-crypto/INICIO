@@ -10,8 +10,8 @@
   <meta name="apple-mobile-web-app-title" content="ZONA VIP">
   <link rel="apple-touch-icon" href="/assets/logo.png">
   <title>Admin — ZONA VIP GYM</title>
-  <link rel="stylesheet" href="/assets/fonts.css?v=18" />
-  <link rel="stylesheet" href="styles.css?v=18" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=23" />
   <style>
     .admin-badge { background: var(--orange); color: var(--white); padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-left: 0.5rem; }
   </style>
@@ -38,17 +38,29 @@
         </a></li>
         <li><a data-tab="asistencia">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          <span>Asistencia</span><span class="mobile-label">Entradas</span>
+          <span>Asistencia</span><span class="mobile-label">Entrada</span>
         </a></li>
-        <li><a data-tab="gastos">
+        <li><a data-tab="ventas">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <span>Ventas</span><span class="mobile-label">Ventas</span>
+        </a></li>
+        <li data-solo-admin><a data-tab="gastos">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M12 3v18"/><circle cx="12" cy="12" r="9"/></svg>
           <span>Gastos</span><span class="mobile-label">Gastos</span>
         </a></li>
-        <li><a data-tab="finanzas">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          <span>Finanzas</span><span class="mobile-label">$$$</span>
+        <li data-solo-admin><a data-tab="inventario">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+          <span>Inventario</span><span class="mobile-label">Stock</span>
         </a></li>
-        <li><a data-tab="precios">
+        <li data-solo-admin><a data-tab="finanzas">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Finanzas</span><span class="mobile-label">Finanzas</span>
+        </a></li>
+        <li data-solo-admin><a data-tab="usuarios">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Usuarios</span><span class="mobile-label">Equipo</span>
+        </a></li>
+        <li data-solo-admin><a data-tab="precios">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a1 1 0 0 0-1 1v5.59c0 .53.21 1.04.59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
           <span>Precios y promos</span><span class="mobile-label">Precios</span>
         </a></li>
@@ -73,7 +85,7 @@
       <section class="admin-section" id="tab-dashboard">
         <div class="page-head">
           <div>
-            <h1>Dashboard <span class="admin-badge">Admin</span></h1>
+            <h1>Dashboard <span class="admin-badge" data-etiqueta-rol>Admin</span></h1>
             <p>Resumen general del negocio.</p>
           </div>
         </div>
@@ -93,14 +105,14 @@
             <div class="stat-card__label">Reservas hoy</div>
             <div class="stat-card__value" id="kpi-reservas">0</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" data-solo-admin>
             <div class="stat-card__icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
             <div class="stat-card__label">Ingresos del mes</div>
             <div class="stat-card__value" id="kpi-ingresos">S/ 0</div>
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-solo-admin>
           <div class="panel__head">
             <h3>Últimos pagos registrados</h3>
             <button class="btn btn-outline btn-sm" data-ir-a="matriculas">Ver todos los socios</button>
@@ -115,6 +127,14 @@
               <tbody id="dash-reservas-body"></tbody>
             </table>
           </div>
+        </div>
+
+        <div class="panel" id="panel-inicio-recepcion" hidden>
+          <div class="panel__head">
+            <h3>Tu día</h3>
+            <button class="btn btn-outline btn-sm" data-ir-a="asistencia">Marcar entradas</button>
+          </div>
+          <div id="resumen-recepcion" style="padding:1rem;display:grid;gap:0.8rem;"></div>
         </div>
 
         <div class="cards-row" style="grid-template-columns:1fr 1fr;">
@@ -159,7 +179,7 @@
             Registrar pago
           </button>
         </div>
-        <div class="cards-row" style="grid-template-columns:repeat(3,1fr);">
+        <div class="cards-row" style="grid-template-columns:repeat(4,1fr);">
           <div class="stat-card" style="border-left:4px solid var(--green);">
             <div class="stat-card__label">Socios activos</div>
             <div class="stat-card__value" id="mat-activos">0</div>
@@ -174,6 +194,11 @@
             <div class="stat-card__label">Vencen pronto (7d)</div>
             <div class="stat-card__value" id="mat-pronto">0</div>
             <div class="stat-card__trend" style="color:var(--orange);">Avisar al socio</div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid var(--gray-mid);">
+            <div class="stat-card__label">En pausa</div>
+            <div class="stat-card__value" id="mat-congelados">0</div>
+            <div class="stat-card__trend" style="color:var(--gray-mid);">Membresías congeladas</div>
           </div>
         </div>
         <div class="panel" id="panel-por-vencer" hidden>
@@ -198,10 +223,16 @@
             <option value="activa">Activas</option>
             <option value="vencida">Vencidas</option>
             <option value="pronto">Vencen pronto (7d)</option>
+            <option value="congelada">Congeladas (en pausa)</option>
           </select>
         </div>
         <div class="panel">
           <p id="matriculas-conteo" class="conteo-lista"></p>
+          <div id="matriculas-paginas" class="paginacion" hidden>
+            <button class="btn btn-outline btn-sm" id="pagina-anterior">← Anteriores</button>
+            <span id="pagina-info"></span>
+            <button class="btn btn-outline btn-sm" id="pagina-siguiente">Siguientes →</button>
+          </div>
           <div class="table-wrap tabla-movil-tarjetas">
             <table>
               <thead>
@@ -285,32 +316,7 @@
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel__head">
-            <h3>🧮 Calculadora de ingresos extras</h3>
-            <button class="btn btn-primary btn-sm" data-abrir="modal-extra">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-              Agregar ingreso
-            </button>
-          </div>
-          <p style="padding:0 1rem;color:var(--gray-mid);font-size:0.85rem;margin:0;">Registra aquí lo que vendes además de matrículas: agua, ropa, proteína, suplementos, etc. Se suma automáticamente al total del mes.</p>
-          <div class="cards-row" style="grid-template-columns:repeat(4,1fr);padding:1rem;">
-            <div class="extra-cat-card" style="background:linear-gradient(135deg,#FF6B1A 0%,#E55A0F 100%);color:white;padding:1rem;border-radius:var(--r-sm);">
-              <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;opacity:0.85;">Total extras mes</div>
-              <div style="font-family:var(--font-display);font-size:1.8rem;" id="extras-total-mes">S/ 0</div>
-              <div style="font-size:0.78rem;opacity:0.9;" id="extras-count-mes">0 ventas</div>
-            </div>
-            <div id="extras-top-cats" style="display:contents;"></div>
-          </div>
-          <div class="table-wrap tabla-movil-tarjetas">
-            <table>
-              <thead>
-                <tr><th>Categoría</th><th>Fecha</th><th>Descripción</th><th>Monto</th><th>Método</th><th>Acción</th></tr>
-              </thead>
-              <tbody id="extras-body"></tbody>
-            </table>
-          </div>
-        </div>
+        
 
         <div class="panel">
           <div class="panel__head">
@@ -472,6 +478,131 @@
         </div>
       </section>
 
+
+      <!-- INVENTARIO -->
+      <section class="admin-section" id="tab-inventario" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Inventario <span class="admin-badge">Admin</span></h1>
+            <p>Cuántas unidades quedan de cada producto. El stock baja solo al registrar una venta y vuelve si la anulas.</p>
+          </div>
+          <button class="btn btn-primary" data-abrir="modal-producto">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo producto
+          </button>
+        </div>
+
+        <div class="cards-row" style="grid-template-columns:repeat(4,1fr);">
+          <div class="stat-card" style="border-left:4px solid var(--gray-dark);">
+            <div class="stat-card__label">Productos</div>
+            <div class="stat-card__value" id="inv-productos">0</div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid var(--green);">
+            <div class="stat-card__label">Unidades en total</div>
+            <div class="stat-card__value" id="inv-unidades">0</div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid var(--orange);">
+            <div class="stat-card__label">Hay que reponer</div>
+            <div class="stat-card__value" id="inv-reponer">0</div>
+            <div class="stat-card__trend" style="color:var(--orange);">Por debajo del aviso</div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid var(--red);">
+            <div class="stat-card__label">Valor del inventario</div>
+            <div class="stat-card__value" id="inv-valor">S/ 0.00</div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-faltantes" hidden>
+          <div class="panel__head">
+            <h3>🔔 Se están acabando</h3>
+            <span style="font-size:0.8rem;color:var(--gray-mid);">Repón antes de quedarte sin nada que vender.</span>
+          </div>
+          <div id="lista-faltantes" style="padding:0.5rem 1rem 1rem;display:grid;gap:0.5rem;"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head"><h3>Todos los productos</h3></div>
+          <div class="table-wrap tabla-movil-tarjetas">
+            <table>
+              <thead><tr><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Avisar en</th><th>Acciones</th></tr></thead>
+              <tbody id="inventario-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- USUARIOS -->
+      <section class="admin-section" id="tab-usuarios" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Usuarios <span class="admin-badge">Admin</span></h1>
+            <p>Quién puede entrar al sistema. Da de alta a quien atiende el mostrador con su propio usuario: así cada cobro queda con su nombre y no tienes que compartir tu contraseña.</p>
+          </div>
+          <button class="btn btn-primary" data-abrir="modal-usuario">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo usuario
+          </button>
+        </div>
+
+        <div class="panel">
+          <div style="padding:1rem;background:var(--gray-soft);border-radius:var(--r-sm);margin:1rem;font-size:0.88rem;color:var(--gray-dark);">
+            <strong>Qué puede hacer cada uno</strong>
+            <div style="margin-top:0.6rem;display:grid;gap:0.35rem;">
+              <div><strong>Administradora:</strong> todo — finanzas, gastos, precios, inventario, respaldos y usuarios.</div>
+              <div><strong>Recepción:</strong> cobrar, renovar, corregir datos, pausar membresías, marcar entradas y vender productos.
+                <em>No ve las finanzas ni los gastos, y no puede anular cobros ni tocar precios, inventario o respaldos.</em></div>
+            </div>
+          </div>
+          <div class="table-wrap tabla-movil-tarjetas">
+            <table>
+              <thead><tr><th>Persona</th><th>Correo</th><th>Puede</th><th>Registrados</th><th>Acceso</th><th>Acciones</th></tr></thead>
+              <tbody id="usuarios-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- VENTAS DE PRODUCTOS -->
+      <section class="admin-section" id="tab-ventas" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Ventas <span class="admin-badge" data-etiqueta-rol>Admin</span></h1>
+            <p>Aguas, proteínas, ropa. Si eliges un producto del inventario, el stock baja solo.</p>
+          </div>
+          <button class="btn btn-primary" data-abrir="modal-extra">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Registrar venta
+          </button>
+        </div>
+<div class="panel">
+          <div class="panel__head">
+            <h3>🧮 Calculadora de ingresos extras</h3>
+            <button class="btn btn-primary btn-sm" data-abrir="modal-extra">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              Agregar ingreso
+            </button>
+          </div>
+          <p style="padding:0 1rem;color:var(--gray-mid);font-size:0.85rem;margin:0;">Registra aquí lo que vendes además de matrículas: agua, ropa, proteína, suplementos, etc. Se suma automáticamente al total del mes.</p>
+          <div class="cards-row" style="grid-template-columns:repeat(4,1fr);padding:1rem;">
+            <div class="extra-cat-card" style="background:linear-gradient(135deg,#FF6B1A 0%,#E55A0F 100%);color:white;padding:1rem;border-radius:var(--r-sm);">
+              <div style="font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;opacity:0.85;">Total extras mes</div>
+              <div style="font-family:var(--font-display);font-size:1.8rem;" id="extras-total-mes">S/ 0</div>
+              <div style="font-size:0.78rem;opacity:0.9;" id="extras-count-mes">0 ventas</div>
+            </div>
+            <div id="extras-top-cats" style="display:contents;"></div>
+          </div>
+          <div class="table-wrap tabla-movil-tarjetas">
+            <table>
+              <thead>
+                <tr><th>Categoría</th><th>Fecha</th><th>Descripción</th><th>Monto</th><th>Método</th><th>Acción</th></tr>
+              </thead>
+              <tbody id="extras-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- PRECIOS Y PROMOCIONES -->
       <section class="admin-section" id="tab-precios" hidden>
         <div class="page-head">
@@ -576,6 +707,17 @@
       <h2>Agregar ingreso extra</h2>
       <p style="color:var(--gray-mid);font-size:0.85rem;margin-bottom:1rem;">Productos que se venden además de matrículas. Suma automáticamente a las finanzas.</p>
       <form id="form-nuevo-extra" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="field">
+          <label>¿Es un producto del inventario?</label>
+          <select id="select-producto-venta" data-auto="producto-venta">
+            <option value="">Sin descontar del inventario</option>
+          </select>
+          <span class="help-text">Al elegirlo se descuenta del stock y se llena el precio. Déjalo vacío si vendes algo que no llevas en inventario.</span>
+        </div>
+        <div class="field">
+          <label>Cantidad</label>
+          <input type="number" inputmode="numeric" name="cantidad" min="1" step="1" value="1" />
+        </div>
         <div class="field">
           <label>Categoría *</label>
           <select name="categoria" id="select-categoria-extra" required data-auto="precio-extra">
@@ -800,8 +942,81 @@
     </div>
   </div>
 
+
+  <!-- NUEVO PRODUCTO -->
+  <div class="modal" id="modal-producto" hidden>
+    <div class="modal__card">
+      <button class="modal__close" data-cerrar="modal-producto">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2 id="titulo-modal-producto">Nuevo producto</h2>
+      <form id="form-producto" style="display:flex;flex-direction:column;gap:1rem;">
+        <input type="hidden" name="id" />
+        <div class="field"><label>Nombre *</label><input type="text" name="nombre" maxlength="80" placeholder="Ej: Proteína 1 kg" required /></div>
+        <div class="field"><label>Categoría</label><input type="text" name="categoria" maxlength="60" placeholder="Ej: Suplementos" /></div>
+        <div class="field-row">
+          <div class="field"><label>Precio de venta *</label><input type="number" inputmode="decimal" name="precio" min="0" step="0.10" required /></div>
+          <div class="field"><label>Stock inicial</label><input type="number" inputmode="numeric" name="stock" min="0" step="1" value="0" /></div>
+        </div>
+        <div class="field">
+          <label>Avisarme cuando queden</label>
+          <input type="number" inputmode="numeric" name="stock_minimo" min="0" step="1" value="3" />
+          <span class="help-text">Cuando el stock baje a este número, el producto aparece en "Se están acabando".</span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Guardar producto</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- HISTORIAL DE UN PRODUCTO -->
+  <div class="modal" id="modal-stock" hidden>
+    <div class="modal__card" style="max-width:620px;">
+      <button class="modal__close" data-cerrar="modal-stock">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2 id="titulo-modal-stock">Movimientos</h2>
+      <div id="contenido-stock" style="max-height:70vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- NUEVO USUARIO -->
+  <div class="modal" id="modal-usuario" hidden>
+    <div class="modal__card">
+      <button class="modal__close" data-cerrar="modal-usuario">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <h2>Nuevo usuario</h2>
+      <p style="color:var(--gray-mid);font-size:0.85rem;margin-bottom:1rem;">
+        Dale la contraseña en persona, no por escrito. Esa persona podrá cambiarla desde el candado del menú.
+      </p>
+      <form id="form-usuario" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="field-row">
+          <div class="field"><label>Nombre *</label><input type="text" name="firstname" maxlength="60" required /></div>
+          <div class="field"><label>Apellido</label><input type="text" name="lastname" maxlength="60" /></div>
+        </div>
+        <div class="field">
+          <label>Correo (con esto inicia sesión) *</label>
+          <input type="email" name="email" maxlength="200" placeholder="recepcion@zonavip.com" required />
+        </div>
+        <div class="field">
+          <label>Qué puede hacer *</label>
+          <select name="role" required>
+            <option value="recepcion">Recepción — cobra y atiende, no ve las finanzas</option>
+            <option value="admin">Administradora — acceso total</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Contraseña *</label>
+          <input type="password" name="password" minlength="6" required autocomplete="new-password" />
+          <span class="help-text">Mínimo 6 caracteres.</span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Crear usuario</button>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=18"></script>
-  <script src="admin.js?v=18"></script>
+  <script src="app.js?v=23"></script>
+  <script src="admin.js?v=23"></script>
 </body>
 </html>

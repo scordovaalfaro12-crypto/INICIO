@@ -12,18 +12,21 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne, queryAll } = require('../db');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireStaff } = require('../middleware/auth');
 const config = require('../config');
 const { todayISO, addDays, diffDays } = require('../lib/dates');
 const { parseId, parseFecha } = require('../lib/validate');
 const { responderError } = require('../lib/errores');
 
-router.use(authenticateToken, requireAdmin);
+router.use(authenticateToken, requireStaff);
 
 // Frase que se muestra en el mostrador. Distingue los tres casos que importan:
 // vencida (no debería pasar sin renovar), a punto de vencer (momento de
 // cobrarle) y al día.
 function situacion(socio, diasRestantes) {
+  if (socio.congelada_desde) {
+    return `⏸ ${socio.nombre} tiene la membresía CONGELADA desde el ${socio.congelada_desde}. Reactívala antes de que entre.`;
+  }
   if (diasRestantes < 0) {
     const d = Math.abs(diasRestantes);
     return `⚠ ${socio.nombre} tiene la membresía VENCIDA hace ${d} día${d === 1 ? '' : 's'} (venció el ${socio.fecha_vence})`;
@@ -80,7 +83,7 @@ router.get('/resumen', async (req, res) => {
       `SELECT m.id, m.nombre, m.telefono, m.concepto, m.fecha_vence,
               (SELECT MAX(a.fecha) FROM attendance a WHERE a.membership_id = m.id) AS ultima_visita
        FROM memberships m
-       WHERE m.fecha_vence >= $2
+       WHERE m.fecha_vence >= $2 AND m.congelada_desde IS NULL
          AND NOT EXISTS (
            SELECT 1 FROM attendance a
            WHERE a.membership_id = m.id AND a.fecha >= $1
@@ -104,7 +107,7 @@ router.post('/', async (req, res) => {
 
   try {
     const hoy = todayISO(config.TZ);
-    const socio = await queryOne('SELECT id, nombre, concepto, fecha_vence, estado FROM memberships WHERE id = $1', [id]);
+    const socio = await queryOne('SELECT id, nombre, concepto, fecha_vence, estado, congelada_desde FROM memberships WHERE id = $1', [id]);
     if (!socio) return res.status(404).json({ error: 'Socio no encontrado' });
 
     // La situación se calcula COMPARANDO LA FECHA, no leyendo la columna
@@ -112,16 +115,16 @@ router.post('/', async (req, res) => {
     // podía estar desactualizada: en pruebas, una membresía vencida hacía 87
     // días se anunciaba como "vence HOY" y en el mostrador la dejaban pasar.
     const diasRestantes = diffDays(socio.fecha_vence, hoy);
-    const estado = diasRestantes < 0 ? 'vencida' : 'activa';
+    const estado = socio.congelada_desde ? 'congelada' : (diasRestantes < 0 ? 'vencida' : 'activa');
 
     // El índice único (membership_id, fecha) evita contar dos visitas el mismo
     // día; si ya marcó, se responde igual con su situación en vez de un error.
     const r = await query(
-      `INSERT INTO attendance (membership_id, nombre, fecha, hora, estado_al_entrar)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO attendance (membership_id, nombre, fecha, hora, estado_al_entrar, usuario_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (membership_id, fecha) WHERE membership_id IS NOT NULL DO NOTHING
        RETURNING id, hora`,
-      [id, socio.nombre, hoy, horaAhora(), estado]
+      [id, socio.nombre, hoy, horaAhora(), estado, req.user.id]
     );
     const yaHabiaMarcado = r.rowCount === 0;
 

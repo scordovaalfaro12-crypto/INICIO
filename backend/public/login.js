@@ -10,7 +10,7 @@
 (async function () {
   if (!getToken()) return;
   const user = await api.me();
-  if (user && !user.error && user.role === 'admin') {
+  if (user && !user.error && ['admin', 'recepcion'].includes(user.role)) {
     window.location.replace('admin.html');
   }
 })();
@@ -29,7 +29,7 @@ if (formLogin) {
     try {
       const res = await api.login(fd.get('email').trim().toLowerCase(), fd.get('password'));
       if (res.error) { showToast(res.error, 'error'); return; }
-      if (!res.user || res.user.role !== 'admin') {
+      if (!res.user || !['admin', 'recepcion'].includes(res.user.role)) {
         showToast('Solo personal autorizado puede ingresar', 'error');
         return;
       }

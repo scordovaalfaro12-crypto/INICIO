@@ -9,17 +9,77 @@
 })();
 
 function initAdmin() {
+  aplicarRol();
   setupAdminNav();
   enlazarAcciones();
   cargarCatalogo();
   renderDashboard();
   renderClases();
   renderMatriculas();
-  renderFinanzas();
   renderExtras();
   renderPorVencer();
   renderAsistencia();
+  renderFinanzas();
   renderGastos();
+  renderInventario();
+  renderUsuarios();
+  revisarRespaldo();
+  cargarProductosParaVenta();
+}
+
+// Recepción no ve las pestañas de dinero ni las de configuración. El servidor
+// las bloquea igual; esconderlas evita ofrecer botones que solo darían error.
+function aplicarRol() {
+  const admin = esAdministradora();
+  document.querySelectorAll('[data-solo-admin]').forEach(el => { el.hidden = !admin; });
+  document.querySelectorAll('[data-etiqueta-rol]').forEach(e => { e.textContent = admin ? 'Admin' : 'Recepción'; });
+  const u = usuarioActual();
+  if (u) {
+    const nombre = document.querySelector('.sidebar__user-name');
+    const plan = document.querySelector('.sidebar__user-plan');
+    const avatar = document.querySelector('.sidebar__avatar');
+    if (nombre) nombre.textContent = u.firstname || 'Usuario';
+    if (plan) plan.textContent = admin ? 'Administradora' : 'Recepción';
+    if (avatar) avatar.textContent = (u.firstname || 'U').charAt(0).toUpperCase();
+  }
+  // Si alguien de recepción tenía abierta una pestaña de dinero, se le lleva
+  // a la de socios en vez de dejarle una pantalla vacía.
+  if (!admin) {
+    const visible = document.querySelector('.admin-section:not([hidden])');
+    if (visible && ['tab-finanzas', 'tab-gastos', 'tab-precios', 'tab-inventario', 'tab-usuarios'].includes(visible.id)) {
+      switchTab('matriculas');
+    }
+  }
+}
+
+// Aviso persistente si hace mucho que no se descarga un respaldo. Es la única
+// red de seguridad real del negocio y depende de que alguien se acuerde.
+async function revisarRespaldo() {
+  if (!esAdministradora()) return;
+  const r = await api.getRecordatorioRespaldo();
+  if (hayProblema(r)) return;
+  let barra = document.getElementById('aviso-respaldo');
+  if (!r.toca) { if (barra) barra.remove(); return; }
+  if (!barra) {
+    barra = document.createElement('div');
+    barra.id = 'aviso-respaldo';
+    barra.className = 'aviso-respaldo';
+    const main = document.querySelector('.main-content');
+    if (main) main.insertBefore(barra, main.firstChild);
+  }
+  barra.innerHTML = '';
+  const texto = document.createElement('span');
+  texto.textContent = '🛟 ' + r.mensaje;
+  const boton = document.createElement('button');
+  boton.className = 'btn btn-primary btn-sm';
+  boton.textContent = 'Descargar ahora';
+  boton.addEventListener('click', () => {
+    switchTab('finanzas');
+    const b = document.getElementById('btn-respaldo');
+    if (b) b.click();
+  });
+  barra.appendChild(texto);
+  barra.appendChild(boton);
 }
 
 // El HTML ya no lleva onclick="..." escritos dentro (así el navegador puede
@@ -37,6 +97,7 @@ function enlazarAcciones() {
     'monto-matricula': (v) => autocompletarMonto(v),
     'precio-extra': (v) => autocompletarPrecioExtra(v),
     'plan-renovacion': (v) => aplicarPlanRenovacion(v),
+    'producto-venta': (v) => autocompletarProductoVenta(v),
   };
   document.querySelectorAll('[data-auto]').forEach(sel =>
     sel.addEventListener('change', () => {
@@ -59,6 +120,11 @@ function enlazarAcciones() {
   if (filtro) filtro.addEventListener('change', buscarConEspera);
   const diasVencer = document.getElementById('select-dias-vencer');
   if (diasVencer) diasVencer.addEventListener('change', renderPorVencer);
+
+  const anterior = document.getElementById('pagina-anterior');
+  if (anterior) anterior.addEventListener('click', () => cambiarPagina(-1));
+  const siguiente = document.getElementById('pagina-siguiente');
+  if (siguiente) siguiente.addEventListener('click', () => cambiarPagina(1));
 
   // Asistencia: buscador del mostrador y selector de día.
   const buscarAsis = document.getElementById('buscar-socio-asistencia');
@@ -272,6 +338,12 @@ function setupAdminNav() {
 function switchTab(name) {
   document.querySelectorAll('.admin-section').forEach(s => s.hidden = (s.id !== `tab-${name}`));
   document.querySelectorAll('.sidebar__nav a').forEach(l => l.classList.toggle('is-active', l.dataset.tab === name));
+  // En el celular la barra de abajo se desliza: si la sección elegida quedó
+  // fuera de la vista, se trae sola en vez de dejar al usuario buscándola.
+  const activa = document.querySelector('.sidebar__nav a.is-active');
+  if (activa && window.innerWidth <= 768) {
+    try { activa.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+  }
 }
 
 // Evita doble registro por doble clic: deshabilita el botón mientras se envía.
@@ -294,17 +366,22 @@ async function renderDashboard() {
   // Antes los errores se tragaban con `catch (e) {}` y la pantalla mostraba
   // "0 socios · S/ 0", como si el gimnasio estuviera vacío. Ahora un fallo se
   // ve como fallo y los datos guardados no se ponen en duda.
+  // Recepción no pide finanzas ni el libro de pagos: no puede verlos y pedirlos
+  // solo llenaría su pantalla de errores rojos que no puede resolver.
+  const admin = esAdministradora();
   const [clases, resumen, finanzas, ultimosPagos] = await Promise.all([
-    api.getClasses(), api.getResumenSocios(), api.getFinanzas(), api.getPagos(6),
+    api.getClasses(),
+    api.getResumenSocios(),
+    admin ? api.getFinanzas() : Promise.resolve(null),
+    admin ? api.getPagos(6) : Promise.resolve(null),
   ]);
 
   const el = (id) => document.getElementById(id);
-  const falla = hayProblema(resumen) || hayProblema(finanzas);
-  if (falla) {
+  if (hayProblema(resumen) || (admin && hayProblema(finanzas))) {
     const msg = (resumen && resumen.error) || (finanzas && finanzas.error) || 'Sin conexión con el sistema';
     const cuerpo = el('dash-reservas-body');
     if (cuerpo) {
-      cuerpo.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:2rem;">
+      cuerpo.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:2rem;">
         ${esc(msg)}<br><small style="color:var(--gray-mid);">Tus datos siguen guardados. Reintenta en unos segundos.</small></td></tr>`;
     }
     return;
@@ -323,14 +400,16 @@ async function renderDashboard() {
     }
   }
 
-  const totalMes = (finanzas.mes && typeof finanzas.mes.total === 'number') ? finanzas.mes.total : 0;
-  if (el('kpi-ingresos')) el('kpi-ingresos').textContent = formatMoney(totalMes);
+  if (admin) {
+    const totalMes = (finanzas.mes && typeof finanzas.mes.total === 'number') ? finanzas.mes.total : 0;
+    if (el('kpi-ingresos')) el('kpi-ingresos').textContent = formatMoney(totalMes);
+  }
 
   // Los ÚLTIMOS PAGOS de verdad. Antes esta tabla decía "Últimos pagos
   // registrados" pero traía socios ordenados por fecha de vencimiento: el
   // primero de la lista podía haber pagado hacía medio año.
   const dashBody = el('dash-reservas-body');
-  if (dashBody) {
+  if (dashBody && admin) {
     const recent = Array.isArray(ultimosPagos) ? ultimosPagos.slice(0, 6) : [];
     if (recent.length === 0) {
       dashBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin pagos registrados todavía</td></tr>';
@@ -372,9 +451,11 @@ async function renderDashboard() {
         `).join('');
   }
 
+  if (!admin) await renderInicioRecepcion(resumen);
+
   // Productos más vendidos del mes: lo suma la base de datos, no el navegador.
   const clasesEl = el('clases-chart');
-  if (clasesEl) {
+  if (clasesEl && admin) {
     const resExtras = await api.getExtrasResumen(hoyISO().slice(0, 8) + '01');
     const cats = (resExtras && Array.isArray(resExtras.categorias)) ? resExtras.categorias.slice(0, 5) : [];
     const maxE = Math.max(1, ...cats.map(c => c.total));
@@ -435,10 +516,15 @@ async function renderClases() {
 // buscador se descargaba la ficha de TODOS los socios (medido: 379 KB y 13
 // segundos con 1.500 socios) y las respuestas llegaban desordenadas, así que
 // la tabla podía terminar mostrando el resultado de una búsqueda anterior.
-const ESTADO_LISTA = { texto: '', estado: 'todos', peticion: 0 };
+const ESTADO_LISTA = { texto: '', estado: 'todos', peticion: 0, desde: 0 };
+const POR_PAGINA = 300;
 let temporizadorBusqueda = null;
 
 async function renderMatriculas(filtroTexto, filtroEstado) {
+  // Al cambiar la búsqueda o el filtro se vuelve a la primera página: si no,
+  // se quedaría mirando una página que ya no existe en el nuevo resultado.
+  if (filtroTexto !== undefined && filtroTexto !== ESTADO_LISTA.texto) ESTADO_LISTA.desde = 0;
+  if (filtroEstado !== undefined && filtroEstado !== ESTADO_LISTA.estado) ESTADO_LISTA.desde = 0;
   if (filtroTexto !== undefined) ESTADO_LISTA.texto = filtroTexto;
   if (filtroEstado !== undefined) ESTADO_LISTA.estado = filtroEstado;
 
@@ -451,7 +537,7 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
 
   const [resumen, lista] = await Promise.all([
     api.getResumenSocios(),
-    api.getMemberships({ q: ESTADO_LISTA.texto, estado: ESTADO_LISTA.estado }),
+    api.getMemberships({ q: ESTADO_LISTA.texto, estado: ESTADO_LISTA.estado, limit: POR_PAGINA, offset: ESTADO_LISTA.desde }),
   ]);
   if (miNumero !== ESTADO_LISTA.peticion) return; // llegó tarde: ya hay otra búsqueda
 
@@ -460,6 +546,7 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
     setVal('mat-activos', resumen.activos);
     setVal('mat-vencidos', resumen.vencidos);
     setVal('mat-pronto', resumen.pronto);
+    setVal('mat-congelados', resumen.congelados || 0);
   }
 
   if (hayProblema(lista)) {
@@ -475,10 +562,13 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
   const en7Str = addDiasISO(hoy, 7);
 
   if (conteo) {
-    conteo.textContent = filtered.length < lista.total
-      ? `Mostrando ${filtered.length} de ${lista.total} socios. Afina la búsqueda para ver los demás.`
-      : (lista.total === 0 ? '' : `${lista.total} socio${lista.total === 1 ? '' : 's'}`);
+    const desde = lista.desde || 0;
+    conteo.textContent = lista.total === 0 ? ''
+      : (lista.total > filtered.length || desde > 0)
+        ? `Mostrando ${desde + 1}–${desde + filtered.length} de ${lista.total} socios`
+        : `${lista.total} socio${lista.total === 1 ? '' : 's'}`;
   }
+  pintarPaginacion(lista);
 
   if (filtered.length === 0) {
     body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--gray-mid);padding:2rem;">${
@@ -489,13 +579,16 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
   }
 
   body.innerHTML = filtered.map(m => {
-    const proximo = m.estado === 'activa' && m.fecha_vence <= en7Str;
-    const estadoColor = m.estado === 'activa' ? (proximo ? 'tag-orange' : 'tag-green') : 'tag-red';
-    const estadoTxt = m.estado === 'activa' ? (proximo ? 'Vence pronto' : 'Activa') : 'Vencida';
+    const congelada = !!m.congelada_desde;
+    const proximo = !congelada && m.estado === 'activa' && m.fecha_vence <= en7Str;
+    const estadoColor = congelada ? 'tag-gray' : (m.estado === 'activa' ? (proximo ? 'tag-orange' : 'tag-green') : 'tag-red');
+    const estadoTxt = congelada ? '⏸ En pausa' : (m.estado === 'activa' ? (proximo ? 'Vence pronto' : 'Activa') : 'Vencida');
     const diasRestantes = diasEntre(m.fecha_vence, hoy);
-    const diasTxt = m.estado === 'activa'
-      ? (diasRestantes <= 0 ? '<small style="color:var(--red);">hoy</small>' : `<small style="color:var(--gray-mid);">en ${diasRestantes}d</small>`)
-      : `<small style="color:var(--red);">hace ${Math.abs(diasRestantes)}d</small>`;
+    const diasTxt = congelada
+      ? `<small style="color:var(--gray-mid);">pausada desde ${formatDate(m.congelada_desde)}</small>`
+      : (m.estado === 'activa'
+        ? (diasRestantes <= 0 ? '<small style="color:var(--red);">hoy</small>' : `<small style="color:var(--gray-mid);">en ${diasRestantes}d</small>`)
+        : `<small style="color:var(--red);">hace ${Math.abs(diasRestantes)}d</small>`);
     return `
       <tr>
         <td><strong>${esc(m.nombre)}</strong>${m.dni ? `<br><small style="color:var(--gray-mid);">DNI ${esc(m.dni)}</small>` : ''}</td>
@@ -508,9 +601,10 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
         <td data-col="Estado"><span class="tag ${estadoColor}">${estadoTxt}</span></td>
         <td class="acciones-socio">
           <button class="link-orange" data-action="renovar" data-id="${m.id}">Renovar</button>
+          <button class="link-orange" data-action="${m.congelada_desde ? 'reactivar' : 'congelar'}" data-id="${m.id}">${m.congelada_desde ? 'Reactivar' : 'Pausar'}</button>
           <button class="link-orange" data-action="historial" data-id="${m.id}">Historial</button>
           <button class="link-orange" data-action="editar" data-id="${m.id}">Corregir</button>
-          <button class="link-orange" style="color:var(--red);" data-action="eliminar-matricula" data-id="${m.id}">Borrar</button>
+          ${esAdministradora() ? `<button class="link-orange" style="color:var(--red);" data-action="eliminar-matricula" data-id="${m.id}">Borrar</button>` : ''}
         </td>
       </tr>
     `;
@@ -523,11 +617,60 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
       const socio = porId.get(this.dataset.id);
       const id = parseInt(this.dataset.id, 10);
       if (this.dataset.action === 'renovar') abrirRenovar(id, socio);
+      else if (this.dataset.action === 'congelar') congelarSocio(id, socio);
+      else if (this.dataset.action === 'reactivar') reactivarSocio(id, socio);
       else if (this.dataset.action === 'historial') abrirHistorial(id);
       else if (this.dataset.action === 'editar') abrirEditarSocio(socio);
       else if (this.dataset.action === 'eliminar-matricula') eliminarMatricula(id);
     });
   });
+}
+
+// Botones de página. Solo aparecen si hay más socios de los que caben.
+function pintarPaginacion(lista) {
+  const cont = document.getElementById('matriculas-paginas');
+  if (!cont) return;
+  const desde = lista.desde || 0;
+  const hayAnterior = desde > 0;
+  const haySiguiente = !!lista.hay_mas;
+  cont.hidden = !hayAnterior && !haySiguiente;
+  const info = document.getElementById('pagina-info');
+  if (info) info.textContent = `Página ${Math.floor(desde / POR_PAGINA) + 1} de ${Math.max(1, Math.ceil(lista.total / POR_PAGINA))}`;
+  const anterior = document.getElementById('pagina-anterior');
+  const siguiente = document.getElementById('pagina-siguiente');
+  if (anterior) anterior.disabled = !hayAnterior;
+  if (siguiente) siguiente.disabled = !haySiguiente;
+}
+
+function cambiarPagina(delta) {
+  const nuevo = ESTADO_LISTA.desde + delta * POR_PAGINA;
+  if (nuevo < 0) return;
+  ESTADO_LISTA.desde = nuevo;
+  renderMatriculas();
+  const tabla = document.getElementById('matriculas-body');
+  if (tabla) tabla.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============ PAUSAR Y REACTIVAR ============
+async function congelarSocio(id, socio) {
+  const motivo = prompt(
+    `Pausar la membresía de ${socio ? socio.nombre : 'este socio'}.\n\n` +
+    'Los días que le quedan se le GUARDAN y se le devuelven al reactivarla.\n\n¿Por qué la pausa?',
+    'Viaje'
+  );
+  if (motivo === null) return;
+  const r = await api.congelarMembresia(id, motivo);
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast(r.message);
+  renderMatriculas(); renderPorVencer(); renderDashboard();
+}
+
+async function reactivarSocio(id, socio) {
+  if (!confirm(`¿Reactivar a ${socio ? socio.nombre : 'este socio'}?\n\nSe le devuelven los días que estuvo en pausa.`)) return;
+  const r = await api.reactivarMembresia(id);
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast(r.message);
+  renderMatriculas(); renderPorVencer(); renderDashboard();
 }
 
 // Espera a que deje de escribir: una búsqueda por palabra, no una por letra.
@@ -785,7 +928,12 @@ async function eliminarMatricula(id) {
 }
 
 // ============ FINANZAS ============
+// El guardia va DENTRO de la función y no en cada llamada: estas pantallas se
+// refrescan desde una docena de sitios (tras cobrar, tras vender, tras
+// anular...) y basta olvidar uno para que a recepción le salte un error que
+// no puede resolver.
 async function renderFinanzas() {
+  if (!esAdministradora()) return;
   const f = await api.getFinanzas();
   if (hayProblema(f) || !f.mes) {
     if (f && f.error) showToast(f.error, 'error');
@@ -869,6 +1017,31 @@ async function renderFinanzas() {
   renderEstadoRespaldo();
 }
 
+// Lo que de verdad le sirve a quien atiende: cuántos vencen pronto, cuántos
+// entraron hoy y a quién hay que avisar. Sin cifras de dinero.
+async function renderInicioRecepcion(resumen) {
+  const panel = document.getElementById('panel-inicio-recepcion');
+  const cont = document.getElementById('resumen-recepcion');
+  if (!panel || !cont) return;
+  panel.hidden = false;
+
+  const [asis, porVencer] = await Promise.all([api.getAsistenciaResumen(), api.getPorVencer(7)]);
+  const entradasHoy = hayProblema(asis) ? 0 : asis.hoy;
+  const vencen = Array.isArray(porVencer) ? porVencer : [];
+
+  cont.innerHTML = `
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:0.95rem;">
+      <div><strong style="font-size:1.6rem;">${entradasHoy}</strong><br><small style="color:var(--gray-mid);">entradas marcadas hoy</small></div>
+      <div><strong style="font-size:1.6rem;color:var(--orange);">${resumen.pronto}</strong><br><small style="color:var(--gray-mid);">vencen esta semana</small></div>
+      <div><strong style="font-size:1.6rem;color:var(--red);">${resumen.vencidos}</strong><br><small style="color:var(--gray-mid);">ya vencidos</small></div>
+    </div>
+    ${vencen.length ? `<div style="border-top:1px solid var(--gray-soft);padding-top:0.8rem;">
+      <strong style="font-size:0.9rem;">Recuérdales renovar cuando vengan:</strong>
+      <div style="margin-top:0.5rem;display:grid;gap:0.3rem;font-size:0.9rem;">
+        ${vencen.slice(0, 8).map(v => `<div>· ${esc(v.nombre)} <small style="color:var(--gray-mid);">vence ${formatDate(v.fecha_vence)}</small></div>`).join('')}
+      </div></div>` : ''}`;
+}
+
 function mostrarAvisoFuturos(futuros) {
   const cont = document.getElementById('fin-hoy');
   const panel = cont ? cont.closest('.cards-row') : null;
@@ -888,6 +1061,7 @@ function mostrarAvisoFuturos(futuros) {
 
 // Últimos pagos, con la opción de anular el que se registró mal.
 async function renderPagosRecientes() {
+  if (!esAdministradora()) return;
   const body = document.getElementById('pagos-recientes-body');
   if (!body) return;
   const pagos = await api.getPagos(25);
@@ -927,6 +1101,7 @@ async function renderPagosRecientes() {
 
 // ============ RESPALDO Y RESTAURACIÓN ============
 async function renderEstadoRespaldo() {
+  if (!esAdministradora()) return;
   const el = document.getElementById('backup-estado');
   if (!el) return;
   const e = await api.getBackupEstado();
@@ -937,20 +1112,23 @@ async function renderEstadoRespaldo() {
 // ============ EXTRAS ============
 async function renderExtras() {
   const inicioMes = hoyISO().slice(0, 8) + '01';
+  // El resumen lleva importes: recepción no puede verlo y pedirlo solo
+  // llenaría su pantalla de errores. La lista de ventas sí la ve.
+  const admin = esAdministradora();
   const [resumen, extras] = await Promise.all([
-    api.getExtrasResumen(inicioMes),
+    admin ? api.getExtrasResumen(inicioMes) : Promise.resolve(null),
     api.getExtras(300),
   ]);
 
   const setVal = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-  if (!hayProblema(resumen)) {
+  if (admin && !hayProblema(resumen)) {
     setVal('extras-total-mes', formatMoney(resumen.total));
     setVal('extras-count-mes', `${resumen.cantidad} venta${resumen.cantidad === 1 ? '' : 's'}`);
   }
 
   // Las 3 categorías que más vendieron este mes, sumadas por la base de datos.
   const topEl = document.getElementById('extras-top-cats');
-  if (topEl && !hayProblema(resumen)) {
+  if (topEl && admin && !hayProblema(resumen)) {
     const top = (resumen.categorias || []).slice(0, 3);
     topEl.innerHTML = top.length === 0
       ? `<div class="extra-cat-card" style="background:var(--gray-soft);padding:1rem;border-radius:var(--r-sm);">
@@ -984,7 +1162,7 @@ async function renderExtras() {
       <td data-col="Detalle">${esc(e.descripcion) || '—'}</td>
       <td data-col="Monto"><strong>S/ ${formatPrice(e.monto)}</strong></td>
       <td data-col="Método"><span class="tag">${esc(e.metodo)}</span></td>
-      <td><button class="link-orange" style="color:var(--red);" data-extra-del="${e.id}">Anular</button></td>
+      <td>${admin ? `<button class="link-orange" style="color:var(--red);" data-extra-del="${e.id}">Anular</button>` : ''}</td>
     </tr>
   `).join('');
 
@@ -995,7 +1173,9 @@ async function renderExtras() {
       const r = await api.deleteExtra(parseInt(btn.dataset.extraDel, 10));
       if (r.error) { showToast(r.error, 'error'); btn.disabled = false; return; }
       showToast('Venta anulada');
-      renderExtras(); renderFinanzas(); renderDashboard(); renderGastos();
+      renderExtras(); renderDashboard();
+      if (esAdministradora()) { renderFinanzas(); renderGastos(); renderInventario(); }
+      cargarProductosParaVenta();
     });
   });
 }
@@ -1015,9 +1195,18 @@ if (formExtra) {
     conBotonBloqueado(e.target, async () => {
       const fd = new FormData(e.target);
       const data = Object.fromEntries(fd);
-      const res = await api.createExtra(data);
+      const sel = document.getElementById('select-producto-venta');
+      if (sel && sel.value) data.producto_id = sel.value;
+      let res = await api.createExtra(data);
+      if (res.sin_stock) {
+        // El conteo puede estar mal y la venta ser real: se pregunta en vez
+        // de bloquearla, y queda el aviso para ajustar el inventario.
+        if (!confirm(res.error + '\n\n¿Registrar la venta igualmente?')) return;
+        res = await api.createExtra({ ...data, confirmar_sin_stock: true });
+      }
       if (res.error) { showToast(res.error, 'error'); return; }
-      showToast(`Ingreso de S/ ${data.monto} registrado · ${data.categoria}`);
+      if (res.aviso) showToast(res.aviso, 'error');
+      showToast(`Venta de S/ ${data.monto} registrada · ${data.categoria}`);
       closeModal('modal-extra');
       e.target.reset();
       renderExtras(); renderFinanzas(); renderDashboard();
@@ -1173,6 +1362,7 @@ function mostrarAvisoEntrada(r) {
 
 // ============ GASTOS (egresos) ============
 async function renderGastos() {
+  if (!esAdministradora()) return;
   const inicioMes = hoyISO().slice(0, 8) + '01';
   const hoy = hoyISO();
   const [resumen, lista, finanzas] = await Promise.all([
@@ -1313,6 +1503,300 @@ async function abrirHistorial(id) {
       ${h.visitas.length === 0 ? 'Todavía no ha marcado ninguna entrada.'
         : h.visitas.map(v => `${formatDate(v.fecha)}${v.hora ? ' ' + esc(v.hora) : ''}`).join(' · ')}
     </p>`;
+}
+
+
+// ============ INVENTARIO ============
+async function renderInventario() {
+  if (!esAdministradora()) return;
+  const [resumen, productos] = await Promise.all([api.getInventarioResumen(), api.getProductos()]);
+
+  const setVal = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  if (!hayProblema(resumen)) {
+    setVal('inv-productos', resumen.productos);
+    setVal('inv-unidades', resumen.unidades);
+    setVal('inv-reponer', resumen.por_reponer);
+    setVal('inv-valor', formatMoney(resumen.valor));
+
+    const panel = document.getElementById('panel-faltantes');
+    const lista = document.getElementById('lista-faltantes');
+    if (panel && lista) {
+      const faltan = resumen.faltantes || [];
+      panel.hidden = faltan.length === 0;
+      lista.innerHTML = faltan.map(f => `
+        <div class="aviso-socio">
+          <div><strong>${esc(f.nombre)}</strong>
+            <small style="color:${f.stock <= 0 ? 'var(--red)' : 'var(--orange)'};">
+              · ${f.stock <= 0 ? 'AGOTADO' : `quedan ${f.stock}`} (avisas en ${f.stock_minimo})</small>
+          </div>
+          <button class="btn btn-primary btn-sm" data-reponer="${f.id}">Reponer</button>
+        </div>`).join('');
+      lista.querySelectorAll('[data-reponer]').forEach(b =>
+        b.addEventListener('click', () => reponerProducto(parseInt(b.dataset.reponer, 10))));
+    }
+  }
+
+  const body = document.getElementById('inventario-body');
+  if (!body) return;
+  if (!Array.isArray(productos)) {
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:2rem;">
+      ${esc((productos && productos.error) || 'No se pudieron cargar los productos')}</td></tr>`;
+    return;
+  }
+  if (productos.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-mid);padding:2rem;">Sin productos todavía. Crea el primero arriba.</td></tr>';
+    return;
+  }
+  body.innerHTML = productos.map(p => {
+    const color = p.agotado ? 'var(--red)' : (p.falta_reponer ? 'var(--orange)' : 'var(--green)');
+    return `
+      <tr>
+        <td><strong>${esc(p.nombre)}</strong></td>
+        <td data-col="Categoría">${esc(p.categoria)}</td>
+        <td data-col="Precio"><strong>S/ ${formatPrice(p.precio)}</strong></td>
+        <td data-col="Stock"><strong style="color:${color};">${p.stock}</strong>${p.agotado ? ' <small style="color:var(--red);">agotado</small>' : ''}</td>
+        <td data-col="Avisar en">${p.stock_minimo}</td>
+        <td class="acciones-socio">
+          <button class="link-orange" data-prod="reponer" data-id="${p.id}">Reponer</button>
+          <button class="link-orange" data-prod="ajustar" data-id="${p.id}">Contar</button>
+          <button class="link-orange" data-prod="movimientos" data-id="${p.id}">Movimientos</button>
+          <button class="link-orange" data-prod="editar" data-id="${p.id}">Editar</button>
+          <button class="link-orange" style="color:var(--red);" data-prod="retirar" data-id="${p.id}">Retirar</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const porId = new Map(productos.map(p => [String(p.id), p]));
+  body.querySelectorAll('[data-prod]').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const id = parseInt(this.dataset.id, 10);
+      const prod = porId.get(this.dataset.id);
+      const accion = this.dataset.prod;
+      if (accion === 'reponer') reponerProducto(id);
+      else if (accion === 'ajustar') ajustarProducto(id, prod);
+      else if (accion === 'movimientos') verMovimientos(id);
+      else if (accion === 'editar') abrirProducto(prod);
+      else if (accion === 'retirar') retirarProducto(id, prod);
+    });
+  });
+}
+
+async function reponerProducto(id) {
+  const texto = prompt('¿Cuántas unidades llegaron?', '12');
+  if (texto === null) return;
+  const cantidad = parseInt(texto, 10);
+  if (!Number.isInteger(cantidad) || cantidad < 1) { showToast('Cantidad inválida', 'error'); return; }
+  const motivo = prompt('¿De dónde vienen? (opcional)', 'Pedido al proveedor') || '';
+  const r = await api.reponerStock(id, cantidad, motivo);
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast(r.message);
+  renderInventario();
+}
+
+async function ajustarProducto(id, prod) {
+  const texto = prompt(
+    `Conteo físico de ${prod ? prod.nombre : 'este producto'}.\n\n` +
+    `El sistema dice ${prod ? prod.stock : '?'}. ¿Cuántas hay de verdad?`,
+    prod ? String(prod.stock) : '0'
+  );
+  if (texto === null) return;
+  const real = parseInt(texto, 10);
+  if (!Number.isInteger(real) || real < 0) { showToast('Cantidad inválida', 'error'); return; }
+  const motivo = prompt('¿Por qué no coincidía? (queda anotado)', 'Conteo físico') || '';
+  const r = await api.ajustarStock(id, real, motivo);
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast(r.message);
+  renderInventario();
+}
+
+async function retirarProducto(id, prod) {
+  if (!confirm(`¿Retirar ${prod ? prod.nombre : 'este producto'} del mostrador?\n\nDeja de aparecer al vender, pero sus ventas siguen en el historial.`)) return;
+  const r = await api.retirarProducto(id);
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast(r.message);
+  renderInventario();
+}
+
+function abrirProducto(prod) {
+  const m = document.getElementById('modal-producto');
+  const form = document.getElementById('form-producto');
+  if (!m || !form) return;
+  const titulo = document.getElementById('titulo-modal-producto');
+  const campoStock = form.querySelector('[name=stock]');
+  if (prod) {
+    if (titulo) titulo.textContent = 'Editar ' + prod.nombre;
+    form.querySelector('[name=id]').value = prod.id;
+    form.querySelector('[name=nombre]').value = prod.nombre;
+    form.querySelector('[name=categoria]').value = prod.categoria;
+    form.querySelector('[name=precio]').value = prod.precio;
+    form.querySelector('[name=stock_minimo]').value = prod.stock_minimo;
+    // El stock no se edita a mano: se mueve con Reponer o Contar, que dejan
+    // rastro de por qué cambió.
+    if (campoStock) campoStock.closest('.field').hidden = true;
+  } else {
+    if (titulo) titulo.textContent = 'Nuevo producto';
+    form.reset();
+    form.querySelector('[name=id]').value = '';
+    if (campoStock) campoStock.closest('.field').hidden = false;
+  }
+  m.hidden = false;
+  enfocarPrimerCampo('modal-producto');
+}
+
+async function verMovimientos(id) {
+  const m = document.getElementById('modal-stock');
+  const cont = document.getElementById('contenido-stock');
+  if (!m || !cont) return;
+  cont.innerHTML = '<p style="color:var(--gray-mid);padding:1rem;">Cargando...</p>';
+  m.hidden = false;
+  const r = await api.getMovimientosProducto(id);
+  if (hayProblema(r) || !r.producto) {
+    cont.innerHTML = `<p style="color:var(--red);padding:1rem;">${esc((r && r.error) || 'No se pudo cargar')}</p>`;
+    return;
+  }
+  const titulo = document.getElementById('titulo-modal-stock');
+  if (titulo) titulo.textContent = r.producto.nombre;
+  const etiqueta = { entrada: 'Reposición', salida: 'Venta', ajuste: 'Ajuste', devolucion: 'Devolución' };
+  cont.innerHTML = `
+    <p style="font-size:0.9rem;color:var(--gray-mid);margin-bottom:0.8rem;">
+      Ahora hay <strong>${r.producto.stock}</strong> unidad(es) · precio S/ ${formatPrice(r.producto.precio)}
+    </p>
+    <div class="table-wrap"><table><thead>
+      <tr><th>Fecha</th><th>Movimiento</th><th>Cantidad</th><th>Quedó en</th><th>Motivo</th></tr></thead><tbody>
+      ${r.movimientos.length === 0
+        ? '<tr><td colspan="5" style="color:var(--gray-mid);padding:1rem;">Sin movimientos.</td></tr>'
+        : r.movimientos.map(mv => `<tr>
+            <td>${formatDate(mv.fecha)}</td>
+            <td>${etiqueta[mv.tipo] || mv.tipo}</td>
+            <td><strong style="color:${mv.cantidad < 0 ? 'var(--red)' : 'var(--green)'};">${mv.cantidad > 0 ? '+' : ''}${mv.cantidad}</strong></td>
+            <td>${mv.stock_resultante}</td>
+            <td><small>${esc(mv.motivo)}</small></td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+const formProducto = document.getElementById('form-producto');
+if (formProducto) {
+  formProducto.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const datos = Object.fromEntries(fd);
+      const id = datos.id;
+      delete datos.id;
+      const res = id ? await api.actualizarProducto(id, datos) : await api.crearProducto(datos);
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast(id ? 'Producto actualizado' : 'Producto creado');
+      closeModal('modal-producto');
+      renderInventario();
+      cargarProductosParaVenta();
+    });
+  });
+}
+
+// Los productos con stock se ofrecen al registrar una venta: elegirlos
+// descuenta el inventario solo.
+const PRODUCTOS_VENTA = [];
+async function cargarProductosParaVenta() {
+  const sel = document.getElementById('select-producto-venta');
+  if (!sel) return;
+  const productos = await api.getProductos();
+  PRODUCTOS_VENTA.length = 0;
+  if (Array.isArray(productos)) PRODUCTOS_VENTA.push(...productos);
+  const actual = sel.value;
+  sel.innerHTML = '<option value="">Sin descontar del inventario</option>' +
+    PRODUCTOS_VENTA.map(p =>
+      `<option value="${p.id}">${esc(p.nombre)} — S/ ${formatPrice(p.precio)} (quedan ${p.stock})</option>`
+    ).join('');
+  if (actual) sel.value = actual;
+}
+
+function autocompletarProductoVenta(idProducto) {
+  const form = document.getElementById('form-nuevo-extra');
+  if (!form) return;
+  const p = PRODUCTOS_VENTA.find(x => String(x.id) === String(idProducto));
+  if (!p) return;
+  const cant = parseInt((form.querySelector('[name=cantidad]') || {}).value, 10) || 1;
+  form.querySelector('[name=monto]').value = (p.precio * cant).toFixed(2);
+  const cat = form.querySelector('[name=categoria]');
+  if (cat && !cat.value) cat.value = p.categoria;
+  const desc = form.querySelector('[name=descripcion]');
+  if (desc && !desc.value) desc.value = p.nombre;
+}
+
+// ============ USUARIOS ============
+async function renderUsuarios() {
+  if (!esAdministradora()) return;
+  const body = document.getElementById('usuarios-body');
+  if (!body) return;
+  const usuarios = await api.getUsuarios();
+  if (!Array.isArray(usuarios)) {
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:2rem;">
+      ${esc((usuarios && usuarios.error) || 'No se pudieron cargar los usuarios')}</td></tr>`;
+    return;
+  }
+  const yo = usuarioActual();
+  body.innerHTML = usuarios.map(u => `
+    <tr${u.activo ? '' : ' style="opacity:0.55;"'}>
+      <td><strong>${esc(u.firstname)} ${esc(u.lastname)}</strong>${yo && yo.id === u.id ? ' <small style="color:var(--orange);">(tú)</small>' : ''}</td>
+      <td data-col="Correo">${esc(u.email)}</td>
+      <td data-col="Puede"><span class="tag ${u.role === 'admin' ? 'tag-orange' : 'tag-gray'}">${u.role === 'admin' ? 'Todo' : 'Mostrador'}</span></td>
+      <td data-col="Registrados">${u.pagos_registrados} pago(s)</td>
+      <td data-col="Acceso"><span class="tag ${u.activo ? 'tag-green' : 'tag-red'}">${u.activo ? 'Activo' : 'Sin acceso'}</span></td>
+      <td class="acciones-socio">
+        <button class="link-orange" data-usr="clave" data-id="${u.id}">Cambiar clave</button>
+        <button class="link-orange" data-usr="rol" data-id="${u.id}">Cambiar rol</button>
+        <button class="link-orange" style="color:${u.activo ? 'var(--red)' : 'var(--green)'};"
+                data-usr="acceso" data-id="${u.id}">${u.activo ? 'Quitar acceso' : 'Dar acceso'}</button>
+      </td>
+    </tr>`).join('');
+
+  const porId = new Map(usuarios.map(u => [String(u.id), u]));
+  body.querySelectorAll('[data-usr]').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const u = porId.get(this.dataset.id);
+      const id = parseInt(this.dataset.id, 10);
+      if (this.dataset.usr === 'clave') {
+        const nueva = prompt(`Nueva contraseña para ${u.firstname} (mínimo 6 caracteres).\n\nDísela en persona, no por escrito.`);
+        if (nueva === null) return;
+        const r = await api.cambiarPasswordUsuario(id, nueva);
+        if (r.error) { showToast(r.error, 'error'); return; }
+        showToast(r.message);
+      } else if (this.dataset.usr === 'rol') {
+        const nuevo = u.role === 'admin' ? 'recepcion' : 'admin';
+        const texto = nuevo === 'admin'
+          ? `¿Dar acceso TOTAL a ${u.firstname}?\n\nPodrá ver las finanzas, los gastos y gestionar usuarios.`
+          : `¿Dejar a ${u.firstname} solo en el mostrador?\n\nDejará de ver finanzas y gastos.`;
+        if (!confirm(texto)) return;
+        const r = await api.actualizarUsuario(id, { firstname: u.firstname, lastname: u.lastname, role: nuevo });
+        if (r.error) { showToast(r.error, 'error'); return; }
+        showToast('Permisos actualizados');
+        renderUsuarios();
+      } else if (this.dataset.usr === 'acceso') {
+        const quitar = u.activo;
+        if (quitar && !confirm(`¿Quitarle el acceso a ${u.firstname}?\n\nNo podrá entrar más. Todo lo que registró se queda en el historial.`)) return;
+        const r = await api.activarUsuario(id, !quitar);
+        if (r.error) { showToast(r.error, 'error'); return; }
+        showToast(r.message);
+        renderUsuarios();
+      }
+    });
+  });
+}
+
+const formUsuario = document.getElementById('form-usuario');
+if (formUsuario) {
+  formUsuario.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conBotonBloqueado(e.target, async () => {
+      const fd = new FormData(e.target);
+      const res = await api.crearUsuario(Object.fromEntries(fd));
+      if (res.error) { showToast(res.error, 'error'); return; }
+      showToast(res.message);
+      closeModal('modal-usuario');
+      e.target.reset();
+      renderUsuarios();
+    });
+  });
 }
 
 // ============ MI CUENTA (cambiar contraseña) ============
