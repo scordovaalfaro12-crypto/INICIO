@@ -129,6 +129,39 @@ npm test                   # pruebas (no necesitan base de datos)
 npm start                  # http://localhost:3000
 ```
 
+## 📱 Pensado para usarlo desde el celular
+
+El sistema se maneja en el mostrador, con el teléfono en la mano. Por eso:
+
+- **Las siete secciones caben en la barra de abajo.** Antes solo entraban cinco:
+  *Finanzas* y *Precios* quedaban fuera de la pantalla, sin forma de llegar.
+- **Las tablas se convierten en tarjetas.** La lista de socios medía 830 px en
+  una pantalla de 318: había que arrastrar de lado para alcanzar los botones.
+  Ahora cada socio es una tarjeta legible con sus botones a la vista.
+- **El buscador aparece enseguida**, no después de kilómetro y medio de scroll.
+- **Teclado numérico** al escribir teléfono, DNI o montos.
+- **El cursor se pone solo** en el primer campo al abrir cualquier ventana.
+
+## 🔁 Un socio que vuelve NO se duplica
+
+Si registras un pago a nombre de alguien que ya está en el sistema (aunque lo
+escribas sin tildes), el sistema lo reconoce y te ofrece **renovarle**, que es
+lo correcto: así su historial de pagos queda junto y el conteo de socios
+activos no se infla. Si de verdad son dos personas distintas con el mismo
+nombre, puedes crear la ficha aparte.
+
+## ⚡ Cobrar en el momento justo
+
+El mejor momento para cobrar una renovación es cuando la persona está delante.
+Por eso el botón **Cobrar renovación** aparece:
+
+- En **Asistencia**, en el mismo cartel que sale al marcar la entrada de alguien
+  vencido o por vencer.
+- En el panel **"Avisar a los que vencen pronto"**, junto al botón de WhatsApp.
+
+En los dos casos abre la renovación con el plan y el precio del socio ya
+puestos: un toque y cobrado, sin ir a buscarlo a otra pestaña.
+
 ## 🧾 Gastos y utilidad real (nuevo)
 
 El sistema solo contaba el dinero que ENTRA. Con eso era imposible saber si el

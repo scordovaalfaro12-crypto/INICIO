@@ -10,8 +10,8 @@
   <meta name="apple-mobile-web-app-title" content="ZONA VIP">
   <link rel="apple-touch-icon" href="/assets/logo.png">
   <title>Admin — ZONA VIP GYM</title>
-  <link rel="stylesheet" href="/assets/fonts.css?v=14" />
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=17" />
   <style>
     .admin-badge { background: var(--orange); color: var(--white); padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-left: 0.5rem; }
   </style>
@@ -139,10 +139,10 @@
           </button>
         </div>
         <div class="panel">
-          <div class="table-wrap">
+          <div class="table-wrap tabla-movil-tarjetas">
             <table>
               <thead>
-                <tr><th>ID</th><th>Título</th><th>Instructor</th><th>Fecha</th><th>Hora</th><th>Cupos</th><th>Precio</th><th>Acciones</th></tr>
+                <tr><th>Título</th><th>N.º</th><th>Instructor</th><th>Fecha</th><th>Hora</th><th>Cupos</th><th>Precio</th><th>Acciones</th></tr>
               </thead>
               <tbody id="clases-body"></tbody>
             </table>
@@ -202,7 +202,7 @@
         </div>
         <div class="panel">
           <p id="matriculas-conteo" class="conteo-lista"></p>
-          <div class="table-wrap">
+          <div class="table-wrap tabla-movil-tarjetas">
             <table>
               <thead>
                 <tr>
@@ -302,10 +302,10 @@
             </div>
             <div id="extras-top-cats" style="display:contents;"></div>
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap tabla-movil-tarjetas">
             <table>
               <thead>
-                <tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th>Método</th><th>Acción</th></tr>
+                <tr><th>Categoría</th><th>Fecha</th><th>Descripción</th><th>Monto</th><th>Método</th><th>Acción</th></tr>
               </thead>
               <tbody id="extras-body"></tbody>
             </table>
@@ -337,10 +337,10 @@
             <h3>Últimos pagos registrados</h3>
             <span style="font-size:0.8rem;color:var(--gray-mid);">¿Registraste un monto equivocado? Anúlalo aquí.</span>
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap tabla-movil-tarjetas">
             <table>
               <thead>
-                <tr><th>Fecha</th><th>Tipo</th><th>Socio / Concepto</th><th>Método</th><th>Monto</th><th></th></tr>
+                <tr><th>Socio / Concepto</th><th>Fecha</th><th>Tipo</th><th>Método</th><th>Monto</th><th></th></tr>
               </thead>
               <tbody id="pagos-recientes-body"></tbody>
             </table>
@@ -408,9 +408,9 @@
             <h3>Entradas del día</h3>
             <input type="date" id="fecha-asistencia" class="search-input" style="padding:0.4rem 0.9rem;border-radius:999px;" />
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap tabla-movil-tarjetas">
             <table>
-              <thead><tr><th>Hora</th><th>Socio</th><th>Membresía</th><th>Estado al entrar</th><th></th></tr></thead>
+              <thead><tr><th>Socio</th><th>Hora</th><th>Membresía</th><th>Estado al entrar</th><th></th></tr></thead>
               <tbody id="asistencia-body"></tbody>
             </table>
           </div>
@@ -462,9 +462,9 @@
           </div>
           <div class="panel">
             <div class="panel__head"><h3>Gastos registrados</h3></div>
-            <div class="table-wrap">
+            <div class="table-wrap tabla-movil-tarjetas">
               <table>
-                <thead><tr><th>Fecha</th><th>Rubro</th><th>Detalle</th><th>Monto</th><th></th></tr></thead>
+                <thead><tr><th>Rubro</th><th>Fecha</th><th>Detalle</th><th>Monto</th><th></th></tr></thead>
                 <tbody id="gastos-body"></tbody>
               </table>
             </div>
@@ -486,11 +486,11 @@
           <p style="padding:0 1rem;color:var(--gray-mid);font-size:0.85rem;margin:0;">Ejemplos: "Máquinas 2 meses (promo)" S/ 130 por 60 días · "Aeróbicos 2 personas" S/ 120 por 30 días.</p>
           <form id="form-nuevo-plan" style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:flex-end;padding:1rem;">
             <div class="field" style="flex:2;min-width:180px;"><label>Nombre del plan o promo *</label><input name="nombre" maxlength="60" placeholder="Ej: Promo verano 2x1" required /></div>
-            <div class="field" style="flex:1;min-width:110px;"><label>Precio (S/) *</label><input type="number" name="precio" min="0" step="0.10" placeholder="130" required /></div>
+            <div class="field" style="flex:1;min-width:110px;"><label>Precio (S/) *</label><input type="number" inputmode="decimal" name="precio" min="0" step="0.10" placeholder="130" required /></div>
             <div class="field" style="flex:1;min-width:110px;"><label>Duración (días) *</label><input type="number" name="dias" min="1" max="366" step="1" placeholder="60" required /></div>
             <button type="submit" class="btn btn-primary">Agregar</button>
           </form>
-          <div class="table-wrap">
+          <div class="table-wrap tabla-movil-tarjetas">
             <table>
               <thead><tr><th>Plan / Promoción</th><th>Precio</th><th>Duración</th><th>Acción</th></tr></thead>
               <tbody id="planes-precios-body"></tbody>
@@ -503,10 +503,10 @@
           <p style="padding:0 1rem;color:var(--gray-mid);font-size:0.85rem;margin:0;">Lo que vendes además de matrículas (aguas, proteína, ropa...). El precio sugerido es opcional: se autocompleta al registrar la venta y siempre lo puedes cambiar.</p>
           <form id="form-nueva-categoria" style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:flex-end;padding:1rem;">
             <div class="field" style="flex:2;min-width:180px;"><label>Nombre de la categoría *</label><input name="nombre" maxlength="60" placeholder="Ej: Guantes" required /></div>
-            <div class="field" style="flex:1;min-width:110px;"><label>Precio sugerido (S/)</label><input type="number" name="precio" min="0" step="0.10" placeholder="opcional" /></div>
+            <div class="field" style="flex:1;min-width:110px;"><label>Precio sugerido (S/)</label><input type="number" inputmode="decimal" name="precio" min="0" step="0.10" placeholder="opcional" /></div>
             <button type="submit" class="btn btn-primary">Agregar</button>
           </form>
-          <div class="table-wrap">
+          <div class="table-wrap tabla-movil-tarjetas">
             <table>
               <thead><tr><th>Categoría</th><th>Precio sugerido</th><th>Acción</th></tr></thead>
               <tbody id="categorias-precios-body"></tbody>
@@ -542,7 +542,7 @@
         </div>
         <div class="field-row">
           <div class="field"><label>Cupos</label><input type="number" name="capacidad" value="80" min="1" /></div>
-          <div class="field"><label>Precio por lugar (S/)</label><input type="number" name="precio" value="15" min="0" step="0.10" /></div>
+          <div class="field"><label>Precio por lugar (S/)</label><input type="number" inputmode="decimal" name="precio" value="15" min="0" step="0.10" /></div>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Crear clase</button>
       </form>
@@ -571,7 +571,7 @@
           <input name="descripcion" placeholder="Ej: Agua 600ml · Polo talla M · etc." />
         </div>
         <div class="field-row">
-          <div class="field"><label>Monto (S/) *</label><input type="number" name="monto" min="0" step="0.10" placeholder="3.50" required /></div>
+          <div class="field"><label>Monto (S/) *</label><input type="number" inputmode="decimal" name="monto" min="0" step="0.10" placeholder="3.50" required /></div>
           <div class="field"><label>Método</label>
             <select name="metodo">
               <option value="Efectivo">Efectivo</option>
@@ -599,8 +599,8 @@
       <form id="form-nueva-matricula" style="display:flex;flex-direction:column;gap:1rem;">
         <div class="field"><label>Nombre completo del socio *</label><input name="nombre" placeholder="Ej: Juan Pérez Castillo" required /></div>
         <div class="field-row">
-          <div class="field"><label>Teléfono</label><input name="telefono" placeholder="987654321" /></div>
-          <div class="field"><label>DNI</label><input name="dni" maxlength="8" placeholder="70123456" /></div>
+          <div class="field"><label>Teléfono</label><input type="tel" inputmode="numeric" name="telefono" placeholder="987654321" /></div>
+          <div class="field"><label>DNI</label><input type="text" inputmode="numeric" name="dni" maxlength="8" placeholder="70123456" /></div>
         </div>
         <div class="field">
           <label>Concepto *</label>
@@ -613,7 +613,7 @@
         <div class="field-row">
           <div class="field">
             <label>Monto pagado (S/) *</label>
-            <input type="number" name="monto" min="0" step="0.10" placeholder="80" required />
+            <input type="number" inputmode="decimal" name="monto" min="0" step="0.10" placeholder="80" required />
           </div>
           <div class="field">
             <label>Método de pago *</label>
@@ -654,7 +654,7 @@
         </div>
         <div class="field-row">
           <div class="field"><label>Días *</label><input type="number" name="dias" min="1" max="366" step="1" value="30" required /></div>
-          <div class="field"><label>Monto cobrado *</label><input type="number" name="monto" min="0" step="0.10" required /></div>
+          <div class="field"><label>Monto cobrado *</label><input type="number" inputmode="decimal" name="monto" min="0" step="0.10" required /></div>
         </div>
         <div class="field">
           <label>Fecha en que pagó</label>
@@ -690,8 +690,8 @@
         <input type="hidden" name="id" />
         <div class="field"><label>Nombre completo *</label><input type="text" name="nombre" maxlength="120" required /></div>
         <div class="field-row">
-          <div class="field"><label>Teléfono</label><input type="tel" name="telefono" maxlength="30" /></div>
-          <div class="field"><label>DNI</label><input type="text" name="dni" maxlength="20" /></div>
+          <div class="field"><label>Teléfono</label><input type="tel" inputmode="numeric" name="telefono" maxlength="30" /></div>
+          <div class="field"><label>DNI</label><input type="text" inputmode="numeric" name="dni" maxlength="20" /></div>
         </div>
         <div class="field"><label>Concepto / plan *</label><input type="text" name="concepto" maxlength="80" required /></div>
         <div class="field">
@@ -753,7 +753,7 @@
           <select name="categoria" id="select-categoria-gasto" required></select>
         </div>
         <div class="field-row">
-          <div class="field"><label>Monto *</label><input type="number" name="monto" min="0" step="0.10" required /></div>
+          <div class="field"><label>Monto *</label><input type="number" inputmode="decimal" name="monto" min="0" step="0.10" required /></div>
           <div class="field"><label>Fecha *</label><input type="date" name="fecha" required /></div>
         </div>
         <div class="field"><label>Detalle</label><input type="text" name="descripcion" maxlength="200" placeholder="Ej: recibo de julio" /></div>
@@ -783,7 +783,7 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=14"></script>
-  <script src="admin.js?v=14"></script>
+  <script src="app.js?v=17"></script>
+  <script src="admin.js?v=17"></script>
 </body>
 </html>

@@ -67,18 +67,27 @@ function enlazarAcciones() {
   if (fechaAsis) fechaAsis.addEventListener('change', () => renderAsistencia(fechaAsis.value));
 }
 
+// Pone el cursor en el primer campo del modal: en el celular se abre el
+// teclado al instante y se puede escribir sin tener que tocar la pantalla.
+function enfocarPrimerCampo(idModal) {
+  const m = document.getElementById(idModal);
+  if (!m) return;
+  const campo = m.querySelector('input:not([type=hidden]):not([readonly]), select, textarea');
+  if (campo) setTimeout(() => { try { campo.focus(); } catch (e) {} }, 120);
+}
+
 // Prepara y muestra el modal indicado (antes cada botón llamaba a su función).
 function abrirModal(id) {
   if (id === 'modal-gasto') {
     const m = document.getElementById('modal-gasto');
-    if (m) { m.querySelector('[name=fecha]').value = hoyISO(); m.hidden = false; }
+    if (m) { m.querySelector('[name=fecha]').value = hoyISO(); m.hidden = false; enfocarPrimerCampo(id); }
     return;
   }
   if (id === 'modal-matricula') return openModalNuevaMatricula();
   if (id === 'modal-extra') return openModalExtra();
   if (id === 'modal-clase-new') return openModalNuevaClase();
   const m = document.getElementById(id);
-  if (m) m.hidden = false;
+  if (m) { m.hidden = false; enfocarPrimerCampo(id); }
 }
 
 // ============ CATÁLOGO (precios, promos y categorías) ============
@@ -372,13 +381,13 @@ async function renderClases() {
     ? '<tr><td colspan="8" style="text-align:center;color:var(--gray-mid);padding:2rem;">No hay clases. Crea la primera.</td></tr>'
     : clases.map(c => `
         <tr>
-          <td><strong>${c.id}</strong></td>
           <td><strong>${esc(c.titulo)}</strong></td>
-          <td>${esc(c.instructor)}</td>
-          <td>${formatDate(c.fecha)}</td>
-          <td>${esc(c.hora)}</td>
-          <td>${esc(c.capacidad)}</td>
-          <td><strong>S/ ${formatPrice(c.precio)}</strong></td>
+          <td data-col="N.º">${c.id}</td>
+          <td data-col="Instructor">${esc(c.instructor)}</td>
+          <td data-col="Fecha">${formatDate(c.fecha)}</td>
+          <td data-col="Hora">${esc(c.hora)}</td>
+          <td data-col="Cupos">${esc(c.capacidad)}</td>
+          <td data-col="Precio"><strong>S/ ${formatPrice(c.precio)}</strong></td>
           <td><button class="link-orange" style="color:var(--red);" data-del-clase="${c.id}">Eliminar</button></td>
         </tr>
       `).join('');
@@ -463,13 +472,13 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
     return `
       <tr>
         <td><strong>${esc(m.nombre)}</strong>${m.dni ? `<br><small style="color:var(--gray-mid);">DNI ${esc(m.dni)}</small>` : ''}</td>
-        <td>${esc(m.telefono) || '—'}</td>
-        <td>${esc(m.concepto)}</td>
-        <td><strong>S/ ${formatPrice(m.monto)}</strong></td>
-        <td><span class="tag">${esc(m.metodo)}</span></td>
-        <td>${formatDate(m.fecha_pago)}</td>
-        <td>${formatDate(m.fecha_vence)} ${diasTxt}</td>
-        <td><span class="tag ${estadoColor}">${estadoTxt}</span></td>
+        <td data-col="Teléfono">${esc(m.telefono) || '—'}</td>
+        <td data-col="Concepto">${esc(m.concepto)}</td>
+        <td data-col="Monto"><strong>S/ ${formatPrice(m.monto)}</strong></td>
+        <td data-col="Método"><span class="tag">${esc(m.metodo)}</span></td>
+        <td data-col="Pagó">${formatDate(m.fecha_pago)}</td>
+        <td data-col="Vence">${formatDate(m.fecha_vence)} ${diasTxt}</td>
+        <td data-col="Estado"><span class="tag ${estadoColor}">${estadoTxt}</span></td>
         <td class="acciones-socio">
           <button class="link-orange" data-action="renovar" data-id="${m.id}">Renovar</button>
           <button class="link-orange" data-action="historial" data-id="${m.id}">Historial</button>
@@ -533,10 +542,18 @@ async function renderPorVencer() {
           <small style="color:${faltan <= 1 ? 'var(--red)' : 'var(--gray-mid)'};"> · ${cuando}</small>
           ${tel ? '' : '<small style="color:var(--gray-mid);"> · sin teléfono guardado</small>'}
         </div>
-        ${tel ? `<a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
-             href="https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}">Avisar por WhatsApp</a>` : ''}
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          ${tel ? `<a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+               href="https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}">WhatsApp</a>` : ''}
+          <button class="btn btn-primary btn-sm" data-renovar-id="${m.id}">Cobrar renovación</button>
+        </div>
       </div>`;
   }).join('');
+
+  // Se puede cobrar sin salir del aviso: antes había que ir a Socios,
+  // buscar a la persona y recién ahí pulsar Renovar.
+  lista.querySelectorAll('[data-renovar-id]').forEach(btn =>
+    btn.addEventListener('click', () => abrirRenovarPorId(parseInt(btn.dataset.renovarId, 10))));
 }
 
 // Celular peruano listo para el enlace de WhatsApp (o null si no sirve).
@@ -556,6 +573,7 @@ function openModalNuevaMatricula() {
   m.querySelector('[name=fecha_pago]').value = hoy;
   m.querySelector('[name=fecha_vence]').value = addDiasISO(hoy, 30);
   m.hidden = false;
+  enfocarPrimerCampo('modal-matricula');
 }
 
 function autocompletarMonto(concepto) {
@@ -581,6 +599,32 @@ if (formMat) {
       const fd = new FormData(e.target);
       const data = Object.fromEntries(fd);
       let res = await api.createMembership(data);
+
+      // La persona ya es socia: se ofrece renovarle en vez de crear una
+      // segunda ficha (que partiría su historial y duplicaría el conteo).
+      if (res.socio_existente) {
+        const s = res.socio_existente;
+        const renovar = confirm(
+          `${s.nombre} ya está registrado.\n\n` +
+          `Su ${s.concepto} ${s.estado === 'activa' ? 'vence el ' + s.fecha_vence : 'está VENCIDA (' + s.fecha_vence + ')'}.\n\n` +
+          'Aceptar = renovarle (lo recomendado)\n' +
+          'Cancelar = crear una ficha aparte de todos modos'
+        );
+        closeModal('modal-matricula');
+        if (renovar) {
+          const lista = await api.getMemberships({ q: s.nombre, limit: 5 });
+          const socio = (lista.items || []).find(m => m.id === s.id);
+          if (socio) { abrirRenovar(s.id, socio); return; }
+          showToast('Busca al socio en la lista y pulsa Renovar', 'error');
+          return;
+        }
+        res = await api.createMembership({ ...data, confirmar_duplicado: true });
+        if (res.error) { showToast(res.error, 'error'); return; }
+        showToast('Ficha aparte creada');
+        renderMatriculas(); renderFinanzas(); renderDashboard(); renderPorVencer();
+        return;
+      }
+
       if (res.duplicado) {
         // El servidor detectó un pago idéntico hace segundos: se pregunta
         // antes de duplicarlo, en vez de cobrar dos veces en silencio.
@@ -622,6 +666,13 @@ function abrirRenovar(id, socio) {
     if (selMet) selMet.value = socio.metodo;
   }
   document.getElementById('modal-renovar').hidden = false;
+}
+
+// Abre la renovación teniendo solo el id (desde los avisos y la asistencia).
+async function abrirRenovarPorId(id) {
+  const h = await api.getHistorialSocio(id);
+  if (hayProblema(h) || !h.socio) { showToast('No se pudo cargar el socio', 'error'); return; }
+  abrirRenovar(id, h.socio);
 }
 
 // ============ CORREGIR DATOS DEL SOCIO ============
@@ -693,7 +744,7 @@ if (formRen) {
       if (res.error) { showToast(res.error, 'error'); return; }
       showToast('Membresía renovada hasta ' + res.nuevoVence);
       closeModal('modal-renovar');
-      renderMatriculas(); renderFinanzas(); renderDashboard(); renderPorVencer();
+      renderMatriculas(); renderFinanzas(); renderDashboard(); renderPorVencer(); renderAsistencia();
     });
   });
 }
@@ -825,11 +876,11 @@ async function renderPagosRecientes() {
   const hoy = hoyISO();
   body.innerHTML = recientes.map(p => `
     <tr${p.fecha_pago > hoy ? ' style="background:rgba(255,107,26,0.07);"' : ''}>
-      <td>${formatDate(p.fecha_pago)}${p.fecha_pago > hoy ? ' <small style="color:var(--orange);">(futura)</small>' : ''}</td>
-      <td>${p.tipo === 'renovacion' ? 'Renovación' : 'Matrícula'}</td>
-      <td><strong>${esc(p.nombre)}</strong><br><small style="color:var(--gray-mid);">${esc(p.concepto)}</small></td>
-      <td><span class="tag">${esc(p.metodo)}</span></td>
-      <td><strong>S/ ${formatPrice(p.monto)}</strong></td>
+      <td><strong>${esc(p.nombre)}</strong> <small style="color:var(--gray-mid);">${esc(p.concepto)}</small></td>
+      <td data-col="Fecha">${formatDate(p.fecha_pago)}${p.fecha_pago > hoy ? ' <small style="color:var(--orange);">(futura)</small>' : ''}</td>
+      <td data-col="Tipo">${p.tipo === 'renovacion' ? 'Renovación' : 'Matrícula'}</td>
+      <td data-col="Método"><span class="tag">${esc(p.metodo)}</span></td>
+      <td data-col="Monto"><strong>S/ ${formatPrice(p.monto)}</strong></td>
       <td><button class="link-orange" style="color:var(--red);" data-anular="${p.id}">Anular</button></td>
     </tr>
   `).join('');
@@ -901,11 +952,11 @@ async function renderExtras() {
   }
   body.innerHTML = recent.map(e => `
     <tr>
-      <td>${formatDate(e.fecha)}</td>
       <td><strong>${esc(e.categoria)}</strong></td>
-      <td>${esc(e.descripcion) || '—'}</td>
-      <td><strong>S/ ${formatPrice(e.monto)}</strong></td>
-      <td><span class="tag">${esc(e.metodo)}</span></td>
+      <td data-col="Fecha">${formatDate(e.fecha)}</td>
+      <td data-col="Detalle">${esc(e.descripcion) || '—'}</td>
+      <td data-col="Monto"><strong>S/ ${formatPrice(e.monto)}</strong></td>
+      <td data-col="Método"><span class="tag">${esc(e.metodo)}</span></td>
       <td><button class="link-orange" style="color:var(--red);" data-extra-del="${e.id}">Anular</button></td>
     </tr>
   `).join('');
@@ -927,6 +978,7 @@ function openModalExtra() {
   if (!m) return;
   m.querySelector('[name=fecha]').value = hoyISO();
   m.hidden = false;
+  enfocarPrimerCampo('modal-extra');
 }
 
 const formExtra = document.getElementById('form-nuevo-extra');
@@ -988,10 +1040,10 @@ async function renderAsistencia(fecha) {
   }
   body.innerHTML = datos.items.map(a => `
     <tr>
-      <td><strong>${esc(a.hora)}</strong></td>
       <td>${esc(a.nombre)}</td>
-      <td>${esc(a.concepto) || '—'}${a.fecha_vence ? `<br><small style="color:var(--gray-mid);">vence ${formatDate(a.fecha_vence)}</small>` : ''}</td>
-      <td><span class="tag ${a.estado_al_entrar === 'activa' ? 'tag-green' : 'tag-red'}">${a.estado_al_entrar === 'activa' ? 'Al día' : 'Vencida'}</span></td>
+      <td data-col="Hora"><strong>${esc(a.hora)}</strong></td>
+      <td data-col="Membresía">${esc(a.concepto) || '—'}${a.fecha_vence ? `<br><small style="color:var(--gray-mid);">vence ${formatDate(a.fecha_vence)}</small>` : ''}</td>
+      <td data-col="Al entrar"><span class="tag ${a.estado_al_entrar === 'activa' ? 'tag-green' : 'tag-red'}">${a.estado_al_entrar === 'activa' ? 'Al día' : 'Vencida'}</span></td>
       <td><button class="link-orange" style="color:var(--red);" data-borrar-entrada="${a.id}">Quitar</button></td>
     </tr>
   `).join('');
@@ -1076,8 +1128,13 @@ function mostrarAvisoEntrada(r) {
   const vencida = r.socio.estado !== 'activa';
   const porVencer = !vencida && r.dias_restantes <= 3;
   el.innerHTML = `<div class="entrada-aviso ${vencida ? 'es-vencida' : porVencer ? 'es-pronto' : 'es-ok'}">
-      ${esc(r.mensaje)}${r.ya_marcado ? ' <small>(ya había marcado hoy)</small>' : ''}
+      <span>${esc(r.mensaje)}${r.ya_marcado ? ' <small>(ya había marcado hoy)</small>' : ''}</span>
+      ${(vencida || porVencer) ? `<button class="btn btn-primary btn-sm" data-cobrar="${r.socio.id}">Cobrar renovación</button>` : ''}
     </div>`;
+  // El momento de cobrar es justo cuando la persona está delante del mostrador:
+  // el botón lleva a la renovación sin tener que ir a buscarla a otra pestaña.
+  const btnCobrar = el.querySelector('[data-cobrar]');
+  if (btnCobrar) btnCobrar.addEventListener('click', () => abrirRenovarPorId(parseInt(btnCobrar.dataset.cobrar, 10)));
   clearTimeout(mostrarAvisoEntrada._t);
   mostrarAvisoEntrada._t = setTimeout(() => { el.innerHTML = ''; }, 12000);
 }
@@ -1141,10 +1198,10 @@ async function renderGastos() {
   }
   body.innerHTML = lista.map(g => `
     <tr>
-      <td>${formatDate(g.fecha)}</td>
       <td><strong>${esc(g.categoria)}</strong></td>
-      <td>${esc(g.descripcion) || '—'}<br><small style="color:var(--gray-mid);">${esc(g.metodo)}</small></td>
-      <td><strong style="color:var(--red);">− S/ ${formatPrice(g.monto)}</strong></td>
+      <td data-col="Fecha">${formatDate(g.fecha)}</td>
+      <td data-col="Detalle">${esc(g.descripcion) || '—'} <small style="color:var(--gray-mid);">(${esc(g.metodo)})</small></td>
+      <td data-col="Monto"><strong style="color:var(--red);">− S/ ${formatPrice(g.monto)}</strong></td>
       <td><button class="link-orange" style="color:var(--red);" data-gasto-del="${g.id}">Anular</button></td>
     </tr>
   `).join('');

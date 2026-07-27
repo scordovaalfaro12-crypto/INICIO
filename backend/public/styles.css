@@ -2159,3 +2159,132 @@ table tbody tr:hover { background: var(--gray-soft); }
 .entrada-aviso.es-pronto { background: #fff4ec; color: #8a3d00; border: 1px solid var(--orange, #FF6B1A); }
 .entrada-aviso.es-vencida { background: #fdecec; color: #8a1414; border: 1px solid var(--red, #d33); }
 .entrada-aviso small { font-weight: 500; opacity: 0.75; }
+
+/* ==========================================================
+   Ajustes v5 — manejo en el celular (el mostrador del gym)
+   ========================================================== */
+@media (max-width: 768px) {
+  /* La barra inferior tenía 5 huecos para 7 secciones: "Finanzas" y
+     "Precios" quedaban fuera de la pantalla, inalcanzables. Ahora los
+     siete entran, y si en el futuro se añaden más, la barra se desliza. */
+  .sidebar__nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sidebar__nav::-webkit-scrollbar { display: none; }
+  .sidebar__nav li { flex: 1 1 0; min-width: 0; }
+  .sidebar__nav a {
+    padding: 0.45rem 0.15rem;
+    font-size: 0.6rem;
+    gap: 0.15rem;
+  }
+  .sidebar__nav a > .mobile-label {
+    font-size: 0.6rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .sidebar__nav a svg { width: 18px; height: 18px; }
+
+  /* El texto explicativo de cada pestaña ocupaba media pantalla del
+     celular antes de llegar a lo que se usa a diario. En el escritorio
+     sigue completo; aquí se recorta a lo esencial. */
+  .page-head p {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.82rem;
+  }
+
+  /* Las tarjetas de conteo se apilaban ocupando ~660 px: había que hacer
+     mucho scroll para llegar al buscador. En el celular van en fila. */
+  .cards-row[style*="repeat(3,1fr)"] { grid-template-columns: repeat(3, 1fr) !important; gap: 0.5rem; }
+  .cards-row .stat-card { padding: 0.7rem 0.6rem; }
+  .cards-row .stat-card__label { font-size: 0.62rem; letter-spacing: 0.04em; }
+  .cards-row .stat-card__value { font-size: 1.5rem; }
+  .cards-row .stat-card__trend { font-size: 0.62rem; }
+
+  /* ── Tablas convertidas en tarjetas ──────────────────────────
+     La tabla de socios medía 830 px dentro de 318 px: había que
+     arrastrar de lado para alcanzar los botones de cada socio.
+     En el celular cada fila pasa a ser una tarjeta legible. */
+  .tabla-movil-tarjetas table { min-width: 0 !important; }
+  .tabla-movil-tarjetas table,
+  .tabla-movil-tarjetas thead,
+  .tabla-movil-tarjetas tbody,
+  .tabla-movil-tarjetas tr,
+  .tabla-movil-tarjetas td { display: block; width: 100%; }
+  .tabla-movil-tarjetas thead { display: none; }
+  .tabla-movil-tarjetas tr {
+    background: var(--white, #fff);
+    border: 1px solid var(--gray-soft, #eee);
+    border-radius: var(--r-sm, 8px);
+    padding: 0.7rem 0.9rem;
+    margin-bottom: 0.6rem;
+  }
+  .tabla-movil-tarjetas th,
+  .tabla-movil-tarjetas td { padding-left: 0; padding-right: 0; }
+  .tabla-movil-tarjetas td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.22rem 0;
+    border: none;
+    text-align: right;
+  }
+  .tabla-movil-tarjetas td::before {
+    content: attr(data-col);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gray-mid, #888);
+    text-align: left;
+    flex: 0 0 auto;
+  }
+  /* La primera celda (el nombre) manda: sin etiqueta y más grande. */
+  .tabla-movil-tarjetas td:first-child {
+    display: block;
+    text-align: left;
+    font-size: 1.02rem;
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.3rem;
+    border-bottom: 1px solid var(--gray-soft, #eee);
+  }
+  .tabla-movil-tarjetas td:first-child::before { content: none; }
+  /* Los botones de acción, a lo ancho y con área grande para el dedo. */
+  .tabla-movil-tarjetas td.acciones-socio,
+  .tabla-movil-tarjetas td:last-child {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    margin-top: 0.3rem;
+    border-top: 1px solid var(--gray-soft, #eee);
+  }
+  .tabla-movil-tarjetas td.acciones-socio::before,
+  .tabla-movil-tarjetas td:last-child::before { content: none; }
+  .tabla-movil-tarjetas td button {
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--gray-soft, #ddd);
+    border-radius: 999px;
+    min-height: 38px;
+  }
+  .tabla-movil-tarjetas .table-wrap { overflow-x: visible; }
+}
+
+/* El cartel del mostrador lleva el botón de cobrar al lado del mensaje. */
+.entrada-aviso {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+@media (max-width: 768px) {
+  .entrada-aviso { align-items: stretch; flex-direction: column; }
+  .entrada-aviso .btn { width: 100%; }
+}

@@ -372,6 +372,28 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // La persona YA es socia y está volviendo: lo correcto es RENOVARLE, no
+    // abrirle una segunda ficha. Sin esta comprobación, cada vez que alguien
+    // regresaba quedaba duplicado: el conteo de socios activos se inflaba, su
+    // historial se partía en dos y aparecía repetido en la lista.
+    if (!b.confirmar_duplicado) {
+      const mismaPersona = await queryOne(
+        `SELECT id, nombre, concepto, fecha_vence, estado FROM memberships
+         WHERE (COALESCE($1,'') <> '' AND dni = $1)
+            OR TRANSLATE(LOWER(nombre), 'áàäâãéèëêíìïîóòöôõúùüûñç', 'aaaaaeeeeiiiiooooouuuunc')
+               = TRANSLATE(LOWER($2), 'áàäâãéèëêíìïîóòöôõúùüûñç', 'aaaaaeeeeiiiiooooouuuunc')
+         ORDER BY id DESC LIMIT 1`,
+        [dni || null, nombre]
+      );
+      if (mismaPersona) {
+        return res.status(409).json({
+          error: `${mismaPersona.nombre} ya tiene una ficha (vence el ${mismaPersona.fecha_vence}). ` +
+                 'Lo normal es RENOVARLE, así su historial de pagos queda junto.',
+          socio_existente: mismaPersona,
+        });
+      }
+    }
+
     const id = await withTransaction(async (tx) => {
       const r = await tx.query(
         `INSERT INTO memberships (nombre, telefono, dni, concepto, monto, metodo, fecha_pago, fecha_vence, notas, estado)
