@@ -600,8 +600,10 @@ async function renderMatriculas(filtroTexto, filtroEstado) {
         <td data-col="Vence">${formatDate(m.fecha_vence)} ${diasTxt}</td>
         <td data-col="Estado"><span class="tag ${estadoColor}">${estadoTxt}</span></td>
         <td class="acciones-socio">
-          <button class="link-orange" data-action="renovar" data-id="${m.id}">Renovar</button>
-          <button class="link-orange" data-action="${m.congelada_desde ? 'reactivar' : 'congelar'}" data-id="${m.id}">${m.congelada_desde ? 'Reactivar' : 'Pausar'}</button>
+          ${congelada
+            ? `<button class="link-orange" data-action="reactivar" data-id="${m.id}">Reactivar</button>`
+            : `<button class="link-orange" data-action="renovar" data-id="${m.id}">Renovar</button>
+               <button class="link-orange" data-action="congelar" data-id="${m.id}">Pausar</button>`}
           <button class="link-orange" data-action="historial" data-id="${m.id}">Historial</button>
           <button class="link-orange" data-action="editar" data-id="${m.id}">Corregir</button>
           ${esAdministradora() ? `<button class="link-orange" style="color:var(--red);" data-action="eliminar-matricula" data-id="${m.id}">Borrar</button>` : ''}

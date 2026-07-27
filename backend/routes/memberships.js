@@ -55,8 +55,8 @@ router.get('/resumen', async (req, res) => {
     const en7 = addDays(hoy, 7);
     const r = await queryOne(
       `SELECT
-         COUNT(*) FILTER (WHERE estado = 'activa')::int AS activos,
-         COUNT(*) FILTER (WHERE estado = 'vencida')::int AS vencidos,
+         COUNT(*) FILTER (WHERE estado = 'activa' AND congelada_desde IS NULL)::int AS activos,
+         COUNT(*) FILTER (WHERE estado = 'vencida' AND congelada_desde IS NULL)::int AS vencidos,
          COUNT(*) FILTER (WHERE congelada_desde IS NOT NULL)::int AS congelados,
          COUNT(*) FILTER (WHERE estado = 'activa' AND fecha_vence <= $1 AND congelada_desde IS NULL)::int AS pronto,
          COUNT(*)::int AS total
@@ -498,6 +498,18 @@ router.put('/:id/renew', async (req, res) => {
       const m = r.rows[0];
       if (!m) return null;
 
+      // Renovar a alguien en pausa dejaba su ficha en un estado contradictorio:
+      // marcada como activa pero con la pausa todavía puesta, así que el mismo
+      // socio se contaba a la vez entre los activos y entre los pausados.
+      // Primero se reactiva (que le devuelve sus días) y luego se renueva.
+      if (m.congelada_desde) {
+        return {
+          error: `${m.nombre} tiene la membresía en pausa desde el ${m.congelada_desde}. ` +
+                 'Reactívala primero: se le devolverán los días que estuvo parado y después podrás cobrarle la renovación.',
+          enPausa: true,
+        };
+      }
+
       const base = (m.fecha_vence && m.fecha_vence > hoy) ? m.fecha_vence : hoy;
       const nuevoVence = addDays(base, dias);
       const metodo = b.metodo ? parseMetodo(b.metodo) : (m.metodo || 'Efectivo');
@@ -518,6 +530,7 @@ router.put('/:id/renew', async (req, res) => {
     });
 
     if (!resultado) return res.status(404).json({ error: 'No encontrada' });
+    if (resultado.error) return res.status(400).json({ error: resultado.error, en_pausa: true });
     res.json({ message: 'Renovada', nuevoVence: resultado });
   } catch (err) {
     responderError(res, err, 'MEMBERSHIPS', 'Error al renovar');

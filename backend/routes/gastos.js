@@ -81,9 +81,10 @@ router.post('/', async (req, res) => {
 
   try {
     const r = await query(
-      `INSERT INTO expenses (categoria, descripcion, monto, metodo, fecha, notas)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [categoria, cleanText(b.descripcion, 200), monto, parseMetodo(b.metodo), fecha, cleanText(b.notas, 500)]
+      `INSERT INTO expenses (categoria, descripcion, monto, metodo, fecha, notas, usuario_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [categoria, cleanText(b.descripcion, 200), monto, parseMetodo(b.metodo), fecha,
+       cleanText(b.notas, 500), req.user.id]
     );
     res.status(201).json({ id: r.rows[0].id });
   } catch (err) {

@@ -152,9 +152,9 @@ router.delete('/:id', requireAdmin, async (req, res) => {
           const nuevo = p.rows[0].stock + venta.cantidad;
           await tx.query('UPDATE products SET stock = $1 WHERE id = $2', [nuevo, venta.producto_id]);
           await tx.query(
-            `INSERT INTO stock_movements (producto_id, tipo, cantidad, stock_resultante, motivo, venta_id, fecha)
-             VALUES ($1, 'devolucion', $2, $3, 'Venta anulada: el producto vuelve al stock', $4, $5)`,
-            [venta.producto_id, venta.cantidad, nuevo, id, venta.fecha]
+            `INSERT INTO stock_movements (producto_id, tipo, cantidad, stock_resultante, motivo, venta_id, fecha, usuario_id)
+             VALUES ($1, 'devolucion', $2, $3, 'Venta anulada: el producto vuelve al stock', $4, $5, $6)`,
+            [venta.producto_id, venta.cantidad, nuevo, id, venta.fecha, req.user.id]
           );
           return { devuelto: venta.cantidad, nombre: p.rows[0].nombre, stock: nuevo };
         }

@@ -477,6 +477,40 @@ describe('Pausar y reactivar membresías', { skip: SALTAR && 'sin TEST_DATABASE_
     assert.match(r.datos.mensaje, /CONGELADA/);
   });
 
+  test('no se puede renovar a alguien en pausa (dejaba su ficha incoherente)', async () => {
+    await limpiarDatos();
+    const hoy = await hoyNegocio();
+    const nuevo = await pide('POST', '/api/memberships', {
+      nombre: 'Pausa y Renueva', concepto: 'Matrícula mensual', monto: 80,
+      fecha_pago: hoy, fecha_vence: sumaDias(hoy, 10),
+    });
+    const id = nuevo.datos.id;
+    await pide('PUT', `/api/memberships/${id}/congelar`, {});
+
+    const r = await pide('PUT', `/api/memberships/${id}/renew`, { dias: 30, monto: 80 });
+    assert.equal(r.estado, 400, 'debe pedir que se reactive primero');
+    assert.match(r.datos.error, /pausa/i);
+
+    // Lo importante: la ficha NO quedó marcada como activa con la pausa puesta.
+    const fila = await db.queryOne('SELECT estado, congelada_desde FROM memberships WHERE id = $1', [id]);
+    assert.equal(fila.estado, 'congelada');
+    assert.ok(fila.congelada_desde, 'sigue en pausa');
+
+    // Y el mismo socio no puede contarse a la vez como activo y como pausado.
+    const resumen = (await pide('GET', '/api/memberships/resumen')).datos;
+    assert.equal(resumen.activos + resumen.vencidos + resumen.congelados, resumen.total,
+      'cada socio se cuenta en un solo grupo');
+  });
+
+  test('ninguna ficha queda con estado contradictorio tras cualquier operación', async () => {
+    const raras = await db.queryOne(
+      `SELECT COUNT(*)::int AS n FROM memberships
+       WHERE (congelada_desde IS NOT NULL AND estado <> 'congelada')
+          OR (estado = 'congelada' AND congelada_desde IS NULL)`
+    );
+    assert.equal(raras.n, 0);
+  });
+
   test('no se puede pausar dos veces ni una ya vencida', async () => {
     const socios = (await pide('GET', '/api/memberships')).datos.items;
     const dos = await pide('PUT', `/api/memberships/${socios[0].id}/congelar`, {});
