@@ -6,8 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test tests/*.test.js",
-    "check": "node --check server.js && node --check db.js && node --check config.js"
+    "test": "node --test tests/dates.test.js tests/validate.test.js",
+    "check": "node --check server.js && node --check db.js && node --check config.js",
+    "test:api": "node --test tests/api.test.js",
+    "test:todo": "node --test tests/"
   },
   "engines": {
     "node": ">=20 <25"

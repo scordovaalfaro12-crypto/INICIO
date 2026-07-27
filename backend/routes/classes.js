@@ -16,19 +16,9 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Público a propósito: solo muestra la próxima clase de la cartelera.
-router.get('/next', async (req, res) => {
-  try {
-    const hoy = todayISO(config.TZ);
-    const next = await queryOne(
-      "SELECT * FROM classes WHERE estado = 'activa' AND fecha >= $1 ORDER BY fecha ASC, hora ASC LIMIT 1",
-      [hoy]
-    );
-    res.json(next || null);
-  } catch (err) {
-    responderError(res, err, 'CLASSES', 'Error al obtener la próxima clase');
-  }
-});
+// (Aquí había un endpoint /next abierto sin contraseña para una cartelera
+//  pública que nunca se llegó a usar: ninguna pantalla lo consultaba. Era el
+//  único punto de la API accesible sin iniciar sesión, así que se retiró.)
 
 router.get('/:id', authenticateToken, async (req, res) => {
   const id = parseId(req.params.id);

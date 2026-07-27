@@ -198,3 +198,12 @@ function shutdown(code) {
   // Si algo se queda colgado, salida forzada a los 8 segundos.
   setTimeout(() => process.exit(code), 8000).unref();
 }
+
+// Se exporta solo para que las pruebas puedan levantar y cerrar el servidor
+// sin matar el proceso. En producción nada de esto se usa: el arranque y el
+// apagado siguen siendo exactamente los de arriba.
+module.exports = {
+  app,
+  server,
+  cerrar: () => new Promise((resolve) => server.close(resolve)),
+};

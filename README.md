@@ -125,9 +125,24 @@ El administrador maneja sus propios precios sin tocar código:
 cd backend
 cp .env.example .env       # completa DATABASE_URL y JWT_SECRET
 npm install
-npm test                   # pruebas (no necesitan base de datos)
+npm test                   # 16 pruebas de fechas y validación (sin base de datos)
 npm start                  # http://localhost:3000
 ```
+
+### Pruebas de la API (necesitan PostgreSQL)
+
+Comprueban el sistema **como se usa de verdad**: cobrar, renovar, marcar
+entrada, cerrar el mes, respaldar y restaurar. Cada fallo que apareció en las
+revisiones tiene aquí su prueba, para que no pueda volver sin que salte:
+
+```bash
+createdb zvg_test
+TEST_DATABASE_URL='postgresql://usuario@localhost:5432/zvg_test' npm run test:api
+```
+
+Sin `TEST_DATABASE_URL` se saltan solas, así que `npm test` funciona en
+cualquier máquina. Están comprobadas de la única forma que sirve: volviendo a
+introducir a propósito los errores ya corregidos y verificando que fallan.
 
 ## 📱 Pensado para usarlo desde el celular
 

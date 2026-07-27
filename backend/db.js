@@ -231,23 +231,10 @@ async function aplicarEsquema(ejecutar) {
     );
   `);
 
-  // Tabla heredada de la versión anterior: se conserva por compatibilidad.
-  await ejecutar(`
-    CREATE TABLE IF NOT EXISTS reservations (
-      id SERIAL PRIMARY KEY,
-      "userId" INTEGER,
-      "userName" TEXT,
-      "classId" INTEGER,
-      "claseTitulo" TEXT,
-      instructor TEXT,
-      lugares TEXT,
-      fecha TEXT,
-      hora TEXT,
-      monto REAL DEFAULT 0,
-      estado TEXT DEFAULT 'confirmada',
-      creado TIMESTAMP DEFAULT NOW()
-    );
-  `);
+  // (Aquí se creaba una tabla `reservations` heredada de una versión anterior.
+  //  Ninguna ruta ni pantalla la leía ni la escribía, así que se dejó de crear.
+  //  En instalaciones antiguas la tabla sigue existiendo, vacía e inofensiva:
+  //  no se borra por si alguien guardó algo ahí alguna vez.)
 
   // Libro de ingresos: una fila por cada pago real (matrícula, renovación).
   // Sin clave foránea a memberships a propósito: si el admin borra la ficha
