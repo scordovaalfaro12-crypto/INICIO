@@ -45,7 +45,9 @@ app.use(cors({
 
 // Restaurar un respaldo sube un archivo grande (años de historial); el resto
 // de la API sigue con un límite pequeño para no aceptar envíos abusivos.
-app.use('/api/backup/restaurar', express.json({ limit: '25mb' }));
+// El tope va holgado por encima de lo que el respaldo puede llegar a pesar:
+// con 25 MB, un respaldo de varios años se rechazaba a sí mismo al restaurar.
+app.use('/api/backup/restaurar', express.json({ limit: '60mb' }));
 app.use(express.json({ limit: '200kb' }));
 
 // Salud del sistema: Railway usa /api/health como healthcheck del despliegue.

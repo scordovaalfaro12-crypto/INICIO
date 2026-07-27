@@ -15,14 +15,26 @@ const router = express.Router();
 const { queryAll, queryOne, withTransaction } = require('../db');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const config = require('../config');
-const { todayISO } = require('../lib/dates');
+const { todayISO, addDays } = require('../lib/dates');
 const { responderError } = require('../lib/errores');
 
 router.use(authenticateToken, requireAdmin);
 
+// Cuánta asistencia entra en el respaldo.
+//
+// El dinero (socios, pagos, ventas, gastos, precios) se guarda SIEMPRE
+// completo, sin recortes. La asistencia, en cambio, crece ~150 filas al día:
+// a los cinco años son 270.000 registros que hacían un archivo de 49 MB...
+// que después NO SE PODÍA VOLVER A CARGAR, porque supera el límite de subida.
+// Un respaldo irrestaurable no sirve de nada. Guardando el último año de
+// visitas el archivo se mantiene manejable y todo lo que afecta a las cuentas
+// sigue estando entero.
+const DIAS_ASISTENCIA_EN_RESPALDO = 365;
+
 router.get('/', async (req, res) => {
   try {
-    const [memberships, payments, extraSales, classes, users, catalogo, gastos, asistencia] = await Promise.all([
+    const desdeAsistencia = addDays(todayISO(config.TZ), -DIAS_ASISTENCIA_EN_RESPALDO);
+    const [memberships, payments, extraSales, classes, users, catalogo, gastos, asistencia, totalAsistencia] = await Promise.all([
       queryAll('SELECT * FROM memberships ORDER BY id'),
       queryAll('SELECT * FROM payments ORDER BY id'),
       queryAll('SELECT * FROM extra_sales ORDER BY id'),
@@ -31,14 +43,21 @@ router.get('/', async (req, res) => {
       queryAll('SELECT id, firstname, lastname, email, role FROM users ORDER BY id'),
       queryAll('SELECT * FROM catalog_options ORDER BY id'),
       queryAll('SELECT * FROM expenses ORDER BY id'),
-      queryAll('SELECT * FROM attendance ORDER BY id'),
+      queryAll('SELECT * FROM attendance WHERE fecha >= $1 ORDER BY id', [desdeAsistencia]),
+      queryOne('SELECT COUNT(*)::int AS n FROM attendance'),
     ]);
 
     const respaldo = {
       sistema: 'ZONA VIP GYM',
-      version: 4,
+      version: 5,
       generado: new Date().toISOString(),
       fecha_negocio: todayISO(config.TZ),
+      // Queda escrito en el propio archivo qué incluye y qué no, para que
+      // dentro de años nadie tenga que adivinarlo.
+      contenido: {
+        dinero: 'completo (socios, pagos, ventas, gastos y precios, sin recortes)',
+        asistencia: `desde ${desdeAsistencia} (${asistencia.length} de ${totalAsistencia.n} visitas registradas)`,
+      },
       tablas: {
         memberships,
         payments,
@@ -89,7 +108,8 @@ const RESTAURABLES = [
   { tabla: 'attendance', columnas: ['id', 'membership_id', 'nombre', 'fecha', 'hora', 'estado_al_entrar'] },
 ];
 
-const MAX_FILAS = 200000; // techo de seguridad para no agotar la memoria
+// Techo de seguridad para no agotar la memoria del servidor al restaurar.
+const MAX_FILAS = 200000;
 
 // Restaura un respaldo. Reemplaza los datos del negocio por los del archivo.
 // Los USUARIOS y contraseñas NO se tocan nunca: si el respaldo fuera de otra
