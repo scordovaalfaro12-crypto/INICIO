@@ -52,6 +52,13 @@ SHEETS = {
                       lines=('Pechera de chevrones en capas, collar de plumas y máscara dorada',
                              'Alas de 3 segmentos que se pliegan y abren  ·  cola con dos estelas',
                              '23 piezas  ·  18 huesos  ·  10.830 triángulos  ·  camina, vuela y grita')),
+    'Zephyrex': dict(sub='Aetherials  ·  Forma final de Zephyrian  ·  Tipo Neutro',
+                     keys=['AveCuerpo', 'AveAla', 'AveAlaClara', 'AvePecho', 'AvePlata', 'Oro', 'OroClaro',
+                           'PicoNaranja', 'GarraOscura', 'OjoAve'],
+                     pal_title='Paleta (Zephyrian + plata)',
+                     lines=('Corona de plumas en abanico, capa real y emblema dorado en la pechera',
+                            'Alas enormes con puntas plateadas  ·  visor dorado  ·  cuatro estelas',
+                            '24 piezas  ·  18 huesos  ·  15.188 triángulos  ·  camina, vuela y grita')),
 }
 
 

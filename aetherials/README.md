@@ -12,18 +12,19 @@
 
 ## Línea de Zephyrian (Neutro)
 
-![Línea de Zephyrian](zephalcon/renders/Zephalcon_linea.png)
+![Línea de Zephyrian](zephyrex/renders/Zephyrex_linea.png)
 
 | Forma | Carpeta | Idea |
 |---|---|---|
 | 1. Zephyrian | (modelo original) | Pequeña rapaz azul marino con pecho blanco en "V" y pico dorado |
 | 2. **Zephalcon** | [`zephalcon/`](zephalcon/) | Halcón cazador de viento: pechera de chevrones, collar, máscara dorada, alas grandes y cola con estelas |
+| 3. **Zephyrex** | [`zephyrex/`](zephyrex/) | El rey del viento: corona en abanico, capa de plumas, emblema dorado, visor, alas enormes con puntas plateadas y cuatro estelas |
 
 ## Qué trae cada carpeta
 
-Renders, GIFs (caminando y girando; Zephalcon también volando), archivos de Blender, un GLB, los FBX
+Renders, GIFs (caminando y girando; las aves también volando), archivos de Blender, un GLB, los FBX
 para Roblox (con esqueleto, piezas sueltas y animaciones) y un script de configuración para Roblox Studio.
 
 El código que genera todos los modelos está en [`fuente/`](fuente/) (Python + Blender 5.0,
-`pip install bpy==5.0.1 pillow`): `build_basaltor.py`, `build_obsidrax.py`, `build_zephalcon.py` y los
-scripts compartidos de exportación y render.
+`pip install bpy==5.0.1 pillow`): `build_basaltor.py`, `build_obsidrax.py`, `build_zephalcon.py`,
+`build_zephyrex.py` y los scripts compartidos de exportación y render.

@@ -525,6 +525,8 @@ def frame_q(u, v):
 FOLD = {'Brazo': ((0.24, 0.62, -0.75), (0.25, 0.45, -1.0)),
         'Antebrazo': ((0.10, -0.85, 0.50), (0.22, 0.45, -1.0)),
         'Mano': ((0.04, 0.92, -0.40), (0.18, 0.55, -1.0))}
+if 'wing_fold' in scene:  # cada criatura puede definir su propio plegado
+    FOLD = {k: (tuple(v[0]), tuple(v[1])) for k, v in json.loads(scene['wing_fold']).items()}
 WING_FOLD = {}
 for side, sx in (('Izq', 1), ('Der', -1)):
     for seg, (u_f, v_f) in FOLD.items():

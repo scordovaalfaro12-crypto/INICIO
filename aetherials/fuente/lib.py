@@ -46,6 +46,7 @@ PALETTE = [
     ('PicoNaranja',   '#d0782a', 0.50, 0),
     ('GarraOscura',   '#1d1d25', 0.40, 0),
     ('OjoAve',        '#f3c23c', 0.30, 0.25),
+    ('AvePlata',      '#e3e9ef', 0.40, 0),   # puntas plateadas (tercera forma de Zephyrian)
 ]
 MI = {n: i for i, (n, *_r) in enumerate(PALETTE)}
 GLOW = {'Magma', 'MagmaCaliente', 'MagmaProfundo', 'Brillo'}

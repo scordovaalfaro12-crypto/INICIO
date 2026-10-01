@@ -37,7 +37,7 @@ LIFT = Vector((0, 0, 0.75))
 if bpy.context.scene.get('tipo') == 'ave':
     OFF = {'Craneo': (0, -0.55, 0.55), 'Ojos': (0, -1.05, 0.75), 'Cresta': (0, -0.15, 0.92), 'Mandibula': (0, -1.0, 0.2),
            'Cuello': (0, -0.3, 0.25), 'Cuello__Collar': (0, -0.75, 0.1), 'Torso': (0, 0, 0), 'Torso__Pechera': (0, -1.0, -0.15),
-           'Cola': (0.55, 0.35, -0.55)}
+           'Cola': (0.55, 0.35, -0.55), 'Torso__Capa': (0.0, 0.85, 0.75)}
     for side, sx in (('Izq', 1), ('Der', -1)):
         for k, nm in enumerate(('Brazo', 'Antebrazo', 'Mano')):
             OFF['Ala_%s_%s' % (side, nm)] = (sx * (0.25 + 0.28 * k), 0, 0.25)
@@ -63,12 +63,15 @@ LABELS = {
     'PataTra_Izq_Pie': 'Pie', 'PataTra_Izq_Garras': 'Garras', 'Cola_1': 'Cola 1', 'Cola_2': 'Cola 2',
     'Cola_3': 'Cola 3', 'Cola_4': 'Cola 4', 'Cola_Mazo': 'Mazo de basalto',
 }
-if NAME == 'Zephalcon':
+if NAME in ('Zephalcon', 'Zephyrex'):
     LABELS = {'Craneo': 'Cabeza y pico', 'Ojos': 'Ojos y máscara dorada', 'Cresta': 'Cresta', 'Mandibula': 'Pico inferior',
               'Cuello': 'Cuello', 'Cuello__Collar': 'Collar de plumas', 'Torso': 'Cuerpo', 'Torso__Pechera': 'Pechera de chevrones',
               'Cola': 'Cola con estelas', 'Ala_Izq_Brazo': 'Ala: brazo', 'Ala_Izq_Antebrazo': 'Ala: antebrazo',
               'Ala_Izq_Mano': 'Ala: mano (primarias)', 'Pata_Izq_Muslo': 'Muslo', 'Pata_Izq_Tarso': 'Tarso dorado',
               'Pata_Izq_Pie': 'Pie', 'Pata_Izq_Garras': 'Garras'}
+if NAME == 'Zephyrex':
+    LABELS.update({'Cresta': 'Corona de plumas', 'Ojos': 'Ojos y visor dorado', 'Torso__Pechera': 'Pechera con emblema',
+                   'Torso__Capa': 'Capa de plumas', 'Cola': 'Cola con 4 estelas', 'Pata_Izq_Tarso': 'Tarso con anillo de oro'})
 if NAME == 'Obsidrax':
     LABELS.update({'Lomo': 'Lomo de obsidiana', 'Cuernos': 'Corona de cuernos', 'Cejas': 'Cejas de obsidiana',
                    'Ojos': 'Ojos de magma', 'Cola_Mazo': 'Orbe de magma', 'Torso__Melena': 'Melena de obsidiana',

@@ -14,7 +14,7 @@ largas, las **estelas de viento**, que ondean cuando vuela.
 
 | | |
 |---|---|
-| Línea evolutiva | Zephyrian → **Zephalcon** → (tercera forma) |
+| Línea evolutiva | Zephyrian → **Zephalcon** → [Zephyrex](../zephyrex/) |
 | Tipo | Neutro |
 | Tamaño del modelo | 2,3 m de alto · 2,1 m de largo · 4,55 m de envergadura con las alas abiertas |
 | Postura | rapaz erguida; camina, vuela y grita |
