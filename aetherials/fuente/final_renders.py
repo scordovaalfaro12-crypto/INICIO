@@ -8,15 +8,17 @@ from fx import add_embers
 args = sys.argv[sys.argv.index('--') + 1:]
 OUTDIR, SAMPLES, ONLY = args[0], int(args[1]), (args[2].split(',') if len(args) > 2 else None)
 os.makedirs(OUTDIR, exist_ok=True)
-bpy.ops.wm.open_mainfile(filepath='out/Basaltor_Rig.blend')
+NAME, RIGBLEND = creature()
+bpy.ops.wm.open_mainfile(filepath=RIGBLEND)
 cam = build_studio()
 setup_glare(0.4)
-arm = bpy.data.objects['Basaltor_Rig']
+arm = bpy.data.objects[NAME + '_Rig']
 for o in bpy.data.objects:
     if o.type == 'MESH' and o.parent == arm:
         o.hide_render = not o.name.endswith('_glb')
-add_embers(arm)
-CENTER = Vector((0, 0.45, 0))
+SC, CENTER = creature_frame(arm)
+add_embers(arm, region=EMBER_REGION.get(NAME, EMBER_REGION['Basaltor']))
+print('criatura', NAME, 'escala', round(SC, 2))
 
 # nombre: (res, giro, cam, objetivo, lente, accion, frame)
 SHOTS = {
@@ -35,8 +37,8 @@ for name, (res, ang, cpos, tgt, lens, act, frame) in SHOTS.items():
     arm.animation_data.action = bpy.data.actions[act]
     bpy.context.scene.frame_set(frame)
     arm.matrix_world = Matrix.Rotation(math.radians(ang), 4, 'Z') @ Matrix.Translation(-CENTER)
-    aim_camera(cam, cpos, tgt, lens)
-    bpy.context.scene.render.filepath = os.path.join(OUTDIR, 'Basaltor_%s.png' % name)
+    aim_camera(cam, Vector(cpos) * SC, Vector(tgt) * SC, lens)
+    bpy.context.scene.render.filepath = os.path.join(OUTDIR, '%s_%s.png' % (NAME, name))
     t = time.time()
     bpy.ops.render.render(write_still=True)
     print('RENDER', name, '%.0fs' % (time.time() - t), flush=True)

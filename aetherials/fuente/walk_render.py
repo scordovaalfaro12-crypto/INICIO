@@ -13,21 +13,23 @@ OUTDIR, SAMPLES, CYCLES, W, H = args[0], int(args[1]), int(args[2]), int(args[3]
 ONLY = [int(x) for x in args[5].split(',')] if len(args) > 5 else None
 os.makedirs(OUTDIR, exist_ok=True)
 
-WALK_FRAMES, BETA, STRIDE = 36, 0.70, 0.50
+NAME, RIGBLEND = creature()
+bpy.ops.wm.open_mainfile(filepath=RIGBLEND)
+_sc = bpy.context.scene
+WALK_FRAMES, BETA, STRIDE = int(_sc.get('walk_frames', 36)), 0.70, float(_sc.get('walk_stride', 0.50))
 STEP = STRIDE / (BETA * WALK_FRAMES)       # m por frame que avanza el suelo
 TOTAL = WALK_FRAMES * CYCLES
 TILE = STEP * TOTAL                         # periodo del patron de piedras (bucle perfecto)
-
-bpy.ops.wm.open_mainfile(filepath='out/Basaltor_Rig.blend')
 cam = build_studio()
 setup_glare(0.35)
 setup_render((W, H), SAMPLES, preview=SAMPLES < 40)
 sc = bpy.context.scene
 sc.render.fps = 30
-arm = bpy.data.objects['Basaltor_Rig']
+arm = bpy.data.objects[NAME + '_Rig']
 for o in bpy.data.objects:
     if o.type == 'MESH' and o.parent == arm:
         o.hide_render = not o.name.endswith('_glb')
+SC, CENTER = creature_frame(arm)
 act = bpy.data.actions['Caminar']
 arm.animation_data.action = act
 
@@ -70,8 +72,8 @@ rng = random.Random(9)
 tile_rocks = []
 n_rocks = max(8, int(TILE * 9))
 while len(tile_rocks) < n_rocks:
-    x = rng.uniform(-3.2, 3.2)
-    if 0.38 < abs(x) < 1.05:  # carriles de las patas: sin piedras para que no las pisen
+    x = rng.uniform(-3.2, 3.2) * SC
+    if 0.38 * SC < abs(x) < 1.05 * SC:  # carriles de las patas: sin piedras para que no las pisen
         continue
     y = rng.uniform(0, TILE)
     s = rng.choice((rng.uniform(0.03, 0.07), rng.uniform(0.03, 0.07), rng.uniform(0.08, 0.16)))
@@ -82,11 +84,11 @@ sc.collection.objects.link(ground)
 ground.parent = arm
 bm = bmesh.new()
 k = 0
-reps = int(math.ceil(14 / TILE))
+reps = int(math.ceil(14 * SC / TILE))
 for r in range(-reps, reps + 1):
     for (x, y, s, rot, dark, seed) in tile_rocks:
         yy = y + r * TILE
-        if abs(yy) > 7:
+        if abs(yy - CENTER.y) > 7 * SC:
             continue
         rr = random.Random(seed)
         geo = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0,
@@ -107,11 +109,10 @@ sc.collection.objects.link(rocks)
 rocks.parent = ground
 print('piedras', k, 'tile', round(TILE, 3))
 
-add_embers(arm, frames=TOTAL)
+add_embers(arm, frames=TOTAL, region=EMBER_REGION.get(NAME, EMBER_REGION['Basaltor']))
 
-CENTER = Vector((0, 0.45, 0))
 arm.matrix_world = Matrix.Rotation(math.radians(-72), 4, 'Z') @ Matrix.Translation(-CENTER)
-aim_camera(cam, (-1.3, -8.4, 2.3), (-0.3, 0, 0.82), 43)
+aim_camera(cam, Vector((-1.3, -8.4, 2.3)) * SC, Vector((-0.3, 0, 0.82)) * SC, 43)
 
 frames = ONLY if ONLY is not None else range(TOTAL)
 for f in frames:

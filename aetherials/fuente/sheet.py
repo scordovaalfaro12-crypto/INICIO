@@ -32,17 +32,34 @@ def rounded(im, r=18):
     return out
 
 
-def concept_sheet(rdir, out):
+SHEETS = {
+    'Basaltor': dict(sub='Aetherials  ·  Segunda forma de Vulcanid  ·  Tipo Fuego / Roca',
+                     keys=['Cuerpo', 'Placa', 'PlacaClara', 'CabezaGris', 'Hocico', 'Basalto', 'Hueso', 'Ojo', 'Magma', 'MagmaCaliente'],
+                     pal_title='Paleta (heredada de Vulcanid)',
+                     lines=('Columnas de basalto en panal con una grieta de magma a lo largo del lomo',
+                            'Mazo de basalto en la cola  ·  lengua de lava  ·  cuernos estriados',
+                            '30 piezas  ·  22 huesos  ·  24.316 triángulos, listo para Roblox')),
+    'Obsidrax': dict(sub='Aetherials  ·  Forma final de Vulcanid  ·  Tipo Fuego / Roca',
+                     keys=['Cuerpo', 'Placa', 'CabezaGris', 'Hocico', 'Obsidiana', 'ObsidianaBrillo', 'Hueso', 'MagmaProfundo', 'Magma', 'MagmaCaliente'],
+                     pal_title='Paleta (Vulcanid + obsidiana)',
+                     lines=('Melena de obsidiana y corazón de magma sujeto por costillas de cristal',
+                            'Grietas de lava en el cuerpo  ·  ojos de magma  ·  corona de cuernos',
+                            '32 piezas  ·  22 huesos  ·  34.374 triángulos, listo para Roblox')),
+}
+
+
+def concept_sheet(rdir, out, name='Basaltor'):
+    cfg = SHEETS[name]
     W, H = 2400, 1500
     S = Image.new('RGB', (W, H), BG)
     d = ImageDraw.Draw(S)
-    d.text((70, 52), 'BASALTOR', font=font(92, True), fill=INK)
-    d.text((76, 160), 'Aetherials  ·  Evolución final de Vulcanid  ·  Tipo Fuego / Roca', font=font(30), fill=MUTED)
+    d.text((70, 52), name.upper(), font=font(92, True), fill=INK)
+    d.text((76, 160), cfg['sub'], font=font(30), fill=MUTED)
     d.rectangle([70, 214, 330, 220], fill=MAGMA)
-    hero = Image.open(os.path.join(rdir, 'Basaltor_01_tres_cuartos.png')).convert('RGB')
+    hero = Image.open(os.path.join(rdir, name + '_01_tres_cuartos.png')).convert('RGB')
     S.paste(rounded(crop_center(hero, 1180, 1160, 0.5, 0.55)), (70, 260), rounded(crop_center(hero, 1180, 1160, 0.5, 0.55)))
-    views = [('Basaltor_05_lado.png', 'Lado', 0.5, 0.5), ('Basaltor_06_frente.png', 'Frente', 0.5, 0.5),
-             ('Basaltor_04_atras.png', 'Atrás', 0.5, 0.5), ('Basaltor_02_cabeza.png', 'Cabeza', 0.5, 0.5)]
+    views = [(name + '_05_lado.png', 'Lado', 0.5, 0.5), (name + '_06_frente.png', 'Frente', 0.5, 0.5),
+             (name + '_04_atras.png', 'Atrás', 0.5, 0.5), (name + '_02_cabeza.png', 'Cabeza', 0.5, 0.5)]
     x0, y0, cw, ch = 1290, 260, 520, 347
     for i, (fn, lab, cx, cy) in enumerate(views):
         im = Image.open(os.path.join(rdir, fn)).convert('RGB')
@@ -53,8 +70,8 @@ def concept_sheet(rdir, out):
         d.text((x + 4, y + ch + 10), lab, font=font(26, True), fill=INK)
     # paleta
     py = 1150
-    d.text((1290, py - 46), 'Paleta (heredada de Vulcanid)', font=font(26, True), fill=INK)
-    keys = ['Cuerpo', 'Placa', 'PlacaClara', 'CabezaGris', 'Hocico', 'Basalto', 'Hueso', 'Ojo', 'Magma', 'MagmaCaliente']
+    d.text((1290, py - 46), cfg['pal_title'], font=font(26, True), fill=INK)
+    keys = cfg['keys']
     pal = {n: h for (n, h, *_r) in PALETTE}
     for k, n in enumerate(keys):
         hx = pal[n]
@@ -63,16 +80,14 @@ def concept_sheet(rdir, out):
         d.rounded_rectangle([x, py, x + 92, py + 80], 12, fill=col, outline=(60, 72, 90), width=2)
         d.text((x, py + 88), hx, font=font(17), fill=MUTED)
     ty = 1310
-    for line in ('Columnas de basalto en panal con una grieta de magma a lo largo del lomo',
-                 'Mazo de basalto en la cola  ·  lengua de lava  ·  cuernos estriados',
-                 '30 piezas  ·  22 huesos  ·  24.316 triángulos, listo para Roblox'):
+    for line in cfg['lines']:
         d.ellipse([1292, ty + 10, 1304, ty + 22], fill=MAGMA)
         d.text((1318, ty), line, font=font(24), fill=INK)
         ty += 40
     S.save(out, quality=95)
 
 
-def exploded(raw, js, out):
+def exploded(raw, js, out, name='Basaltor'):
     im = Image.open(raw).convert('RGB')
     pts = json.load(open(js))
     d = ImageDraw.Draw(im)
@@ -95,7 +110,7 @@ def exploded(raw, js, out):
         d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=MAGMA, outline=(255, 255, 255), width=2)
         d.rounded_rectangle([bx - 10, ty - 4, bx + tw + 10, ty + 36], 8, fill=(20, 28, 40))
         d.text((bx, ty), lab, font=f, fill=INK)
-    d.text((40, 30), 'BASALTOR  ·  piezas separadas', font=font(46, True), fill=(20, 28, 40))
+    d.text((40, 30), name.upper() + '  ·  piezas separadas', font=font(46, True), fill=(20, 28, 40))
     d.text((42, 90), 'Cada pieza tiene su pivote en la articulación (listo para huesos o Motor6D en Roblox)',
            font=font(24), fill=(40, 52, 70))
     im.save(out)
@@ -104,6 +119,6 @@ def exploded(raw, js, out):
 if __name__ == '__main__':
     mode = sys.argv[1]
     if mode == 'sheet':
-        concept_sheet(sys.argv[2], sys.argv[3])
+        concept_sheet(sys.argv[2], sys.argv[3], *(sys.argv[4:5]))
     else:
-        exploded(sys.argv[2], sys.argv[3], sys.argv[4])
+        exploded(sys.argv[2], sys.argv[3], sys.argv[4], *(sys.argv[5:6]))

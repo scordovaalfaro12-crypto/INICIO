@@ -1,4 +1,5 @@
-"""Exporta Basaltor para Roblox.
+"""Exporta una criatura de la linea de Vulcanid (Basaltor, Obsidrax...) para Roblox.
+Los nombres de archivo usan el nombre de la criatura (NOMBRE_...).
 Salidas (en la carpeta indicada):
   Basaltor_Paleta.png              textura de paleta (todas las piezas de roca la comparten)
   Basaltor_Roblox_Rig.fbx          modelo con esqueleto (piezas rigidas por hueso) + animacion de reposo
@@ -8,7 +9,7 @@ Salidas (en la carpeta indicada):
   Basaltor_Roblox_Partes.fbx       todas las piezas sueltas, sin esqueleto, con su pivote en la articulacion
   Basaltor.glb                     modelo completo con materiales originales y animaciones (visor / otros motores)
   Basaltor_Rig.blend               escena de Blender con el rig y las animaciones
-Uso: python3 export_roblox.py basaltor.blend carpeta_salida
+Uso: python3 export_roblox.py modelo.blend carpeta_salida [Nombre]
 """
 import bpy, bmesh, math, os, sys
 WORK = os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +20,7 @@ import addon_utils
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
 SRC, OUT = os.path.abspath(args[0]), os.path.abspath(args[1])
+NAME = args[2] if len(args) > 2 else 'Basaltor'
 os.makedirs(OUT, exist_ok=True)
 for m in ('io_scene_fbx', 'io_scene_gltf2'):
     addon_utils.enable(m, default_set=True)
@@ -94,7 +96,7 @@ def mesh_from_bm(name, bm, mats):
 
 
 def palette_material(img_path):
-    m = bpy.data.materials.new('Basaltor_Paleta')
+    m = bpy.data.materials.new(NAME + '_Paleta')
     try:
         m.use_nodes = True
     except Exception:
@@ -110,7 +112,7 @@ def palette_material(img_path):
 
 
 def magma_material():
-    m = bpy.data.materials.new('Basaltor_Magma_Neon')
+    m = bpy.data.materials.new(NAME + '_Magma_Neon')
     try:
         m.use_nodes = True
     except Exception:
@@ -127,16 +129,16 @@ def magma_material():
 # ------------------------------------------------------------------ cargar
 bpy.ops.wm.open_mainfile(filepath=SRC)
 scene = bpy.context.scene
-root = bpy.data.objects['Basaltor']
+root = bpy.data.objects[NAME]
 root.matrix_world = Matrix.Identity(4)
 bpy.context.view_layer.update()
-parts = {o.name: o for o in bpy.data.collections['Basaltor'].all_objects if o.type == 'MESH'}
+parts = {o.name: o for o in bpy.data.collections[NAME].all_objects if o.type == 'MESH'}
 ORIG_MATS = list(parts['Torso'].data.materials)
 for n, o in parts.items():  # liberar los nombres limpios para las mallas exportadas
     o.name = 'SRC_' + n
     o.data.name = 'SRC_' + n
 
-PNG = os.path.join(OUT, 'Basaltor_Paleta.png')
+PNG = os.path.join(OUT, NAME + '_Paleta.png')
 make_palette_png(PNG)
 PAL = palette_material(PNG)
 NEON = magma_material()
@@ -175,7 +177,9 @@ for i, n in enumerate(tail_names):
 # pieza -> hueso
 PART_BONE = {}
 for n in parts:
-    if n in ('Torso', 'Lomo'):
+    if '__' in n:  # piezas extra: 'Hueso__Detalle' (ej. Torso__Melena) van al hueso indicado
+        PART_BONE[n] = n.split('__')[0]
+    elif n in ('Torso', 'Lomo'):
         PART_BONE[n] = 'Torso'
     elif n in ('Craneo', 'Ojos', 'Cejas', 'Cuernos', 'Dientes_Superiores'):
         PART_BONE[n] = 'Cabeza'
@@ -238,7 +242,7 @@ def export_fbx(path, objs, armature=None, anim=False, action=None):
         bake_anim_simplify_factor=0.0, path_mode='COPY', embed_textures=True)
 
 
-export_fbx(os.path.join(OUT, 'Basaltor_Roblox_Partes.fbx'), static_objs)
+export_fbx(os.path.join(OUT, NAME + '_Roblox_Partes.fbx'), static_objs)
 print('partes sueltas:', len(static_objs))
 for so in static_objs:  # liberar nombres para el rig
     me = so.data
@@ -247,8 +251,8 @@ for so in static_objs:  # liberar nombres para el rig
 static_objs = []
 
 # ------------------------------------------------------------------ rig
-arm_data = bpy.data.armatures.new('Basaltor_Rig')
-arm = bpy.data.objects.new('Basaltor_Rig', arm_data)
+arm_data = bpy.data.armatures.new(NAME + '_Rig')
+arm = bpy.data.objects.new(NAME + '_Rig', arm_data)
 rig_col = bpy.data.collections.new('Roblox_Rig')
 scene.collection.children.link(rig_col)
 rig_col.objects.link(arm)
@@ -263,19 +267,22 @@ for name, h, t, par in BONES:
 bpy.ops.object.mode_set(mode='OBJECT')
 
 # mallas unidas por hueso (roca con paleta + magma neon) y version con materiales originales (glb)
-by_bone = {}
+# mallas por hueso; las piezas 'Hueso__Detalle' van en su propia malla (mismo hueso) para no pasar
+# de ~10.000 triangulos por MeshPart
+groups = {}
 for n, b in PART_BONE.items():
-    by_bone.setdefault(b, []).append(parts[n])
+    key = n if '__' in n else b
+    groups.setdefault(key, (b, []))[1].append(parts[n])
 
 rig_meshes, glb_meshes = [], []
-for bone, objs in sorted(by_bone.items()):
+for mesh_name, (bone, objs) in sorted(groups.items()):
     bm = world_bmesh(sorted(objs, key=lambda o: o.name))
     # version glb (materiales originales)
     gb = bm.copy()
     bmesh.ops.triangulate(gb, faces=gb.faces[:])
-    gme = mesh_from_bm('GLB_' + bone, gb, ORIG_MATS)
+    gme = mesh_from_bm('GLB_' + mesh_name, gb, ORIG_MATS)
     gb.free()
-    go = bpy.data.objects.new(bone + '_glb', gme)
+    go = bpy.data.objects.new(mesh_name + '_glb', gme)
     rig_col.objects.link(go)
     glb_meshes.append((go, bone))
     rock, mag = split_glow(bm)
@@ -294,9 +301,9 @@ for bone, objs in sorted(by_bone.items()):
                 for l in f.loops:
                     l[uv].uv = (u, v)
         bmesh.ops.triangulate(b, faces=b.faces[:])
-        me = mesh_from_bm(bone + suffix, b, [mat])
+        me = mesh_from_bm(mesh_name + suffix, b, [mat])
         b.free()
-        mo = bpy.data.objects.new(bone + suffix, me)
+        mo = bpy.data.objects.new(mesh_name + suffix, me)
         rig_col.objects.link(mo)
         rig_meshes.append((mo, bone))
 
@@ -405,11 +412,11 @@ def pose_roar(t):
 # ---------------------------------------------------------------- caminata
 # Paso lateral de cuadrupedo pesado (como un elefante): trasera izq -> delantera izq ->
 # trasera der -> delantera der. En el lugar (in place): el juego mueve el modelo.
-WALK_FRAMES = 36            # 1,2 s por ciclo a 30 fps
+WALK_FRAMES = int(scene.get('walk_frames', 36))     # 1,2 s por ciclo a 30 fps (Basaltor)
 WALK_BETA = 0.70            # fraccion del ciclo con la pata apoyada
-WALK_STRIDE = 0.50          # largo del paso (m) medido en la muneca/tobillo
-WALK_LIFT = 0.20            # altura maxima del pie al avanzar (m)
-WALK_CROUCH = 0.07          # el cuerpo baja un poco al caminar (da juego a las rodillas)
+WALK_STRIDE = float(scene.get('walk_stride', 0.50))  # largo del paso (m) medido en la muneca/tobillo
+WALK_LIFT = float(scene.get('walk_lift', 0.20))      # altura maxima del pie al avanzar (m)
+WALK_CROUCH = float(scene.get('walk_crouch', 0.07))  # el cuerpo baja un poco al caminar (da juego a las rodillas)
 WALK_SPEED = WALK_STRIDE / (WALK_BETA * WALK_FRAMES / FPS)  # m/s sin que patinen los pies
 # fase de cada pata (u = t + fase); el pie se apoya cuando u = 0
 WALK_LEGS = {
@@ -501,10 +508,10 @@ print('velocidad de caminata sin patinar: %.3f m/s (%.3f m por ciclo)' % (WALK_S
 arm.animation_data.action = idle
 
 rig_objs = [m for m, _b in rig_meshes]
-export_fbx(os.path.join(OUT, 'Basaltor_Roblox_Rig.fbx'), rig_objs, armature=arm, anim=True, action=idle)
-export_fbx(os.path.join(OUT, 'Basaltor_Anim_Reposo.fbx'), rig_objs, armature=arm, anim=True, action=idle)
-export_fbx(os.path.join(OUT, 'Basaltor_Anim_Rugido.fbx'), rig_objs, armature=arm, anim=True, action=roar)
-export_fbx(os.path.join(OUT, 'Basaltor_Anim_Caminar.fbx'), rig_objs, armature=arm, anim=True, action=walk)
+export_fbx(os.path.join(OUT, NAME + '_Roblox_Rig.fbx'), rig_objs, armature=arm, anim=True, action=idle)
+export_fbx(os.path.join(OUT, NAME + '_Anim_Reposo.fbx'), rig_objs, armature=arm, anim=True, action=idle)
+export_fbx(os.path.join(OUT, NAME + '_Anim_Rugido.fbx'), rig_objs, armature=arm, anim=True, action=roar)
+export_fbx(os.path.join(OUT, NAME + '_Anim_Caminar.fbx'), rig_objs, armature=arm, anim=True, action=walk)
 arm.animation_data.action = idle
 
 # glb: materiales originales + ambas animaciones
@@ -513,7 +520,7 @@ for go, _b in glb_meshes:
     go.select_set(True)
 arm.select_set(True)
 bpy.context.view_layer.objects.active = arm
-bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'Basaltor.glb'), export_format='GLB',
+bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, NAME + '.glb'), export_format='GLB',
                           use_selection=True, export_animations=True, export_animation_mode='ACTIONS',
                           export_yup=True, export_apply=False, export_skins=True)
 
@@ -535,7 +542,7 @@ for go, _b in glb_meshes:
 for o in list(parts.values()) + [root]:
     bpy.data.objects.remove(o)
 for c in list(bpy.data.collections):
-    if c.name in ('Basaltor', 'Cuerpo', 'Cabeza', 'Patas_Delanteras', 'Patas_Traseras', 'Cola', 'Roblox_Partes'):
+    if c.name not in ('Rig_Materiales_Originales', 'Roblox_Rig'):
         bpy.data.collections.remove(c)
 for go, _b in glb_meshes:
     go.hide_viewport = False
@@ -547,4 +554,4 @@ try:
     bpy.ops.file.pack_all()
 except Exception as e:
     print('pack_all:', e)
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'Basaltor_Rig.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, NAME + '_Rig.blend'))

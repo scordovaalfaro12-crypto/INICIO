@@ -9,17 +9,20 @@ args = sys.argv[sys.argv.index('--') + 1:]
 OUT, SAMPLES = args[0], int(args[1])
 ROT = float(args[2]) if len(args) > 2 else -55.0
 RES = (1800, 1200) if SAMPLES > 40 else (600, 400)
-bpy.ops.wm.open_mainfile(filepath='basaltor.blend')
+NAME = os.environ.get('CRIATURA', 'Basaltor')
+bpy.ops.wm.open_mainfile(filepath=os.environ.get('MODELO', NAME.lower() + '.blend'))
 setup_render(RES, SAMPLES)
 cam = build_studio()
 setup_glare(0.3)
-root = bpy.data.objects['Basaltor']
-P = {o.name: o for o in bpy.data.collections['Basaltor'].all_objects if o.type == 'MESH'}
+root = bpy.data.objects[NAME]
+P = {o.name: o for o in bpy.data.collections[NAME].all_objects if o.type == 'MESH'}
+SC, CENTER = creature_frame(root)
 
 OFF = {
     'Craneo': (0, -0.95, 0.45), 'Ojos': (0, -1.40, 0.62), 'Cejas': (0, -1.15, 1.05),
     'Cuernos': (0, -0.75, 1.25), 'Dientes_Superiores': (0, -1.25, 0.10), 'Mandibula': (0, -1.30, -0.40),
     'Cuello': (0, -0.45, 0.15), 'Lomo': (0, 0.0, 1.05), 'Torso': (0, 0, 0),
+    'Torso__Melena': (0, -0.20, 0.80), 'Torso__Nucleo': (0, -1.05, -0.30),
 }
 for side, sx in (('Izq', 1), ('Der', -1)):
     for pre, names in (('PataDel', ('Brazo', 'Antebrazo', 'Mano', 'Garras')),
@@ -32,11 +35,10 @@ for i, n in enumerate(['Cola_1', 'Cola_2', 'Cola_3', 'Cola_4', 'Cola_Mazo']):
     OFF[n] = (0, 0.36 * (i + 1), 0.12 * (i + 1))
 LIFT = Vector((0, 0, 0.75))
 for n, o in P.items():
-    o.location = o.location + Vector(OFF.get(n, (0, 0, 0))) + LIFT
+    o.location = o.location + (Vector(OFF.get(n, (0, 0, 0))) + LIFT) * SC
 
-CENTER = Vector((0, 0.45, 0))
 root.matrix_world = Matrix.Rotation(math.radians(ROT), 4, 'Z') @ Matrix.Translation(-CENTER)
-aim_camera(cam, (-1.8, -12.6, 6.4), (0.0, 0.3, 1.45), 47)
+aim_camera(cam, Vector((-1.8, -12.6, 6.4)) * SC, Vector((0.0, 0.3, 1.45)) * SC, 47)
 bpy.context.view_layer.update()
 
 LABELS = {
@@ -47,6 +49,10 @@ LABELS = {
     'PataTra_Izq_Pie': 'Pie', 'PataTra_Izq_Garras': 'Garras', 'Cola_1': 'Cola 1', 'Cola_2': 'Cola 2',
     'Cola_3': 'Cola 3', 'Cola_4': 'Cola 4', 'Cola_Mazo': 'Mazo de basalto',
 }
+if NAME == 'Obsidrax':
+    LABELS.update({'Lomo': 'Lomo de obsidiana', 'Cuernos': 'Corona de cuernos', 'Cejas': 'Cejas de obsidiana',
+                   'Ojos': 'Ojos de magma', 'Cola_Mazo': 'Orbe de magma', 'Torso__Melena': 'Melena de obsidiana',
+                   'Torso__Nucleo': 'Corazón de magma'})
 sc = bpy.context.scene
 pts = {}
 for n, lab in LABELS.items():

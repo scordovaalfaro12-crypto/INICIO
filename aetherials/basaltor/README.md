@@ -1,4 +1,4 @@
-# Basaltor — evolución final de Vulcanid (Aetherials)
+# Basaltor — segunda forma de Vulcanid (Aetherials)
 
 ![Basaltor](renders/Basaltor_01_tres_cuartos.png)
 
@@ -15,7 +15,7 @@ par y deja ver una **lengua de lava**.
 
 | | |
 |---|---|
-| Línea evolutiva | Vulcanid → (forma intermedia) → **Basaltor** |
+| Línea evolutiva | Vulcanid → **Basaltor** → [Obsidrax](../obsidrax/) |
 | Tipo sugerido | Fuego / Roca |
 | Tamaño del modelo | 5,3 m de largo · 2,1 m de ancho · 2,3 m de alto (con cuernos) |
 | Postura | cuadrúpedo pesado, patas como pilares |
@@ -95,7 +95,7 @@ basaltor/
 │   ├── Basaltor_Paleta.png          textura de paleta (512×256) que comparten las piezas de roca
 │   └── SetupBasaltor.server.lua     pone el magma en Neon y agrega luces, brasas y humo
 ├── modelos/Basaltor.glb    modelo completo con materiales originales y las tres animaciones
-└── fuente/                 scripts de Python/Blender que generan todo lo anterior
+(el código que genera todo está en ../fuente/, compartido con Obsidrax)
 ```
 
 ## Importarlo en Roblox Studio
@@ -141,7 +141,7 @@ La pieza más pesada (Torso, 4.630) está muy por debajo del límite de triángu
 
 ## Cómo está hecho en Blender
 
-Todo el modelo se genera con scripts de Blender 5.0 (carpeta `fuente/`). No hay piezas que
+Todo el modelo se genera con scripts de Blender 5.0 (carpeta [`../fuente/`](../fuente/)). No hay piezas que
 sean figuras geométricas puestas tal cual; cada parte pasa por un flujo de modelado:
 
 1. **Bloqueo con metaballs** de cuerpo, cabeza, mandíbula, patas y cola (elipsoides, cápsulas
@@ -161,15 +161,15 @@ sean figuras geométricas puestas tal cual; cada parte pasa por un flujo de mode
    del torso, con el pie que se mantiene plano mientras apoya.
 10. **Render en Cycles** con eliminación de ruido (OpenImageDenoise) y bloom en el compositor.
 
-Para regenerar todo (Python 3.11): `pip install bpy==5.0.1 pillow` y luego, dentro de `fuente/`:
+Para regenerar todo (Python 3.11): `pip install bpy==5.0.1 pillow` y luego, dentro de `../fuente/`:
 
 ```bash
-python3 build.py                               # modela las piezas -> basaltor.blend
-python3 export_roblox.py basaltor.blend out    # paleta, rig, animaciones, FBX y GLB -> out/
+python3 build_basaltor.py                      # modela las piezas -> basaltor.blend
+python3 export_roblox.py basaltor.blend out Basaltor   # paleta, rig, animaciones, FBX y GLB -> out/
 python3 final_renders.py -- renders 128        # renders finales (Cycles, 128 muestras)
 python3 check_walk.py                          # comprueba que los pies no patinen en la caminata
 python3 walk_render.py -- caminata 24 2 800 540   # cuadros del GIF de la caminata
 python3 preview.py basaltor.blend prev/v 720 540 32 frente34,lado,cabeza   # vistas rapidas
 ```
-En `lib.py` (PALETTE) se cambian los colores y en `build.py` las proporciones y las semillas
+En `lib.py` (PALETTE) se cambian los colores y en `build_basaltor.py` las proporciones y las semillas
 de las placas y columnas.

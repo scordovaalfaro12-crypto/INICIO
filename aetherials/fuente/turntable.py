@@ -8,17 +8,19 @@ from fx import add_embers
 args = sys.argv[sys.argv.index('--') + 1:]
 OUTDIR, SAMPLES, FRAMES = args[0], int(args[1]), int(args[2])
 os.makedirs(OUTDIR, exist_ok=True)
-bpy.ops.wm.open_mainfile(filepath='out/Basaltor_Rig.blend')
+NAME, RIGBLEND = creature()
+bpy.ops.wm.open_mainfile(filepath=RIGBLEND)
 cam = build_studio()
 setup_glare(0.35)
 setup_render((960, 760), SAMPLES)
 sc = bpy.context.scene
 sc.render.fps = 24
-arm = bpy.data.objects['Basaltor_Rig']
+arm = bpy.data.objects[NAME + '_Rig']
 for o in bpy.data.objects:
     if o.type == 'MESH' and o.parent == arm:
         o.hide_render = not o.name.endswith('_glb')
-add_embers(arm, frames=FRAMES)
+SC, CENTER = creature_frame(arm)
+add_embers(arm, frames=FRAMES, region=EMBER_REGION.get(NAME, EMBER_REGION['Basaltor']))
 act = bpy.data.actions['Reposo']
 arm.animation_data.action = act
 
@@ -38,8 +40,7 @@ def action_fcurves(a):
 for fc in action_fcurves(act):  # repetir la animacion de reposo (60 frames) en bucle
     if not any(m.type == 'CYCLES' for m in fc.modifiers):
         fc.modifiers.new('CYCLES')
-CENTER = Vector((0, 0.45, 0))
-aim_camera(cam, (0, -9.4, 3.4), (0, 0, 0.95), 50)
+aim_camera(cam, Vector((0, -9.4, 3.4)) * SC, Vector((0, 0, 0.95)) * SC, 50)
 start = int(args[3]) if len(args) > 3 else 0
 for f in range(start, FRAMES):
     out = os.path.join(OUTDIR, 'f%04d.png' % f)

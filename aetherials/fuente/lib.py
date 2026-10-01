@@ -31,6 +31,9 @@ PALETTE = [
     ('MagmaProfundo', '#d05605', 0.55, 0.35),
     ('Basalto',       '#25364c', 0.60, 0),
     ('BasaltoCima',   '#6782a4', 0.50, 0),
+    # tercera forma (Obsidrax): vidrio volcanico
+    ('Obsidiana',     '#191626', 0.08, 0),
+    ('ObsidianaBrillo', '#4b4672', 0.12, 0),
 ]
 MI = {n: i for i, (n, *_r) in enumerate(PALETTE)}
 GLOW = {'Magma', 'MagmaCaliente', 'MagmaProfundo', 'Brillo'}
@@ -49,6 +52,11 @@ def build_materials():
         bsdf.inputs['Base Color'].default_value = col
         bsdf.inputs['Roughness'].default_value = rough
         bsdf.inputs['Specular IOR Level'].default_value = 0.35
+        if name.startswith('Obsidiana'):  # vidrio: muy brillante, con capa de barniz
+            bsdf.inputs['Specular IOR Level'].default_value = 0.9
+            if 'Coat Weight' in bsdf.inputs:
+                bsdf.inputs['Coat Weight'].default_value = 0.6
+                bsdf.inputs['Coat Roughness'].default_value = 0.05
         if emis:
             bsdf.inputs['Emission Color'].default_value = col
             bsdf.inputs['Emission Strength'].default_value = emis
@@ -456,3 +464,145 @@ def mirror_object_x(src, name, coll):
 
 def tri_count(o):
     return sum(len(p.vertices) - 2 for p in o.data.polygons)
+
+
+def add_shard(bm, M, rng, length=1.0, radius=0.12, sides=6, tip=0.32, bend=0.0, mat=None, edge=None,
+              rim=None, rim_w=0.18, depth=0.35, jitter=0.18):
+    """Cristal de obsidiana: prisma irregular que termina en punta facetada, opcionalmente curvado
+    (bend > 0 lo curva hacia +X local). Eje +Z local. Con anillo de magma en la base."""
+    mat = MI['Obsidiana'] if mat is None else mat
+    edge = MI['ObsidianaBrillo'] if edge is None else edge
+    rim = MI['Magma'] if rim is None else rim
+    new = []
+    phase = rng.uniform(0, math.pi)
+    radii = [radius * (1 + rng.uniform(-jitter, jitter)) for _ in range(sides)]
+    ang = [phase + 2 * math.pi * i / sides + rng.uniform(-0.15, 0.15) for i in range(sides)]
+
+    def ring(z, scale):
+        t = max(0.0, z) / length
+        off = bend * length * t * t
+        return [bm.verts.new((radii[i] * scale * math.cos(ang[i]) + off, radii[i] * scale * math.sin(ang[i]), z))
+                for i in range(sides)]
+
+    zb = -depth * length
+    levels = [(zb, 1.0), (0.0, 1.0), (length * (1 - tip) * 0.5, 0.92), (length * (1 - tip), 0.8)]
+    rings = [ring(z, sc) for z, sc in levels]
+    for r in rings:
+        new += r
+    fs = []
+    shine = set(rng.sample(range(sides), k=max(1, sides // 3)))
+    for k in range(len(rings) - 1):
+        for i in range(sides):
+            j = (i + 1) % sides
+            f = bm.faces.new((rings[k][i], rings[k][j], rings[k + 1][j], rings[k + 1][i]))
+            f.material_index = edge if i in shine and k > 0 else mat
+            fs.append(f)
+    tx = bend * length + rng.uniform(-0.15, 0.15) * radius
+    tipv = bm.verts.new((tx, rng.uniform(-0.15, 0.15) * radius, length))
+    new.append(tipv)
+    for i in range(sides):
+        f = bm.faces.new((rings[-1][i], rings[-1][(i + 1) % sides], tipv))
+        f.material_index = edge if i in shine else mat
+        fs.append(f)
+    fb = bm.faces.new(list(reversed(rings[0])))
+    fb.material_index = mat
+    fs.append(fb)
+    if rim is not False and rim_w > 0:
+        zr = -radius * 0.9  # el anillo solo asoma junto a la base (no a lo largo del tramo enterrado)
+        lo = [bm.verts.new((radii[i] * (1 + rim_w) * math.cos(ang[i]), radii[i] * (1 + rim_w) * math.sin(ang[i]), zr))
+              for i in range(sides)]
+        hi = [bm.verts.new((radii[i] * (1 + rim_w) * math.cos(ang[i]), radii[i] * (1 + rim_w) * math.sin(ang[i]),
+                            radius * 0.3)) for i in range(sides)]
+        new += lo + hi
+        for i in range(sides):
+            j = (i + 1) % sides
+            f = bm.faces.new((lo[i], lo[j], hi[j], hi[i]))
+            f.material_index = rim
+            fs.append(f)
+        f = bm.faces.new(list(reversed(lo)))
+        f.material_index = rim
+        fs.append(f)
+    bmesh.ops.recalc_face_normals(bm, faces=fs)
+    bmesh.ops.transform(bm, matrix=M, verts=new)
+    bmesh.ops.triangulate(bm, faces=fs)
+    return new
+
+
+def paint_veins(o, scale=3.0, width=0.06, mat=None, mask=None, seed=0, keep=0.45):
+    """Vetas de lava: caras sobre el borde entre dos celdas Voronoi (simetrico en X).
+    keep: fraccion de bordes que se encienden (el resto queda apagado, la red no se ve como mosaico)."""
+    mat = MI['MagmaProfundo'] if mat is None else mat
+    off = Vector((seed * 3.1, seed * 1.7, seed * 2.3))
+    for p in o.data.polygons:
+        c = p.center
+        if mask and not mask(c, p.normal):
+            continue
+        q = Vector((abs(c.x), c.y, c.z)) * scale + off
+        dist, pts = noise.voronoi(q, distance_metric='DISTANCE', exponent=2.5)
+        if dist[1] - dist[0] < width:
+            a, b = sorted((tuple(round(v, 3) for v in pts[0]), tuple(round(v, 3) for v in pts[1])))
+            h = (hash((a, b)) & 0xffff) / 0xffff
+            if h < keep:
+                p.material_index = mat
+
+
+def add_cracks(o, n_walks=12, steps=8, width=0.022, lift=0.004, mask=None, seed=0, mat=None, sym=True):
+    """Grietas de lava que siguen las aristas de las facetas: caminatas aleatorias sobre los bordes
+    de la malla (prefiriendo seguir derecho) convertidas en tiras finas emisivas sobre la superficie.
+    Si sym=True solo empieza en el lado +X (luego se simetriza el objeto)."""
+    mat = MI['Magma'] if mat is None else mat
+    rng = random.Random(seed)
+    src = bmesh.new()
+    src.from_mesh(o.data)
+    src.verts.ensure_lookup_table()
+    src.normal_update()
+    cands = [v for v in src.verts if (not sym or v.co.x > 0.05) and (mask is None or mask(v.co, v.normal))]
+    strips = []
+    for _w in range(n_walks):
+        if not cands:
+            break
+        v = rng.choice(cands)
+        prev_dir = None
+        for _s in range(steps):
+            best, best_score = None, -9
+            for e in v.link_edges:
+                w = e.other_vert(v)
+                d = (w.co - v.co)
+                if d.length < 1e-5:
+                    continue
+                d = d.normalized()
+                if mask is not None and not mask(w.co, w.normal):
+                    continue
+                score = rng.uniform(0, 0.6) + (d.dot(prev_dir) if prev_dir is not None else 0)
+                if score > best_score:
+                    best, best_score = (w, d), score
+            if best is None:
+                break
+            w, d = best
+            strips.append((v.co.copy(), w.co.copy(), (v.normal + w.normal).normalized()))
+            prev_dir = d
+            v = w
+    src.free()
+    bm = bm_from(o)
+    for a, b, n in strips:
+        side = (b - a).cross(n)
+        if side.length < 1e-6:
+            continue
+        side = side.normalized() * width * 0.5
+        vs = [bm.verts.new(p) for p in (a - side + n * lift, b - side + n * lift, b + side + n * lift, a + side + n * lift)]
+        f = bm.faces.new(vs)
+        f.material_index = mat
+    bm_commit(o, bm)
+    return len(strips)
+
+
+def shard_on_surface(bm, loc, nor, M, rng, pool=1.0, pool_mat=None, **kw):
+    """Cristal sin anillo + charco de magma hexagonal pegado a la superficie en su base
+    (para cristales muy inclinados respecto de la superficie)."""
+    kw['rim_w'] = 0
+    radius = kw.get('radius', 0.12)
+    add_shard(bm, M, rng, **kw)
+    r = radius * pool
+    P = align_matrix(Vector(loc) - Vector(nor) * r * 0.2, nor, rng.uniform(0, 6.28), (r, r, r))
+    pm = MI['MagmaProfundo'] if pool_mat is None else pool_mat
+    add_hex_column(bm, P, rng, height=0.18, slant=0.0, mat=pm, top=pm, rim=pm, rim_w=0.0, chamfer=0.2, depth=0.6)

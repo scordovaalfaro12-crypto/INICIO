@@ -145,3 +145,36 @@ def setup_glare(strength=0.35):
     except Exception as e:
         print('glare no disponible:', e)
         return False
+
+
+# ---------------------------------------------------------------- criatura actual
+import os
+EMBER_REGION = {
+    'Basaltor': ((-0.25, 0.25), (-1.0, 1.2), (1.35, 2.4)),
+    'Obsidrax': ((-0.3, 0.3), (-0.9, 1.5), (2.2, 3.5)),
+}
+
+
+def creature():
+    """Nombre de la criatura (variable de entorno CRIATURA) y ruta del .blend con su rig."""
+    name = os.environ.get('CRIATURA', 'Basaltor')
+    rigdir = os.environ.get('RIGDIR', 'out')
+    return name, os.path.join(rigdir, name + '_Rig.blend')
+
+
+def creature_frame(root):
+    """Escala de camara (Basaltor = 1) y centro de giro, medidos con root en identidad."""
+    from mathutils import Vector, Matrix
+    saved = root.matrix_world.copy()
+    root.matrix_world = Matrix.Identity(4)
+    bpy.context.view_layer.update()
+    pts = []
+    for o in bpy.data.objects:
+        if o.type == 'MESH' and o.parent == root and not o.hide_render:
+            pts += [o.matrix_world @ v.co for v in list(o.data.vertices)[::9]]
+    root.matrix_world = saved
+    ys = [p.y for p in pts]
+    s = (max(ys) - min(ys)) / 5.34
+    if s < 1.05:
+        return 1.0, Vector((0, 0.45, 0))
+    return s, Vector((0, (max(ys) + min(ys)) / 2, 0))
