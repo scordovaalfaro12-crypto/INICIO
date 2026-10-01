@@ -110,9 +110,12 @@ def exploded(raw, js, out, name='Basaltor'):
         d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=MAGMA, outline=(255, 255, 255), width=2)
         d.rounded_rectangle([bx - 10, ty - 4, bx + tw + 10, ty + 36], 8, fill=(20, 28, 40))
         d.text((bx, ty), lab, font=f, fill=INK)
-    d.text((40, 30), name.upper() + '  ·  piezas separadas', font=font(46, True), fill=(20, 28, 40))
-    d.text((42, 90), 'Cada pieza tiene su pivote en la articulación (listo para huesos o Motor6D en Roblox)',
-           font=font(24), fill=(40, 52, 70))
+    t1, t2 = name.upper() + '  ·  piezas separadas', \
+        'Cada pieza tiene su pivote en la articulación (listo para huesos o Motor6D en Roblox)'
+    w = max(d.textlength(t1, font=font(46, True)), d.textlength(t2, font=font(24))) + 48
+    d.rounded_rectangle([18, 16, 18 + w, 134], 14, fill=(20, 28, 40))
+    d.text((40, 30), t1, font=font(46, True), fill=INK)
+    d.text((42, 90), t2, font=font(24), fill=MUTED)
     im.save(out)
 
 
