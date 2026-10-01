@@ -34,6 +34,18 @@ PALETTE = [
     # tercera forma (Obsidrax): vidrio volcanico
     ('Obsidiana',     '#191626', 0.08, 0),
     ('ObsidianaBrillo', '#4b4672', 0.12, 0),
+    # linea de Zephyrian (aves, tipo Neutro)
+    ('AveCuerpo',     '#27344c', 0.70, 0),
+    ('AveAla',        '#3d4a63', 0.65, 0),
+    ('AveAlaClara',   '#6b7890', 0.60, 0),
+    ('AvePecho',      '#c9ccc6', 0.65, 0),
+    ('AvePechoSombra', '#98a3a3', 0.70, 0),
+    ('Oro',           '#d6b04a', 0.45, 0),
+    ('OroClaro',      '#ecd47e', 0.45, 0),
+    ('OroOscuro',     '#9c7630', 0.50, 0),
+    ('PicoNaranja',   '#d0782a', 0.50, 0),
+    ('GarraOscura',   '#1d1d25', 0.40, 0),
+    ('OjoAve',        '#f3c23c', 0.30, 0.25),
 ]
 MI = {n: i for i, (n, *_r) in enumerate(PALETTE)}
 GLOW = {'Magma', 'MagmaCaliente', 'MagmaProfundo', 'Brillo'}
@@ -391,7 +403,7 @@ def add_claw(bm, M, rng, length=1.0, curve=0.35, segs=4, sides=4, mat=MI['Hueso'
 
 
 def add_tube(bm, pts, radii, sides=6, mat=0, mat_fn=None, cap_start=True, cap_end=True, twist=0.0,
-             flatten=1.0, up=Vector((0, 0, 1))):
+             flatten=1.0, up=Vector((0, 0, 1)), side_scale=1.0):
     """Tubo a lo largo de una polilinea (cuernos, puas). mat_fn(t)->material por segmento."""
     pts = [Vector(p) for p in pts]
     rings = []
@@ -414,7 +426,7 @@ def add_tube(bm, pts, radii, sides=6, mat=0, mat_fn=None, cap_start=True, cap_en
         ring = []
         for i in range(sides):
             a = 2 * math.pi * i / sides + twist * k
-            off = side * math.cos(a) * r + nrm * math.sin(a) * r * flatten
+            off = side * math.cos(a) * r * side_scale + nrm * math.sin(a) * r * flatten
             ring.append(bm.verts.new(p + off))
         rings.append(ring)
         new += ring
@@ -606,3 +618,87 @@ def shard_on_surface(bm, loc, nor, M, rng, pool=1.0, pool_mat=None, **kw):
     P = align_matrix(Vector(loc) - Vector(nor) * r * 0.2, nor, rng.uniform(0, 6.28), (r, r, r))
     pm = MI['MagmaProfundo'] if pool_mat is None else pool_mat
     add_hex_column(bm, P, rng, height=0.18, slant=0.0, mat=pm, top=pm, rim=pm, rim_w=0.0, chamfer=0.2, depth=0.6)
+
+
+def add_feather(bm, M, length=1.0, width=0.2, thick=0.012, curve=0.0, twist=0.0, mat=None, tip_mat=None,
+                tip_frac=0.22, band=None, band_mat=None):
+    """Pluma low-poly: lamina con raquis central levantado, ancho maximo a ~40 %, punta afilada.
+    Eje +Y local = largo (desde la base), +X = ancho, +Z = normal de la lamina.
+    curve: caida a lo largo de la normal (fraccion del largo); twist: giro en radianes hasta la punta.
+    band=(t0, t1): franja de otro material (bandas claras de las alas)."""
+    mat = MI['AveAla'] if mat is None else mat
+    tip_mat = mat if tip_mat is None else tip_mat
+    stations = [(0.0, 0.30), (0.12, 0.80), (0.40, 1.0), (0.68, 0.86), (0.86, 0.52), (1.0, 0.0)]
+    rows = []
+    new = []
+    for t, wf in stations:
+        y = t * length
+        w = wf * width * 0.5
+        z0 = curve * length * t * t
+        a = twist * t
+        ca, sa = math.cos(a), math.sin(a)
+
+        def P(x, z):
+            return (x * ca - z * sa, y, x * sa + z * ca + z0)
+        if wf == 0.0:
+            v = bm.verts.new(P(0, 0))
+            row = (v, v, v, v)
+            new.append(v)
+        else:
+            L = bm.verts.new(P(-w, 0))
+            Ct = bm.verts.new(P(0, thick))
+            R = bm.verts.new(P(w, 0))
+            Cb = bm.verts.new(P(0, -thick))
+            row = (L, Ct, R, Cb)
+            new += [L, Ct, R, Cb]
+        rows.append((t, row))
+    fs = []
+    for (t0, a), (t1, b) in zip(rows, rows[1:]):
+        tm = (t0 + t1) / 2
+        m = tip_mat if tm > 1 - tip_frac else mat
+        if band and band[0] <= tm <= band[1]:
+            m = band_mat
+        quads = [(a[0], b[0], b[1], a[1]), (a[1], b[1], b[2], a[2]), (a[2], b[2], b[3], a[3]), (a[3], b[3], b[0], a[0])]
+        for q in quads:
+            uq = []
+            for v in q:
+                if v not in uq:
+                    uq.append(v)
+            if len(uq) >= 3:
+                f = bm.faces.new(uq)
+                f.material_index = m
+                fs.append(f)
+    base = rows[0][1]
+    f = bm.faces.new(base)
+    f.material_index = mat
+    fs.append(f)
+    bmesh.ops.recalc_face_normals(bm, faces=fs)
+    bmesh.ops.transform(bm, matrix=M, verts=new)
+    bmesh.ops.triangulate(bm, faces=fs)
+    return new
+
+
+def add_chevron(bm, M, width=0.2, height=0.16, thick=0.02, mat=None, rim_mat=None):
+    """Placa de pluma en forma de V (pechera): pentagono apuntando hacia -Y local, abombado en +Z."""
+    mat = MI['AvePecho'] if mat is None else mat
+    pts = [(-width / 2, 0.0), (width / 2, 0.0), (width * 0.36, -height * 0.55), (0.0, -height),
+           (-width * 0.36, -height * 0.55)]
+    top = [bm.verts.new((x, y, thick)) for x, y in pts]
+    bot = [bm.verts.new((x * 0.92, y * 0.92, -thick * 1.5)) for x, y in pts]
+    c = bm.verts.new((0, -height * 0.42, thick * 2.2))
+    fs = []
+    for i in range(5):
+        f = bm.faces.new((top[i], top[(i + 1) % 5], c))
+        f.material_index = mat
+        fs.append(f)
+    for i in range(5):
+        j = (i + 1) % 5
+        f = bm.faces.new((bot[i], bot[j], top[j], top[i]))
+        f.material_index = rim_mat if rim_mat is not None else mat
+        fs.append(f)
+    f = bm.faces.new(list(reversed(bot)))
+    f.material_index = mat
+    fs.append(f)
+    bmesh.ops.recalc_face_normals(bm, faces=fs)
+    bmesh.ops.transform(bm, matrix=M, verts=top + bot + [c])
+    bmesh.ops.triangulate(bm, faces=fs)

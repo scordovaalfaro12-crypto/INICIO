@@ -45,6 +45,13 @@ SHEETS = {
                      lines=('Melena de obsidiana y corazón de magma sujeto por costillas de cristal',
                             'Grietas de lava en el cuerpo  ·  ojos de magma  ·  corona de cuernos',
                             '32 piezas  ·  22 huesos  ·  34.374 triángulos, listo para Roblox')),
+    'Zephalcon': dict(sub='Aetherials  ·  Segunda forma de Zephyrian  ·  Tipo Neutro',
+                      keys=['AveCuerpo', 'AveAla', 'AveAlaClara', 'AvePecho', 'AvePechoSombra', 'Oro', 'OroClaro',
+                            'PicoNaranja', 'GarraOscura', 'OjoAve'],
+                      pal_title='Paleta (heredada de Zephyrian)',
+                      lines=('Pechera de chevrones en capas, collar de plumas y máscara dorada',
+                             'Alas de 3 segmentos que se pliegan y abren  ·  cola con dos estelas',
+                             '23 piezas  ·  18 huesos  ·  10.830 triángulos  ·  camina, vuela y grita')),
 }
 
 

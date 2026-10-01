@@ -20,7 +20,9 @@ for o in bpy.data.objects:
     if o.type == 'MESH' and o.parent == arm:
         o.hide_render = not o.name.endswith('_glb')
 SC, CENTER = creature_frame(arm)
-add_embers(arm, frames=FRAMES, region=EMBER_REGION.get(NAME, EMBER_REGION['Basaltor']))
+LIFT = cam_lift()
+if sc.get('tipo') != 'ave':
+    add_embers(arm, frames=FRAMES, region=EMBER_REGION.get(NAME, EMBER_REGION['Basaltor']))
 act = bpy.data.actions['Reposo']
 arm.animation_data.action = act
 
@@ -40,7 +42,7 @@ def action_fcurves(a):
 for fc in action_fcurves(act):  # repetir la animacion de reposo (60 frames) en bucle
     if not any(m.type == 'CYCLES' for m in fc.modifiers):
         fc.modifiers.new('CYCLES')
-aim_camera(cam, Vector((0, -9.4, 3.4)) * SC, Vector((0, 0, 0.95)) * SC, 50)
+aim_camera(cam, Vector((0, -9.4, 3.4)) * SC + LIFT, Vector((0, 0, 0.95)) * SC + LIFT, 50 if sc.get('tipo') != 'ave' else 58)
 start = int(args[3]) if len(args) > 3 else 0
 for f in range(start, FRAMES):
     out = os.path.join(OUTDIR, 'f%04d.png' % f)

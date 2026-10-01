@@ -162,9 +162,19 @@ def creature():
     return name, os.path.join(rigdir, name + '_Rig.blend')
 
 
+def cam_lift():
+    """Altura extra de camara y objetivo (criaturas altas como las aves); propiedad 'cam_zoff' de la escena."""
+    from mathutils import Vector
+    return Vector((0, 0, float(bpy.context.scene.get('cam_zoff', 0.0))))
+
+
 def creature_frame(root):
-    """Escala de camara (Basaltor = 1) y centro de giro, medidos con root en identidad."""
+    """Escala de camara (Basaltor = 1) y centro de giro, medidos con root en identidad.
+    Si la escena define 'cam_scale' y 'cam_center' (aves), se usan esos valores."""
     from mathutils import Vector, Matrix
+    sc = bpy.context.scene
+    if 'cam_scale' in sc:
+        return float(sc['cam_scale']), Vector(tuple(sc['cam_center']))
     saved = root.matrix_world.copy()
     root.matrix_world = Matrix.Identity(4)
     bpy.context.view_layer.update()

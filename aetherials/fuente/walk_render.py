@@ -1,6 +1,7 @@
 """Render de la caminata: la criatura camina en el lugar y el suelo (piedras) se desplaza
 a la misma velocidad que los pies apoyados, asi se ve avanzar. Bucle perfecto.
-Uso: python3 walk_render.py -- carpeta muestras ciclos ancho alto [frames_a_renderizar]"""
+Uso: python3 walk_render.py -- carpeta muestras ciclos ancho alto [frames_a_renderizar]
+Con MODO=vuelo (aves) usa la accion Aletear: el ave vuela en el lugar y el suelo pasa rapido debajo."""
 import bpy, bmesh, sys, os, math, random
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mathutils import Vector, Matrix
@@ -16,8 +17,14 @@ os.makedirs(OUTDIR, exist_ok=True)
 NAME, RIGBLEND = creature()
 bpy.ops.wm.open_mainfile(filepath=RIGBLEND)
 _sc = bpy.context.scene
-WALK_FRAMES, BETA, STRIDE = int(_sc.get('walk_frames', 36)), 0.70, float(_sc.get('walk_stride', 0.50))
+VUELO = os.environ.get('MODO') == 'vuelo'
+WALK_FRAMES, BETA, STRIDE = int(_sc.get('walk_frames', 36)), float(_sc.get('walk_beta', 0.70)), \
+    float(_sc.get('walk_stride', 0.50))
 STEP = STRIDE / (BETA * WALK_FRAMES)       # m por frame que avanza el suelo
+if VUELO:
+    WALK_FRAMES = 24                        # un aleteo
+    STEP = 0.11                             # ~3,3 m/s
+FLY = 1.25 if VUELO else 0.0
 TOTAL = WALK_FRAMES * CYCLES
 TILE = STEP * TOTAL                         # periodo del patron de piedras (bucle perfecto)
 cam = build_studio()
@@ -30,7 +37,9 @@ for o in bpy.data.objects:
     if o.type == 'MESH' and o.parent == arm:
         o.hide_render = not o.name.endswith('_glb')
 SC, CENTER = creature_frame(arm)
-act = bpy.data.actions['Caminar']
+LIFT = cam_lift()
+LANE = tuple(_sc['walk_lane']) if 'walk_lane' in _sc else (0.38 * SC, 1.05 * SC)
+act = bpy.data.actions['Aletear' if VUELO else 'Caminar']
 arm.animation_data.action = act
 
 
@@ -73,7 +82,7 @@ tile_rocks = []
 n_rocks = max(8, int(TILE * 9))
 while len(tile_rocks) < n_rocks:
     x = rng.uniform(-3.2, 3.2) * SC
-    if 0.38 * SC < abs(x) < 1.05 * SC:  # carriles de las patas: sin piedras para que no las pisen
+    if LANE[0] < abs(x) < LANE[1] and not VUELO:  # carriles de las patas: sin piedras para que no las pisen
         continue
     y = rng.uniform(0, TILE)
     s = rng.choice((rng.uniform(0.03, 0.07), rng.uniform(0.03, 0.07), rng.uniform(0.08, 0.16)))
@@ -109,10 +118,18 @@ sc.collection.objects.link(rocks)
 rocks.parent = ground
 print('piedras', k, 'tile', round(TILE, 3))
 
-add_embers(arm, frames=TOTAL, region=EMBER_REGION.get(NAME, EMBER_REGION['Basaltor']))
+if _sc.get('tipo') != 'ave':
+    add_embers(arm, frames=TOTAL, region=EMBER_REGION.get(NAME, EMBER_REGION['Basaltor']))
 
-arm.matrix_world = Matrix.Rotation(math.radians(-72), 4, 'Z') @ Matrix.Translation(-CENTER)
-aim_camera(cam, Vector((-1.3, -8.4, 2.3)) * SC, Vector((-0.3, 0, 0.82)) * SC, 43)
+arm.matrix_world = Matrix.Translation((0, 0, FLY)) @ Matrix.Rotation(math.radians(-72 if not VUELO else -55), 4, 'Z') @ \
+    Matrix.Translation(-CENTER)
+ground.matrix_parent_inverse = Matrix.Translation((0, 0, -FLY))  # el suelo se queda en el piso aunque el ave vuele
+AVE = _sc.get('tipo') == 'ave'
+if VUELO:
+    aim_camera(cam, Vector((-1.6, -9.6, 2.9)) * SC + LIFT, Vector((-0.1, 0, 2.5)) * SC + LIFT, 38)
+else:
+    aim_camera(cam, Vector((-1.3, -8.4, 2.3)) * SC + LIFT, Vector((-0.3 if not AVE else 0.1, 0, 0.82)) * SC + LIFT,
+               43 if not AVE else 36)
 
 frames = ONLY if ONLY is not None else range(TOTAL)
 for f in frames:

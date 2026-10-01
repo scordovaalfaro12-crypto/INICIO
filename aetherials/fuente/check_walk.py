@@ -6,7 +6,8 @@ arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
 N = int(bpy.data.actions['Caminar'].frame_range[1])
 arm.animation_data.action = bpy.data.actions['Caminar']
 sc = bpy.context.scene
-feet = ['PataTra_Izq_Pie', 'PataDel_Izq_Mano', 'PataTra_Der_Pie', 'PataDel_Der_Mano']
+feet = [n for n in ('PataTra_Izq_Pie', 'PataDel_Izq_Mano', 'PataTra_Der_Pie', 'PataDel_Der_Mano', 'Pata_Izq_Pie',
+                    'Pata_Der_Pie') if n in arm.pose.bones]
 print('frame  ' + '  '.join('%-22s' % f for f in feet))
 prev = None
 for f in range(0, N + 1, 3):

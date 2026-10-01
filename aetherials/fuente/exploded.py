@@ -34,11 +34,25 @@ for side, sx in (('Izq', 1), ('Der', -1)):
 for i, n in enumerate(['Cola_1', 'Cola_2', 'Cola_3', 'Cola_4', 'Cola_Mazo']):
     OFF[n] = (0, 0.36 * (i + 1), 0.12 * (i + 1))
 LIFT = Vector((0, 0, 0.75))
+if bpy.context.scene.get('tipo') == 'ave':
+    OFF = {'Craneo': (0, -0.55, 0.55), 'Ojos': (0, -1.05, 0.75), 'Cresta': (0, -0.15, 0.92), 'Mandibula': (0, -1.0, 0.2),
+           'Cuello': (0, -0.3, 0.25), 'Cuello__Collar': (0, -0.75, 0.1), 'Torso': (0, 0, 0), 'Torso__Pechera': (0, -1.0, -0.15),
+           'Cola': (0.55, 0.35, -0.55)}
+    for side, sx in (('Izq', 1), ('Der', -1)):
+        for k, nm in enumerate(('Brazo', 'Antebrazo', 'Mano')):
+            OFF['Ala_%s_%s' % (side, nm)] = (sx * (0.25 + 0.28 * k), 0, 0.25)
+        for k, nm in enumerate(('Muslo', 'Tarso', 'Pie', 'Garras')):
+            OFF['Pata_%s_%s' % (side, nm)] = (sx * (0.25 + 0.06 * k), -0.12 * k, -0.08 * k + (0.0 if nm != 'Garras' else 0.0))
+    LIFT = Vector((0, 0, 0.55))
 for n, o in P.items():
     o.location = o.location + (Vector(OFF.get(n, (0, 0, 0))) + LIFT) * SC
 
 root.matrix_world = Matrix.Rotation(math.radians(ROT), 4, 'Z') @ Matrix.Translation(-CENTER)
-aim_camera(cam, Vector((-1.8, -12.6, 6.4)) * SC, Vector((0.0, 0.3, 1.45)) * SC, 47)
+if bpy.context.scene.get('tipo') == 'ave':
+    root.matrix_world = Matrix.Rotation(math.radians(-25), 4, 'Z') @ Matrix.Translation(-CENTER)
+    aim_camera(cam, Vector((-1.4, -9.6, 8.0)) * SC + cam_lift(), Vector((0, 0.1, 1.2)) * SC + cam_lift(), 40)
+else:
+    aim_camera(cam, Vector((-1.8, -12.6, 6.4)) * SC, Vector((0.0, 0.3, 1.45)) * SC, 47)
 bpy.context.view_layer.update()
 
 LABELS = {
@@ -49,6 +63,12 @@ LABELS = {
     'PataTra_Izq_Pie': 'Pie', 'PataTra_Izq_Garras': 'Garras', 'Cola_1': 'Cola 1', 'Cola_2': 'Cola 2',
     'Cola_3': 'Cola 3', 'Cola_4': 'Cola 4', 'Cola_Mazo': 'Mazo de basalto',
 }
+if NAME == 'Zephalcon':
+    LABELS = {'Craneo': 'Cabeza y pico', 'Ojos': 'Ojos y máscara dorada', 'Cresta': 'Cresta', 'Mandibula': 'Pico inferior',
+              'Cuello': 'Cuello', 'Cuello__Collar': 'Collar de plumas', 'Torso': 'Cuerpo', 'Torso__Pechera': 'Pechera de chevrones',
+              'Cola': 'Cola con estelas', 'Ala_Izq_Brazo': 'Ala: brazo', 'Ala_Izq_Antebrazo': 'Ala: antebrazo',
+              'Ala_Izq_Mano': 'Ala: mano (primarias)', 'Pata_Izq_Muslo': 'Muslo', 'Pata_Izq_Tarso': 'Tarso dorado',
+              'Pata_Izq_Pie': 'Pie', 'Pata_Izq_Garras': 'Garras'}
 if NAME == 'Obsidrax':
     LABELS.update({'Lomo': 'Lomo de obsidiana', 'Cuernos': 'Corona de cuernos', 'Cejas': 'Cejas de obsidiana',
                    'Ojos': 'Ojos de magma', 'Cola_Mazo': 'Orbe de magma', 'Torso__Melena': 'Melena de obsidiana',

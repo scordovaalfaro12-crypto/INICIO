@@ -3,7 +3,7 @@ import bpy, sys, os, math, time
 WORK = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, WORK)
 from mathutils import Vector, Matrix
-from studio import setup_render, build_studio, aim_camera, setup_glare
+from studio import setup_render, build_studio, aim_camera, setup_glare, creature_frame, cam_lift
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
 blend, prefix, W, H, S, views = args[0], args[1], int(args[2]), int(args[3]), int(args[4]), args[5].split(',')
@@ -15,13 +15,9 @@ cam = build_studio()
 if glare:
     setup_glare()
 root = next(o for o in bpy.data.objects if o.type == 'EMPTY' and o.parent is None)
-# escala de camara segun el largo de la criatura (Basaltor mide 5,34 m)
-pts = [o.matrix_world @ v.co for o in bpy.data.objects if o.type == 'MESH' and o.parent == root
-       for v in list(o.data.vertices)[::7]]
-ys = [p.y for p in pts]
-SCALE = (max(ys) - min(ys)) / 5.34
-CENTER = Vector((0, (max(ys) + min(ys)) / 2, 0)) if SCALE > 1.05 else Vector((0, 0.45, 0))
-print('escala', round(SCALE, 2), 'centro', CENTER)
+SCALE, CENTER = creature_frame(root)
+LIFT = cam_lift()
+print('escala', round(SCALE, 2), 'centro', CENTER, 'lift', LIFT.z)
 
 # vista: (angulo de giro de la criatura, pos camara, objetivo, lente)
 VIEWS = {
@@ -41,7 +37,7 @@ VIEWS = {
 for v in views:
     ang, cpos, tgt, lens = VIEWS[v]
     root.matrix_world = Matrix.Rotation(math.radians(ang), 4, 'Z') @ Matrix.Translation(-CENTER)
-    aim_camera(cam, Vector(cpos) * SCALE, Vector(tgt) * SCALE, lens)
+    aim_camera(cam, Vector(cpos) * SCALE + LIFT, Vector(tgt) * SCALE + LIFT, lens)
     bpy.context.scene.render.filepath = '%s_%s.png' % (prefix, v)
     t = time.time()
     bpy.ops.render.render(write_still=True)

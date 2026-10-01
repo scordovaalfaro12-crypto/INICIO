@@ -149,34 +149,40 @@ def loc(n):
     return parts[n].matrix_world.translation.copy()
 
 
+import json
+TIPO = scene.get('tipo', 'cuadrupedo')
 BONES = []  # (nombre, cabeza, cola, padre)
-tor = loc('Torso')
-BONES.append(('Raiz', Vector((0, tor.y, 0)), Vector((0, tor.y - 0.4, 0)), None))
-BONES.append(('Torso', tor, tor + Vector((0, -0.55, 0.0)), 'Raiz'))
-neck = loc('Cuello')
-head = loc('Craneo')
-jaw = loc('Mandibula')
-BONES.append(('Cuello', neck, head, 'Torso'))
-BONES.append(('Cabeza', head, head + Vector((0, -0.55, 0.08)), 'Cuello'))
-BONES.append(('Mandibula', jaw, jaw + Vector((0, -0.55, -0.08)), 'Cabeza'))
-for side in ('Izq', 'Der'):
-    for pre, a, b, c in (('PataDel', 'Brazo', 'Antebrazo', 'Mano'), ('PataTra', 'Muslo', 'Pierna', 'Pie')):
-        n1, n2, n3 = ('%s_%s_%s' % (pre, side, x) for x in (a, b, c))
-        p1, p2, p3 = loc(n1), loc(n2), loc(n3)
-        BONES.append((n1, p1, p2, 'Torso'))
-        BONES.append((n2, p2, p3, n1))
-        BONES.append((n3, p3, p3 + Vector((0, -0.3, -0.12)), n2))
-prev = 'Torso'
 tail_names = ['Cola_1', 'Cola_2', 'Cola_3', 'Cola_4', 'Cola_Mazo']
-for i, n in enumerate(tail_names):
-    h = loc(n)
-    t = loc(tail_names[i + 1]) if i + 1 < len(tail_names) else h + Vector((0, 0.5, 0))
-    BONES.append((n, h, t, prev))
-    prev = n
+if 'rig_bones' in scene:  # el modelo trae su propio esqueleto (aves)
+    BONES = [(n, Vector(h), Vector(t), p) for n, h, t, p in json.loads(scene['rig_bones'])]
+    tail_names = [b[0] for b in BONES if b[0].startswith('Cola')]
+tor = loc('Torso')
+if not BONES:
+    BONES.append(('Raiz', Vector((0, tor.y, 0)), Vector((0, tor.y - 0.4, 0)), None))
+    BONES.append(('Torso', tor, tor + Vector((0, -0.55, 0.0)), 'Raiz'))
+    neck = loc('Cuello')
+    head = loc('Craneo')
+    jaw = loc('Mandibula')
+    BONES.append(('Cuello', neck, head, 'Torso'))
+    BONES.append(('Cabeza', head, head + Vector((0, -0.55, 0.08)), 'Cuello'))
+    BONES.append(('Mandibula', jaw, jaw + Vector((0, -0.55, -0.08)), 'Cabeza'))
+    for side in ('Izq', 'Der'):
+        for pre, a, b, c in (('PataDel', 'Brazo', 'Antebrazo', 'Mano'), ('PataTra', 'Muslo', 'Pierna', 'Pie')):
+            n1, n2, n3 = ('%s_%s_%s' % (pre, side, x) for x in (a, b, c))
+            p1, p2, p3 = loc(n1), loc(n2), loc(n3)
+            BONES.append((n1, p1, p2, 'Torso'))
+            BONES.append((n2, p2, p3, n1))
+            BONES.append((n3, p3, p3 + Vector((0, -0.3, -0.12)), n2))
+    prev = 'Torso'
+    for i, n in enumerate(tail_names):
+        h = loc(n)
+        t = loc(tail_names[i + 1]) if i + 1 < len(tail_names) else h + Vector((0, 0.5, 0))
+        BONES.append((n, h, t, prev))
+        prev = n
 
 # pieza -> hueso
-PART_BONE = {}
-for n in parts:
+PART_BONE = json.loads(scene['part_bone']) if 'part_bone' in scene else {}
+for n in ([] if PART_BONE else parts):
     if '__' in n:  # piezas extra: 'Hueso__Detalle' (ej. Torso__Melena) van al hueso indicado
         PART_BONE[n] = n.split('__')[0]
     elif n in ('Torso', 'Lomo'):
@@ -413,7 +419,7 @@ def pose_roar(t):
 # Paso lateral de cuadrupedo pesado (como un elefante): trasera izq -> delantera izq ->
 # trasera der -> delantera der. En el lugar (in place): el juego mueve el modelo.
 WALK_FRAMES = int(scene.get('walk_frames', 36))     # 1,2 s por ciclo a 30 fps (Basaltor)
-WALK_BETA = 0.70            # fraccion del ciclo con la pata apoyada
+WALK_BETA = float(scene.get('walk_beta', 0.70))  # fraccion del ciclo con la pata apoyada
 WALK_STRIDE = float(scene.get('walk_stride', 0.50))  # largo del paso (m) medido en la muneca/tobillo
 WALK_LIFT = float(scene.get('walk_lift', 0.20))      # altura maxima del pie al avanzar (m)
 WALK_CROUCH = float(scene.get('walk_crouch', 0.07))  # el cuerpo baja un poco al caminar (da juego a las rodillas)
@@ -501,17 +507,158 @@ def pose_walk(t):
     return p
 
 
-idle = make_action('Reposo', 60, pose_idle)
-roar = make_action('Rugido', 75, pose_roar)
-walk = make_action('Caminar', WALK_FRAMES, pose_walk)
+# ---------------------------------------------------------------- aves
+def slerp_q(q, f):
+    return Quaternion().slerp(q, max(0.0, min(1.0, f)))
+
+
+def frame_q(u, v):
+    """Rotacion cuyo marco (u, v, u x v) sale de ortonormalizar u y v."""
+    u = Vector(u).normalized()
+    v = Vector(v)
+    v = (v - u * v.dot(u)).normalized()
+    n = u.cross(v)
+    return Matrix((u, v, n)).transposed().to_quaternion()
+
+
+# direcciones de cada segmento del ala plegada contra el costado (ala izquierda; la derecha se espeja)
+FOLD = {'Brazo': ((0.24, 0.62, -0.75), (0.25, 0.45, -1.0)),
+        'Antebrazo': ((0.10, -0.85, 0.50), (0.22, 0.45, -1.0)),
+        'Mano': ((0.04, 0.92, -0.40), (0.18, 0.55, -1.0))}
+WING_FOLD = {}
+for side, sx in (('Izq', 1), ('Der', -1)):
+    for seg, (u_f, v_f) in FOLD.items():
+        n = 'Ala_%s_%s' % (side, seg)
+        if n not in REST:
+            continue
+        b = arm_data.bones[n]
+        u_s = (b.tail_local - b.head_local)
+        rest_q = frame_q(u_s, Vector((0, 1, 0)))
+        fold_q = frame_q(Vector((u_f[0] * sx, u_f[1], u_f[2])), Vector((v_f[0] * sx, v_f[1], v_f[2])))
+        WING_FOLD[n] = fold_q @ rest_q.inverted()  # rotacion absoluta (respecto del reposo) del segmento
+
+
+def wing_pose(p, side, fold=1.0, flap=0.0, lag=(0.0, 0.0), sweep=0.0, pitch=0.0):
+    """Pose de un ala: fold 0 = abierta, 1 = plegada. flap: aleteo en grados (positivo = arriba),
+    lag: retraso del antebrazo y la mano, sweep: barrido hacia atras, pitch: compensa la inclinacion del cuerpo."""
+    sx = 1 if side == 'Izq' else -1
+    names = ['Ala_%s_%s' % (side, k) for k in ('Brazo', 'Antebrazo', 'Mano')]
+    if names[0] not in REST:
+        return
+    fl = [slerp_q(WING_FOLD[n], fold) for n in names]
+    r1 = Quaternion((0, 1, 0), math.radians(-flap * sx)) @ Quaternion((1, 0, 0), math.radians(pitch))
+    r2 = Quaternion((0, 1, 0), math.radians(-lag[0] * sx)) @ Quaternion((0, 0, 1), math.radians(sweep * sx))
+    r3 = Quaternion((0, 1, 0), math.radians(-lag[1] * sx)) @ Quaternion((0, 0, 1), math.radians(sweep * 0.6 * sx))
+    a1 = r1 @ fl[0]
+    a2 = r1 @ r2 @ fl[1]
+    a3 = r1 @ r2 @ r3 @ fl[2]
+    p[names[0]] = (a1, 0.0)
+    p[names[1]] = (a1.inverted() @ a2, 0.0)
+    p[names[2]] = (a2.inverted() @ a3, 0.0)
+
+
+def smooth_hold(t, keys):
+    """Interpola valores con pausas (giros de cabeza 'de pajaro'): keys = [(t, valor), ...]."""
+    for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
+        if t0 <= t <= t1:
+            return v0 + (v1 - v0) * ease((t - t0) / max(1e-6, t1 - t0))
+    return keys[-1][1]
+
+
+def pose_bird_idle(t):
+    w = TAU * t
+    yaw = smooth_hold(t, [(0, 0), (0.08, 28), (0.30, 28), (0.36, -6), (0.55, -6), (0.62, -30), (0.82, -30),
+                          (0.9, 0), (1.0, 0)])
+    tilt = smooth_hold(t, [(0, 0), (0.08, 10), (0.3, 10), (0.36, 0), (0.62, -8), (0.82, -8), (0.9, 0), (1, 0)])
+    p = {'Torso': (rx(0.8 * math.sin(w)), 0.012 * math.sin(w)),
+         'Cuello': (rz(yaw * 0.35), 0.0),
+         'Cabeza': (rz(yaw * 0.65) @ ry(tilt), 0.0),
+         'Mandibula': (rx(0.0), 0.0),
+         'Cola': (rx(4 * max(0.0, math.sin(TAU * t * 3)) ** 8), 0.0)}
+    for side in ('Izq', 'Der'):
+        wing_pose(p, side, fold=1.0, flap=1.2 * math.sin(w))
+    return p
+
+
+def pose_bird_walk(t):
+    w = TAU * t
+    bob = -WALK_CROUCH + 0.02 * math.cos(2 * w)
+    roll = 3.0 * math.sin(w)
+    q_t = ry(roll) @ rx(1.0 * math.sin(2 * w))
+    q_inv = q_t.inverted()
+    pitch = 1.0 * math.sin(2 * w)
+    p = {'Torso': (q_t, bob),
+         'Cuello': (rx(5 * math.sin(2 * w + 0.4)) @ rz(-0.5 * roll), 0.0),  # cabeceo de ave
+         'Cabeza': (rx(-6 * math.sin(2 * w + 0.4)), 0.0),
+         'Mandibula': (rx(0.0), 0.0),
+         'Cola': (rz(-4 * math.sin(w)) @ rx(2 * math.sin(2 * w)), 0.0)}
+    for side in ('Izq', 'Der'):
+        wing_pose(p, side, fold=1.0, flap=1.5 * math.sin(2 * w))
+    for side, phase in (('Izq', 0.0), ('Der', 0.5)):
+        b1, b2, b3 = ('Pata_%s_%s' % (side, x) for x in ('Muslo', 'Tarso', 'Pie'))
+        S, Kn, W = REST[b1], REST[b2], REST[b3]
+        dy, dz, foot_pitch = foot_track((t + phase) % 1.0)
+        local = TORSO_HEAD + q_inv @ (W + Vector((0, dy, dz)) - Vector((0, 0, bob)) - TORSO_HEAD)
+        a1, a2 = leg_ik(S, Kn, W, local, knee_back=True)
+        a3 = math.radians(foot_pitch * 1.6) - math.radians(pitch) - a1 - a2
+        p[b1] = (Quaternion((1, 0, 0), a1), 0.0)
+        p[b2] = (Quaternion((1, 0, 0), a2), 0.0)
+        p[b3] = (Quaternion((1, 0, 0), a3), 0.0)
+    return p
+
+
+FLIGHT_PITCH = 55.0  # el cuerpo se pone horizontal al volar
+
+
+def pose_bird_flap(t):
+    w = TAU * t
+    flap = 38 * math.sin(w)  # arriba / abajo
+    up = max(0.0, -math.cos(w))  # en la subida el ala se recoge un poco
+    p = {'Torso': (rx(FLIGHT_PITCH + 3 * math.sin(w + 0.5)), -0.07 * math.sin(w - 0.4)),
+         'Cuello': (rx(-38 - 3 * math.sin(w + 0.5)), 0.0),
+         'Cabeza': (rx(-14), 0.0),
+         'Mandibula': (rx(0.0), 0.0),
+         'Cola': (rx(-30 + 4 * math.sin(w + 1.2)), 0.0)}
+    for side in ('Izq', 'Der'):
+        wing_pose(p, side, fold=0.12 + 0.28 * up, flap=flap, lag=(14 * math.sin(w - 0.7), 18 * math.sin(w - 1.3)),
+                  sweep=12 * up, pitch=-FLIGHT_PITCH)
+        p['Pata_%s_Muslo' % side] = (rx(55), 0.0)
+        p['Pata_%s_Tarso' % side] = (rx(-70), 0.0)
+        p['Pata_%s_Pie' % side] = (rx(60), 0.0)
+    return p
+
+
+def pose_bird_screech(t):
+    up = ease(t / 0.22) * (1 - ease((t - 0.72) / 0.28))
+    shake = math.sin(TAU * t * 16) * up
+    p = {'Torso': (rx(-6 * up), 0.03 * up),
+         'Cuello': (rx(-16 * up + shake * 1.5), 0.0),
+         'Cabeza': (rx(-24 * up + shake * 2) @ rz(shake * 1.5), 0.0),
+         'Mandibula': (rx(30 * up), 0.0),
+         'Cola': (rx(-22 * up), 0.0)}
+    for side in ('Izq', 'Der'):
+        wing_pose(p, side, fold=1.0 - 0.92 * up, flap=30 * up + shake * 3, sweep=-8 * up, pitch=-62 * up)
+    return p
+
+
+if TIPO == 'ave':
+    idle = make_action('Reposo', 90, pose_bird_idle)
+    roar = make_action('Grito', 75, pose_bird_screech)
+    walk = make_action('Caminar', WALK_FRAMES, pose_bird_walk)
+    flap = make_action('Aletear', 24, pose_bird_flap)
+    ANIMS = [('Reposo', idle), ('Grito', roar), ('Caminar', walk), ('Aletear', flap)]
+else:
+    idle = make_action('Reposo', 60, pose_idle)
+    roar = make_action('Rugido', 75, pose_roar)
+    walk = make_action('Caminar', WALK_FRAMES, pose_walk)
+    ANIMS = [('Reposo', idle), ('Rugido', roar), ('Caminar', walk)]
 print('velocidad de caminata sin patinar: %.3f m/s (%.3f m por ciclo)' % (WALK_SPEED, WALK_SPEED * WALK_FRAMES / FPS))
 arm.animation_data.action = idle
 
 rig_objs = [m for m, _b in rig_meshes]
 export_fbx(os.path.join(OUT, NAME + '_Roblox_Rig.fbx'), rig_objs, armature=arm, anim=True, action=idle)
-export_fbx(os.path.join(OUT, NAME + '_Anim_Reposo.fbx'), rig_objs, armature=arm, anim=True, action=idle)
-export_fbx(os.path.join(OUT, NAME + '_Anim_Rugido.fbx'), rig_objs, armature=arm, anim=True, action=roar)
-export_fbx(os.path.join(OUT, NAME + '_Anim_Caminar.fbx'), rig_objs, armature=arm, anim=True, action=walk)
+for an, act in ANIMS:
+    export_fbx(os.path.join(OUT, NAME + '_Anim_%s.fbx' % an), rig_objs, armature=arm, anim=True, action=act)
 arm.animation_data.action = idle
 
 # glb: materiales originales + ambas animaciones
