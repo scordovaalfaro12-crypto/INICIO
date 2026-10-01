@@ -49,7 +49,9 @@ par y deja ver una **lengua de lava**.
 
 ![Lado](renders/Basaltor_05_lado.png)
 
-Video giratorio con la animación de reposo: [`renders/Basaltor_giratorio.mp4`](renders/Basaltor_giratorio.mp4)
+![Giratorio](renders/Basaltor_giratorio.gif)
+
+Video giratorio con la animación de reposo en mejor calidad: [`renders/Basaltor_giratorio.mp4`](renders/Basaltor_giratorio.mp4)
 
 ## Partes del modelo
 
@@ -71,7 +73,7 @@ Cada parte es un objeto separado, con su punto de pivote en la articulación:
 basaltor/
 ├── renders/        renders finales, vista explotada, hoja de concepto y video giratorio
 ├── blender/
-│   ├── Basaltor.blend        34 piezas con materiales y pivotes + estudio de luces (F12 renderiza)
+│   ├── Basaltor.blend        30 piezas con materiales y pivotes + estudio de luces (F12 renderiza)
 │   └── Basaltor_Rig.blend    esqueleto (22 huesos) + acciones "Reposo" y "Rugido"
 ├── roblox/
 │   ├── Basaltor_Roblox_Rig.fbx      modelo con esqueleto, listo para importar (42 MeshParts)

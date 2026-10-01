@@ -65,7 +65,7 @@ def concept_sheet(rdir, out):
     ty = 1310
     for line in ('Columnas de basalto en panal con una grieta de magma a lo largo del lomo',
                  'Mazo de basalto en la cola  ·  lengua de lava  ·  cuernos estriados',
-                 '34 piezas  ·  22 huesos  ·  24.316 triángulos, listo para Roblox'):
+                 '30 piezas  ·  22 huesos  ·  24.316 triángulos, listo para Roblox'):
         d.ellipse([1292, ty + 10, 1304, ty + 22], fill=MAGMA)
         d.text((1318, ty), line, font=font(24), fill=INK)
         ty += 40
