@@ -7,6 +7,8 @@
 	  3. Dale Play: el magma pasa a Neon (brilla), se agrega luz y brasas sobre el lomo.
 	  4. (Opcional) Publica la animacion Basaltor_Anim_Reposo.fbx desde el Animation Editor
 	     y pega su ID en ANIMACION_REPOSO para que respire en bucle.
+	  5. (Opcional) Publica Basaltor_Anim_Caminar.fbx, pega su ID en ANIMACION_CAMINAR y pon
+	     PATRULLAR = true: camina ida y vuelta a la velocidad justa para que no patine.
 ]]
 
 local model = script.Parent
@@ -16,8 +18,17 @@ local COLOR_MAGMA = Color3.fromRGB(255, 122, 51)
 local COLOR_MAGMA_CALIENTE = Color3.fromRGB(255, 176, 74)
 local ANCLAR = true -- true: el modelo queda fijo (exhibicion). false si lo mueves con fisica o un script.
 local ANIMACION_REPOSO = "" -- ej: "rbxassetid://1234567890"
+local ANIMACION_CAMINAR = "" -- ID de Basaltor_Anim_Caminar.fbx publicada
+local PATRULLAR = false -- true: camina ida y vuelta (usa ANIMACION_CAMINAR; deja ANCLAR = true)
+local DISTANCIA_PATRULLA = 40 -- studs que recorre antes de darse vuelta
+local INVERTIR_DIRECCION = false -- true si al importarlo quedo mirando hacia atras
 local CON_BRASAS = true
 local CON_LUCES = true
+
+-- Velocidad a la que los pies no patinan: 0,595 m/s con el modelo original de 5,34 m de largo.
+-- El script la escala segun el tamano con que importaste el modelo.
+local VELOCIDAD_BASE = 0.595
+local LARGO_BASE = 5.34
 
 -- Materiales ------------------------------------------------------------------
 local function terminaEn(texto, sufijo)
@@ -129,10 +140,44 @@ if not animator then
 	animator.Parent = controlador
 end
 
-if ANIMACION_REPOSO ~= "" then
+local function cargar(id, prioridad)
 	local anim = Instance.new("Animation")
-	anim.AnimationId = ANIMACION_REPOSO
+	anim.AnimationId = id
 	local pista = animator:LoadAnimation(anim)
 	pista.Looped = true
-	pista:Play()
+	pista.Priority = prioridad
+	return pista
+end
+
+-- Caminata de patrulla ---------------------------------------------------------
+if PATRULLAR and ANIMACION_CAMINAR ~= "" then
+	local RunService = game:GetService("RunService")
+	local caminar = cargar(ANIMACION_CAMINAR, Enum.AnimationPriority.Movement)
+	caminar:Play()
+
+	local tamano = model:GetExtentsSize()
+	local velocidad = VELOCIDAD_BASE * math.max(tamano.X, tamano.Z) / LARGO_BASE
+	local sentido = INVERTIR_DIRECCION and -1 or 1
+	local DURACION_GIRO = 1.5 -- segundos para darse vuelta (sigue caminando mientras gira)
+	local recorrido = 0
+	local giroRestante = 0
+
+	RunService.Heartbeat:Connect(function(dt)
+		local pivote = model:GetPivot()
+		if giroRestante > 0 then
+			local paso = math.min(dt, giroRestante)
+			giroRestante -= paso
+			model:PivotTo(pivote * CFrame.Angles(0, math.pi * paso / DURACION_GIRO, 0))
+			return
+		end
+		local avance = velocidad * dt
+		model:PivotTo(pivote + pivote.LookVector * avance * sentido)
+		recorrido += avance
+		if recorrido >= DISTANCIA_PATRULLA then
+			recorrido = 0
+			giroRestante = DURACION_GIRO
+		end
+	end)
+elseif ANIMACION_REPOSO ~= "" then
+	cargar(ANIMACION_REPOSO, Enum.AnimationPriority.Idle):Play()
 end

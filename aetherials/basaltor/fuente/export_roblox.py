@@ -4,6 +4,7 @@ Salidas (en la carpeta indicada):
   Basaltor_Roblox_Rig.fbx          modelo con esqueleto (piezas rigidas por hueso) + animacion de reposo
   Basaltor_Anim_Reposo.fbx         animacion de reposo (respiracion, cola, mandibula)
   Basaltor_Anim_Rugido.fbx         animacion de rugido
+  Basaltor_Anim_Caminar.fbx        ciclo de caminata (en el lugar)
   Basaltor_Roblox_Partes.fbx       todas las piezas sueltas, sin esqueleto, con su pivote en la articulacion
   Basaltor.glb                     modelo completo con materiales originales y animaciones (visor / otros motores)
   Basaltor_Rig.blend               escena de Blender con el rig y las animaciones
@@ -401,14 +402,109 @@ def pose_roar(t):
     return p
 
 
+# ---------------------------------------------------------------- caminata
+# Paso lateral de cuadrupedo pesado (como un elefante): trasera izq -> delantera izq ->
+# trasera der -> delantera der. En el lugar (in place): el juego mueve el modelo.
+WALK_FRAMES = 36            # 1,2 s por ciclo a 30 fps
+WALK_BETA = 0.70            # fraccion del ciclo con la pata apoyada
+WALK_STRIDE = 0.50          # largo del paso (m) medido en la muneca/tobillo
+WALK_LIFT = 0.20            # altura maxima del pie al avanzar (m)
+WALK_CROUCH = 0.07          # el cuerpo baja un poco al caminar (da juego a las rodillas)
+WALK_SPEED = WALK_STRIDE / (WALK_BETA * WALK_FRAMES / FPS)  # m/s sin que patinen los pies
+# fase de cada pata (u = t + fase); el pie se apoya cuando u = 0
+WALK_LEGS = {
+    ('PataTra', 'Izq'): 0.00, ('PataDel', 'Izq'): 0.75,
+    ('PataTra', 'Der'): 0.50, ('PataDel', 'Der'): 0.25,
+}
+LEG_BONES = {'PataDel': ('Brazo', 'Antebrazo', 'Mano'), 'PataTra': ('Muslo', 'Pierna', 'Pie')}
+
+
+def ry(deg):
+    return Quaternion((0, 1, 0), math.radians(deg))
+
+
+def _wrap(a):
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+def leg_ik(S, Kn, W, T, knee_back):
+    """IK de 2 huesos en el plano sagital (YZ). Devuelve los giros en X del hueso superior
+    y del inferior. knee_back: True si la articulacion intermedia debe quedar hacia atras."""
+    u0, v0 = Kn - S, W - Kn
+    L1, L2 = math.hypot(u0.y, u0.z), math.hypot(v0.y, v0.z)
+    dy, dz = T.y - S.y, T.z - S.z
+    D = min(max(math.hypot(dy, dz), abs(L1 - L2) + 1e-3), L1 + L2 - 1e-4)
+    phi = math.atan2(dz, dy)
+    alpha = math.acos(max(-1.0, min(1.0, (L1 * L1 + D * D - L2 * L2) / (2 * L1 * D))))
+    best = None
+    for sgn in (1, -1):
+        tu = phi + sgn * alpha
+        ky, kz = S.y + L1 * math.cos(tu), S.z + L1 * math.sin(tu)
+        score = ky if knee_back else -ky
+        if best is None or score > best[0]:
+            best = (score, tu, ky, kz)
+    _s, tu, ky, kz = best
+    ty, tz = S.y + D * math.cos(phi), S.z + D * math.sin(phi)
+    tv = math.atan2(tz - kz, ty - ky)
+    a1 = _wrap(tu - math.atan2(u0.z, u0.y))
+    a2 = _wrap(tv - math.atan2(v0.z, v0.y) - a1)
+    return a1, a2
+
+
+def foot_track(u):
+    """Trayectoria de la muneca/tobillo relativa al reposo: (dy, dz, inclinacion del pie)."""
+    if u < WALK_BETA:  # apoyo: el pie retrocede pegado al suelo
+        s = u / WALK_BETA
+        return -WALK_STRIDE / 2 + WALK_STRIDE * s, 0.0, 0.0
+    s = (u - WALK_BETA) / (1 - WALK_BETA)  # vuelo: se levanta y avanza
+    e = s * s * (3 - 2 * s)
+    return WALK_STRIDE / 2 - WALK_STRIDE * e, WALK_LIFT * math.sin(math.pi * s), 22.0 * math.sin(math.pi * s)
+
+
+REST = {b.name: b.head_local.copy() for b in arm_data.bones}
+TORSO_HEAD = REST['Torso']
+
+
+def pose_walk(t):
+    w = TAU * t
+    bob = -WALK_CROUCH + 0.018 * math.cos(2 * w)
+    pitch, roll, yaw = 0.8 * math.sin(2 * w), 1.8 * math.sin(w), 1.5 * math.cos(w)
+    q_t = rz(yaw) @ ry(roll) @ rx(pitch)
+    q_inv = q_t.inverted()
+    p = {
+        'Torso': (q_t, bob),
+        'Cuello': (rz(-0.8 * yaw) @ rx(-0.6 * pitch + 1.2 * math.sin(2 * w + 0.6)), 0.0),
+        'Cabeza': (rx(-1.5 * math.cos(2 * w + 0.9)) @ rz(-0.5 * yaw), 0.0),
+        'Mandibula': (rx(3.0 + 1.5 * math.sin(2 * w)), 0.0),
+    }
+    for i, n in enumerate(tail_names):
+        p[n] = (rz((5 + 2.2 * i) * math.sin(w - 0.7 * (i + 1))) @ rx(1.2 * math.sin(2 * w - 0.5 * i)), 0.0)
+    for (pre, side), phase in WALK_LEGS.items():
+        b1, b2, b3 = ('%s_%s_%s' % (pre, side, x) for x in LEG_BONES[pre])
+        S, Kn, W = REST[b1], REST[b2], REST[b3]
+        dy, dz, foot_pitch = foot_track((t + phase) % 1.0)
+        target_world = W + Vector((0, dy, dz))
+        # objetivo expresado en el marco del torso ya posado (sube/baja y se inclina)
+        local = TORSO_HEAD + q_inv @ (target_world - Vector((0, 0, bob)) - TORSO_HEAD)
+        a1, a2 = leg_ik(S, Kn, W, local, knee_back=(pre == 'PataDel'))
+        a3 = math.radians(foot_pitch) - math.radians(pitch) - a1 - a2
+        p[b1] = (Quaternion((1, 0, 0), a1), 0.0)
+        p[b2] = (Quaternion((1, 0, 0), a2), 0.0)
+        p[b3] = (Quaternion((1, 0, 0), a3), 0.0)
+    return p
+
+
 idle = make_action('Reposo', 60, pose_idle)
 roar = make_action('Rugido', 75, pose_roar)
+walk = make_action('Caminar', WALK_FRAMES, pose_walk)
+print('velocidad de caminata sin patinar: %.3f m/s (%.3f m por ciclo)' % (WALK_SPEED, WALK_SPEED * WALK_FRAMES / FPS))
 arm.animation_data.action = idle
 
 rig_objs = [m for m, _b in rig_meshes]
 export_fbx(os.path.join(OUT, 'Basaltor_Roblox_Rig.fbx'), rig_objs, armature=arm, anim=True, action=idle)
 export_fbx(os.path.join(OUT, 'Basaltor_Anim_Reposo.fbx'), rig_objs, armature=arm, anim=True, action=idle)
 export_fbx(os.path.join(OUT, 'Basaltor_Anim_Rugido.fbx'), rig_objs, armature=arm, anim=True, action=roar)
+export_fbx(os.path.join(OUT, 'Basaltor_Anim_Caminar.fbx'), rig_objs, armature=arm, anim=True, action=walk)
 arm.animation_data.action = idle
 
 # glb: materiales originales + ambas animaciones

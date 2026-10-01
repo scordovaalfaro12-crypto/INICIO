@@ -49,6 +49,17 @@ par y deja ver una **lengua de lava**.
 
 ![Lado](renders/Basaltor_05_lado.png)
 
+### Caminando
+
+![Caminata](renders/Basaltor_caminata.gif)
+
+Ciclo de caminata de cuadrúpedo pesado (como un elefante): trasera izquierda → delantera izquierda →
+trasera derecha → delantera derecha. Cada pata usa cinemática inversa para que el pie quede plantado en
+el suelo mientras está apoyado; el cuerpo sube y baja con el peso, se balancea, y la cabeza y la cola
+acompañan el paso. MP4: [`renders/Basaltor_caminata.mp4`](renders/Basaltor_caminata.mp4)
+
+### Girando
+
 ![Giratorio](renders/Basaltor_giratorio.gif)
 
 Video giratorio con la animación de reposo en mejor calidad: [`renders/Basaltor_giratorio.mp4`](renders/Basaltor_giratorio.mp4)
@@ -74,15 +85,16 @@ basaltor/
 ├── renders/        renders finales, vista explotada, hoja de concepto y video giratorio
 ├── blender/
 │   ├── Basaltor.blend        30 piezas con materiales y pivotes + estudio de luces (F12 renderiza)
-│   └── Basaltor_Rig.blend    esqueleto (22 huesos) + acciones "Reposo" y "Rugido"
+│   └── Basaltor_Rig.blend    esqueleto (22 huesos) + acciones "Reposo", "Rugido" y "Caminar"
 ├── roblox/
 │   ├── Basaltor_Roblox_Rig.fbx      modelo con esqueleto, listo para importar (42 MeshParts)
 │   ├── Basaltor_Roblox_Partes.fbx   54 piezas sueltas sin esqueleto (para Motor6D)
 │   ├── Basaltor_Anim_Reposo.fbx     animación de reposo (respira, mueve la cola), 2 s en bucle
 │   ├── Basaltor_Anim_Rugido.fbx     animación de rugido, 2,5 s
+│   ├── Basaltor_Anim_Caminar.fbx    ciclo de caminata en el lugar, 1,2 s en bucle
 │   ├── Basaltor_Paleta.png          textura de paleta (512×256) que comparten las piezas de roca
 │   └── SetupBasaltor.server.lua     pone el magma en Neon y agrega luces, brasas y humo
-├── modelos/Basaltor.glb    modelo completo con materiales originales y las dos animaciones
+├── modelos/Basaltor.glb    modelo completo con materiales originales y las tres animaciones
 └── fuente/                 scripts de Python/Blender que generan todo lo anterior
 ```
 
@@ -99,7 +111,13 @@ basaltor/
 4. Para la animación: abre el **Animation Editor**, selecciona el modelo, usa
    **Import → From FBX Animation** con `Basaltor_Anim_Reposo.fbx` (o `..._Rugido.fbx`), publícala y
    pega el ID en `ANIMACION_REPOSO` dentro del script.
-5. Si el modelo aparece mirando hacia atrás, gíralo 180°. Para cambiarle el tamaño usa
+5. **Para que camine:** publica `Basaltor_Anim_Caminar.fbx` igual que la anterior, pega su ID en
+   `ANIMACION_CAMINAR` y pon `PATRULLAR = true`. El script lo hace caminar ida y vuelta y se da
+   vuelta al final del recorrido. La caminata es *en el lugar* (lo normal en juegos): el script
+   mueve el modelo a la velocidad exacta para que los pies no patinen, calculada según el tamaño con
+   que lo importaste (0,595 m/s con el tamaño original). Si lo mueves con tu propio código, usa esa
+   misma proporción.
+6. Si el modelo aparece mirando hacia atrás, gíralo 180° (o pon `INVERTIR_DIRECCION = true`). Para cambiarle el tamaño usa
    `Model:ScaleTo()` o la herramienta Scale con el Model seleccionado.
 
 **¿Por qué el magma va en piezas aparte?** En Roblox una MeshPart solo puede tener una textura y
@@ -138,8 +156,9 @@ sean figuras geométricas puestas tal cual; cada parte pasa por un flujo de mode
 7. **Panal hexagonal** para las columnas de basalto: alturas escalonadas, tapas inclinadas y
    biseladas, y un anillo de magma en la base de cada columna.
 8. **Tubos con radio variable** sobre curvas para los cuernos estriados, las púas y los colmillos.
-9. **Armature** con un hueso por articulación (22), cada pieza amarrada a su hueso, y dos acciones
-   (Reposo y Rugido).
+9. **Armature** con un hueso por articulación (22), cada pieza amarrada a su hueso, y tres acciones
+   (Reposo, Rugido y Caminar). La caminata usa **IK de dos huesos** por pata calculada en el marco
+   del torso, con el pie que se mantiene plano mientras apoya.
 10. **Render en Cycles** con eliminación de ruido (OpenImageDenoise) y bloom en el compositor.
 
 Para regenerar todo (Python 3.11): `pip install bpy==5.0.1 pillow` y luego, dentro de `fuente/`:
@@ -148,6 +167,8 @@ Para regenerar todo (Python 3.11): `pip install bpy==5.0.1 pillow` y luego, dent
 python3 build.py                               # modela las piezas -> basaltor.blend
 python3 export_roblox.py basaltor.blend out    # paleta, rig, animaciones, FBX y GLB -> out/
 python3 final_renders.py -- renders 128        # renders finales (Cycles, 128 muestras)
+python3 check_walk.py                          # comprueba que los pies no patinen en la caminata
+python3 walk_render.py -- caminata 24 2 800 540   # cuadros del GIF de la caminata
 python3 preview.py basaltor.blend prev/v 720 540 32 frente34,lado,cabeza   # vistas rapidas
 ```
 En `lib.py` (PALETTE) se cambian los colores y en `build.py` las proporciones y las semillas
