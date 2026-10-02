@@ -58,9 +58,15 @@ local BOTONES = {
 local COLOR = {
 	fondo = Color3.fromRGB(13, 16, 21),
 	texto = Color3.fromRGB(236, 239, 244),
-	oro = Color3.fromRGB(242, 194, 48),
-	oroClaro = Color3.fromRGB(255, 214, 102),
-	tinta = Color3.fromRGB(17, 19, 24),
+}
+
+-- colores del éter: logotipo, emblema y JUGAR
+local ETER = {
+	cian = Color3.fromRGB(86, 224, 236),
+	hielo = Color3.fromRGB(205, 246, 252),
+	lila = Color3.fromRGB(176, 160, 255),
+	azul = Color3.fromRGB(36, 160, 224),
+	violeta = Color3.fromRGB(124, 88, 246),
 }
 
 -- posiciones en el atlas (x, y, ancho, alto)
@@ -77,7 +83,11 @@ local SPRITES = {
 	nexo_anillo = { 0, 256, 256, 256 },
 	nexo_cristal = { 256, 256, 256, 256 },
 	nexo = { 512, 256, 256, 256 },
-	logo = { 28, 516, 968, 83 },
+	jugar = { 128, 128, 128, 128 },
+	brillo_redondo = { 768, 256, 128, 128 },
+	logo = { 28, 516, 968, 94 },
+	logo_brillo = { 0, 622, 1024, 150 },
+	brillo_boton = { 0, 784, 384, 160 },
 }
 
 ---------------------------------------------------------------- utilidades
@@ -112,6 +122,17 @@ local function sprite(nombre, props)
 	img.ImageRectSize = Vector2.new(r[3], r[4])
 	img.ScaleType = Enum.ScaleType.Fit
 	return img
+end
+
+-- franja de luz para los destellos (se mueve con UIGradient.Offset de -1 a 1)
+local function banda(minimo)
+	return NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.4, 1),
+		NumberSequenceKeypoint.new(0.5, minimo),
+		NumberSequenceKeypoint.new(0.6, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
 end
 
 local function esquinas(radio)
@@ -464,11 +485,12 @@ local function pantallaInicio()
 	crear("Frame", {
 		Name = "Velo",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(7, 9, 13),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		Parent = grupo,
 	}, {
 		crear("UIGradient", {
 			Rotation = 90,
+			Color = ColorSequence.new(Color3.fromRGB(8, 10, 18), Color3.fromRGB(16, 10, 34)),
 			Transparency = NumberSequence.new({
 				NumberSequenceKeypoint.new(0, 0.5),
 				NumberSequenceKeypoint.new(0.55, 0.62),
@@ -497,15 +519,67 @@ local function pantallaInicio()
 		crear("Frame", { Size = UDim2.fromOffset(1, alto), BackgroundTransparency = 1, LayoutOrder = orden, Parent = centro })
 	end
 
-	-- emblema del Nexo: los cinco Guardianes giran despacio alrededor del cristal
+	local empezado = false
+
+	-- emblema del Nexo: los cinco Guardianes giran despacio alrededor del cristal, que late
 	local emblema = crear("Frame", { Size = UDim2.fromOffset(96, 96), BackgroundTransparency = 1, LayoutOrder = 1, Parent = centro })
-	local anillo = sprite("nexo_anillo", { Size = UDim2.fromScale(1, 1), Parent = emblema })
-	sprite("nexo_cristal", { Size = UDim2.fromScale(1, 1), Parent = emblema })
+	local latido = sprite("brillo_redondo", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(112, 112),
+		ImageColor3 = ETER.cian,
+		ImageTransparency = 0.45,
+		ZIndex = 1,
+		Parent = emblema,
+	})
+	local anillo = sprite("nexo_anillo", { Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = emblema })
+	local cristal = sprite("nexo_cristal", { Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = emblema })
+	crear("UIGradient", { Rotation = 90, Color = ColorSequence.new(ETER.hielo, ETER.lila), Parent = cristal })
 	TweenService:Create(anillo, TweenInfo.new(40, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), { Rotation = 360 }):Play()
+	TweenService:Create(
+		latido,
+		TweenInfo.new(2.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ ImageTransparency = 0.85, Size = UDim2.fromOffset(92, 92) }
+	):Play()
 
 	hueco(28, 2)
-	local logo = SPRITES.logo
-	sprite("logo", { Size = UDim2.fromOffset(640, math.round(640 * logo[4] / logo[3])), LayoutOrder = 3, Parent = centro })
+	-- logotipo: degradado de éter, un halo que respira y un destello que lo recorre
+	local logo, halo = SPRITES.logo, SPRITES.logo_brillo
+	local anchoLogo = 640
+	local k = anchoLogo / logo[3]
+	local cajaLogo = crear("Frame", {
+		Size = UDim2.fromOffset(anchoLogo, math.round(logo[4] * k)),
+		BackgroundTransparency = 1,
+		LayoutOrder = 3,
+		Parent = centro,
+	})
+	local haloLogo = sprite("logo_brillo", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(math.round(halo[3] * k), math.round(halo[4] * k)),
+		ImageColor3 = ETER.cian,
+		ImageTransparency = 0.45,
+		ZIndex = 1,
+		Parent = cajaLogo,
+	})
+	local letras = sprite("logo", { Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = cajaLogo })
+	crear("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(0.5, ETER.hielo),
+			ColorSequenceKeypoint.new(1, ETER.lila),
+		}),
+		Parent = letras,
+	})
+	local destello = sprite("logo", { Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = cajaLogo })
+	local barridoLogo = crear("UIGradient", { Rotation = 20, Offset = Vector2.new(-1, 0), Transparency = banda(0.2), Parent = destello })
+	TweenService:Create(
+		haloLogo,
+		TweenInfo.new(2.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ ImageTransparency = 0.78 }
+	):Play()
+
 	hueco(20, 4)
 	crear("TextLabel", {
 		Size = UDim2.fromOffset(720, 24),
@@ -519,19 +593,97 @@ local function pantallaInicio()
 		Parent = centro,
 	})
 	hueco(44, 6)
-	local jugar = crear("TextButton", {
-		Name = "Jugar",
-		Size = UDim2.fromOffset(216, 56),
-		BackgroundColor3 = COLOR.oro,
-		AutoButtonColor = false,
-		Text = "JUGAR",
-		FontFace = fuente(Enum.FontWeight.Bold),
-		TextSize = 18,
-		TextColor3 = COLOR.tinta,
+
+	-- JUGAR: degradado de éter con borde de vidrio, un halo que respira y un brillo que lo cruza
+	local cajaJugar = crear("Frame", {
+		Size = UDim2.fromOffset(232, 58),
+		BackgroundTransparency = 1,
 		LayoutOrder = 7,
 		Parent = centro,
+	})
+	local escalaJugar = crear("UIScale", { Parent = cajaJugar })
+	local hb = SPRITES.brillo_boton
+	local tamHalo = UDim2.fromOffset(math.round(hb[3] * 232 / 288), math.round(hb[4] * 58 / 64))
+	local haloJugar = sprite("brillo_boton", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 4),
+		Size = tamHalo,
+		ImageColor3 = ETER.violeta,
+		ImageTransparency = 0.45,
+		ZIndex = 1,
+		Parent = cajaJugar,
+	})
+	TweenService:Create(
+		haloJugar,
+		TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Size = tamHalo + UDim2.fromOffset(24, 10) }
+	):Play()
+	local jugar = crear("TextButton", {
+		Name = "Jugar",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 2,
+		Parent = cajaJugar,
+	}, {
+		esquinas(UDim.new(0.5, 0)),
+		crear("UIGradient", { Color = ColorSequence.new(ETER.azul, ETER.violeta) }),
+		crear("UIStroke", {
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Color = Color3.new(1, 1, 1),
+			Transparency = 0.55,
+			Thickness = 1.5,
+		}),
+	})
+	local brilloJugar = crear("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ZIndex = 3,
+		Parent = jugar,
 	}, { esquinas(UDim.new(0.5, 0)) })
-	local escalaJugar = crear("UIScale", { Parent = jugar })
+	local barridoJugar = crear("UIGradient", { Rotation = 20, Offset = Vector2.new(-1, 0), Transparency = banda(0.55), Parent = brilloJugar })
+	local contenido = crear("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 4,
+		Parent = jugar,
+	}, {
+		crear("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, 10),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	sprite("jugar", { Size = UDim2.fromOffset(18, 18), LayoutOrder = 1, ZIndex = 4, Parent = contenido })
+	crear("TextLabel", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 58),
+		BackgroundTransparency = 1,
+		Text = "JUGAR",
+		FontFace = fuente(Enum.FontWeight.Bold),
+		TextSize = 19,
+		TextColor3 = Color3.new(1, 1, 1),
+		LayoutOrder = 2,
+		ZIndex = 4,
+		Parent = contenido,
+	})
+
+	local function barrer(gradiente, segundos)
+		gradiente.Offset = Vector2.new(-1, 0)
+		tween(gradiente, segundos, { Offset = Vector2.new(1, 0) }, Enum.EasingStyle.Sine)
+	end
+	task.spawn(function()
+		task.wait(1)
+		while gui.Parent and not empezado do
+			barrer(barridoLogo, 1.4)
+			task.wait(0.6)
+			barrer(barridoJugar, 0.9)
+			task.wait(3.6)
+		end
+	end)
 
 	-- zona actual, abajo a la izquierda
 	local zona = crear("Frame", {
@@ -575,12 +727,13 @@ local function pantallaInicio()
 	local conCamara = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(reescalar)
 
 	jugar.MouseEnter:Connect(function()
-		tween(jugar, 0.2, { BackgroundColor3 = COLOR.oroClaro })
 		tween(escalaJugar, 0.2, { Scale = 1.04 })
+		tween(haloJugar, 0.2, { ImageTransparency = 0.15 })
+		barrer(barridoJugar, 0.7)
 	end)
 	jugar.MouseLeave:Connect(function()
-		tween(jugar, 0.2, { BackgroundColor3 = COLOR.oro })
 		tween(escalaJugar, 0.2, { Scale = 1 })
+		tween(haloJugar, 0.3, { ImageTransparency = 0.45 })
 	end)
 
 	tween(grupo, 0.9, { GroupTransparency = 0 })
@@ -588,7 +741,6 @@ local function pantallaInicio()
 		GuiService.SelectedObject = jugar
 	end
 
-	local empezado = false
 	local conTeclas
 	local function empezar()
 		if empezado then

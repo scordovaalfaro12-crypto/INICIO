@@ -11,12 +11,18 @@ un emblema y el logotipo, todo en **un solo atlas** que se sube una vez a Roblox
   de iconos. El nombre y la tecla aparecen en un tooltip al pasar el mouse.
 - **Se mantienen los colores de cada categoría** (azul, turquesa, verde, morado, rojo, oro, rosa), pero
   solo como acento: el icono se tiñe al pasar el mouse y un punto marca el panel abierto.
-- **Un único color de acción:** el oro del botón JUGAR.
-- **Portada:** el mundo del juego desenfocado detrás (`BlurEffect`), un velo oscuro en degradado, el
-  emblema del Nexo, el logotipo con letras espaciadas, el subtítulo y JUGAR. La zona va abajo a la
-  izquierda, pequeña. Se quitan las barras negras y el contorno grueso del título.
-- **Emblema del Nexo:** el cristal al centro y un anillo con **cinco puntos, los cinco Guardianes**, que
-  gira despacio (una vuelta cada 40 s).
+- **Colores del éter** (cian, hielo, lila y violeta) para la marca: logotipo, emblema y JUGAR.
+- **Portada:** el mundo del juego desenfocado detrás (`BlurEffect`), un velo oscuro que baja a violeta, el
+  emblema del Nexo, el logotipo, el subtítulo y JUGAR. La zona va abajo a la izquierda, pequeña. Se
+  quitan las barras negras y el contorno grueso del título.
+- **Logotipo con vida:** letras gruesas con degradado de blanco a hielo y lila, un halo cian que respira
+  y un destello de luz que lo recorre cada 4 s.
+- **JUGAR:** píldora con degradado azul→violeta, borde de vidrio, icono ▶, un halo violeta que respira y
+  el mismo destello. Al pasar el mouse crece un poco y el halo se enciende.
+- **Emblema del Nexo:** el cristal (con degradado) late sobre un brillo cian y un anillo con **cinco
+  puntos, los cinco Guardianes**, gira despacio (una vuelta cada 40 s).
+
+Todo eso lo hace Roblox con `UIGradient` y `TweenService` sobre sprites blancos: el atlas no lleva colores.
 
 ![Portada](mockups/portada.gif)
 
@@ -26,8 +32,8 @@ un emblema y el logotipo, todo en **un solo atlas** que se sube una vez a Roblox
 
 | Archivo | Contenido |
 |---|---|
-| `sprites/Aetherials_UI_Atlas.png` | **El que se sube a Roblox** (1024×1024): los 9 iconos, el emblema en partes y el logotipo |
-| `sprites/iconos/*.png` | Cada icono suelto a 256×256: equipo, mapa, tienda, caja, pvp, misiones, registro, ubicacion, cerrar |
+| `sprites/Aetherials_UI_Atlas.png` | **El que se sube a Roblox** (1024×1024): los 10 iconos, el emblema en partes, el logotipo y los halos |
+| `sprites/iconos/*.png` | Cada icono suelto a 256×256: equipo, mapa, tienda, caja, pvp, misiones, registro, ubicacion, cerrar, jugar |
 | `sprites/Logo_Aetherials.png` | El logotipo suelto |
 | `sprites/Nexo_Anillo.png`, `Nexo_Cristal.png`, `Nexo_Emblema.png` | El emblema suelto (512×512) |
 
@@ -39,9 +45,12 @@ Posiciones en el atlas (`ImageRectOffset` / `ImageRectSize`):
 | Sprite | x, y, ancho, alto |
 |---|---|
 | equipo · mapa · tienda · caja · pvp · misiones · registro · ubicacion | fila de arriba, celdas de 128 (x = 0, 128, … 896; y = 0) |
-| cerrar | 0, 128, 128, 128 |
+| cerrar · jugar | 0 / 128, 128, 128, 128 |
 | nexo_anillo · nexo_cristal · nexo | 0 / 256 / 512, 256, 256, 256 |
-| logo | 28, 516, 968, 83 |
+| brillo_redondo | 768, 256, 128, 128 |
+| logo | 28, 516, 968, 94 |
+| logo_brillo (halo del logo) | 0, 622, 1024, 150 |
+| brillo_boton (halo de JUGAR) | 0, 784, 384, 160 |
 
 ## Instalarlo en Roblox Studio
 
@@ -81,8 +90,8 @@ que actualiza el texto en vivo) y `POSICION_MENU = "izquierda"` para una barra v
 
 - El script compila sin errores (`luau-compile`) y pasa `luau-lsp analyze` con las definiciones de la API
   de Roblox.
-- Además revisé contra esa API las 184 propiedades que el script asigna, los 29 valores de `Enum` y
-  todos los métodos y eventos que usa: todos existen.
+- Además revisé contra esa API las 262 propiedades que el script asigna y los valores de `Enum`,
+  métodos y eventos que usa: todos existen.
 - Los mockups replican las mismas medidas, colores y fuente (Montserrat) que el script, sobre tus capturas.
 - **No lo pude probar dentro de Roblox Studio.** La primera vez, revisa que tu barra vieja quede desactivada
   (si no, las teclas abrirían los paneles dos veces) y que los nombres de tus paneles coincidan.

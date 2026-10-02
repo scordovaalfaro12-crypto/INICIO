@@ -54,7 +54,7 @@ function wordmarkHTML(text, px, weight, tracking) {
   }
   // logotipo en grande; el recorte y el escalado final se hacen con PIL
   await page.setViewportSize({ width: 3000, height: 600 });
-  await page.setContent(wordmarkHTML(process.env.LOGO || 'AETHERIALS', 220, process.env.PESO || 600, process.env.TRACK || 0.3));
+  await page.setContent(wordmarkHTML(process.env.LOGO || 'AETHERIALS', 220, process.env.PESO || 800, process.env.TRACK || 0.16));
   await page.evaluate(() => document.fonts.ready);
   const el = await page.$('#t');
   await el.screenshot({ path: path.join(OUT, 'logo_raw.png'), omitBackground: true });

@@ -57,6 +57,7 @@ const ICONOS = {
     <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/>
     <circle cx="12" cy="10" r="2.3"/>`,
   cerrar: `<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>`,
+  jugar: `<path d="M8.5 5.8v12.4a.8.8 0 0 0 1.2.7l9.6-6.2a.8.8 0 0 0 0-1.4L9.7 5.1a.8.8 0 0 0-1.2.7z" fill="#fff"/>`,
 };
 
 // Emblema del Nexo en una grilla de 64: anillo con los cinco Guardianes y el cristal al centro.
