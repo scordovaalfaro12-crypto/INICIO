@@ -1,0 +1,17 @@
+# Añadir AL FINAL de cada lista del MANIFIESTO en Arte/herramientas/atlas.py
+# (no se reordena ni se toca nada de lo que ya está)
+
+# hoja "objetos" (además: lienzo 128 -> 256 y 5 -> 10 columnas, como pidió el lado del código)
+"repelente_etereo", "repelente_fuerte", "amuleto_prismatico",
+"brasa_viva", "perla_marea", "semilla_antigua", "bobina_cargada", "engranaje_pulido", "diapason",
+"pluma_lisa", "prisma_puro", "restos_etereos", "banda_focal", "cascabel_fortuna",
+"disco_lava_torrencial", "disco_canon_hidro", "disco_drenaje_raiz", "disco_descarga_masiva",
+"disco_embestida_blindada", "disco_aullido_atronador", "disco_lanza_cristal",
+"disco_embestida", "disco_proteccion", "disco_agilidad",
+"huevo_nido",
+
+# hoja "dock" (equipo, mapa, tienda, caja, pvp y misiones ya están)
+"objetos_reposo", "objetos_activo", "registro_reposo", "registro_activo",
+
+# hoja "tipos" (filas libres al final)
+"aviso_registro", "aviso_prisma", "aviso_exp", "aviso_clima", "aviso_premio",

@@ -27,6 +27,11 @@
 [`interfaz/`](interfaz/): pantalla de inicio y barra de menú minimalistas con sprites (un solo atlas)
 y el LocalScript que las arma en Roblox.
 
+## Iconos en pixel art para el juego
+
+[`arte_iconos/`](arte_iconos/): 46 iconos nuevos (objetos, dock y avisos) con las reglas del paquete
+`Arte/` del juego, más las líneas para el MANIFIESTO de `atlas.py`.
+
 ## Qué trae cada carpeta
 
 Renders, GIFs (caminando y girando; las aves también volando), archivos de Blender, un GLB, los FBX
