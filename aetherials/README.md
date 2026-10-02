@@ -20,6 +20,13 @@
 | 2. **Zephalcon** | [`zephalcon/`](zephalcon/) | Halcón cazador de viento: pechera de chevrones, collar, máscara dorada, alas grandes y cola con estelas |
 | 3. **Zephyrex** | [`zephyrex/`](zephyrex/) | El rey del viento: corona en abanico, capa de plumas, emblema dorado, visor, alas enormes con puntas plateadas y cuatro estelas |
 
+## Interfaz del juego
+
+![Interfaz](interfaz/mockups/antes_despues.png)
+
+[`interfaz/`](interfaz/): pantalla de inicio y barra de menú minimalistas con sprites (un solo atlas)
+y el LocalScript que las arma en Roblox.
+
 ## Qué trae cada carpeta
 
 Renders, GIFs (caminando y girando; las aves también volando), archivos de Blender, un GLB, los FBX
@@ -27,4 +34,5 @@ para Roblox (con esqueleto, piezas sueltas y animaciones) y un script de configu
 
 El código que genera todos los modelos está en [`fuente/`](fuente/) (Python + Blender 5.0,
 `pip install bpy==5.0.1 pillow`): `build_basaltor.py`, `build_obsidrax.py`, `build_zephalcon.py`,
-`build_zephyrex.py` y los scripts compartidos de exportación y render.
+`build_zephyrex.py` y los scripts compartidos de exportación y render; los sprites de la interfaz,
+en `fuente/interfaz/`.
